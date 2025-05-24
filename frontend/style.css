@@ -1,0 +1,1419 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/icon?family=Material+Icons');
+
+:root {
+    --font-family-primary: 'Roboto', sans-serif;
+    --font-family-icons: 'Material Icons';
+
+    /* Light Theme (Default) */
+    --primary-bg-color: #f4f6f8;
+    --secondary-bg-color: #ffffff;
+    --text-color-primary: #212121;
+    --text-color-secondary: #5f6368;
+    --accent-color: #ff6f00; /* Orange */
+    --accent-color-darker: #e65100;
+    --border-color: #e0e0e0;
+    --shadow-color: rgba(0, 0, 0, 0.1);
+    --glass-bg-color: rgba(255, 255, 255, 0.6);
+    --glass-border-color: rgba(255, 255, 255, 0.3);
+    --scrollbar-thumb-color: #c1c1c1;
+    --scrollbar-track-color: #f1f1f1;
+    --icon-color: #5f6368;
+    --accent-color-rgb: 255, 111, 0; /* Orange RGB */
+}
+
+body.dark-theme { /* Or html.dark-theme */
+    --primary-bg-color: #121212;
+    --secondary-bg-color: #1e1e1e;
+    --accent-color-rgb: 0, 123, 255; /* Deep Blue RGB */
+    --text-color-primary: #e0e0e0;
+    --text-color-secondary: #a0a0a0;
+    --accent-color: #007bff; /* Deep Blue */
+    --accent-color-darker: #0056b3;
+    --border-color: #3a3a3a;
+    --shadow-color: rgba(0, 0, 0, 0.3);
+    --glass-bg-color: rgba(30, 30, 30, 0.6); /* Darker glass */
+    --glass-border-color: rgba(255, 255, 255, 0.1);
+    --scrollbar-thumb-color: #555;
+    --scrollbar-track-color: #333;
+    --icon-color: #a0a0a0;
+}
+
+body {
+    margin: 0;
+    font-family: var(--font-family-primary);
+    background-color: var(--primary-bg-color);
+    color: var(--text-color-primary);
+    line-height: 1.6;
+    transition: background-color 0.3s, color 0.3s;
+    overflow-x: hidden; /* Prevent horizontal scroll */
+}
+
+* {
+    box-sizing: border-box;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb-color) var(--scrollbar-track-color);
+}
+
+*::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+    background: var(--scrollbar-track-color);
+    border-radius: 4px;
+}
+
+*::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb-color);
+    border-radius: 4px;
+    border: 2px solid var(--scrollbar-track-color);
+}
+
+#app-container {
+    display: grid;
+    grid-template-areas:
+        "header header"
+        "drawer content"
+        "player player";
+    grid-template-columns: auto 1fr; /* Drawer width auto, content takes rest */
+    grid-template-rows: auto 1fr auto; /* Header/Player auto height, content takes rest */
+    height: 100vh;
+    width: 100vw;
+    overflow: hidden; /* To manage scrolling within main-content */
+}
+
+/* Main Header Styles */
+#main-header {
+    grid-area: header;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 15px 30px; /* Increased padding */
+    background-color: var(--glass-bg-color); /* Frosted glass effect */
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--glass-border-color); /* Subtle border for glass */
+    position: relative; /* For theme switcher positioning if not already set */
+    height: 70px; /* Fixed height for the header */
+    z-index: 1000; /* Keep header on top */
+}
+
+/* Logo */
+.header-logo {
+    display: flex;
+    align-items: center;
+    font-size: 1.5em;
+    font-weight: bold;
+    color: var(--accent-color); /* Use accent color for logo text */
+}
+
+.header-logo img {
+    height: 40px; /* Adjust as needed */
+    margin-right: 10px;
+    filter: drop-shadow(0 0 5px var(--accent-color)); /* Optional: glow effect for logo */
+}
+
+/* Search Bar */
+.search-bar-container {
+    display: flex;
+    align-items: center;
+    background-color: var(--secondary-bg-color);
+    padding: 8px 15px;
+    border-radius: 25px; /* Pill shape */
+    box-shadow: 0 1px 3px var(--shadow-color);
+    width: 40%; /* Adjust width as needed */
+    transition: background-color 0.3s;
+}
+
+.search-bar-container:hover,
+.search-bar-container input:focus-within { /* More specific for input focus */
+    background-color: var(--primary-bg-color); /* Slightly different bg on hover/focus */
+}
+
+.search-bar-container .search-icon {
+    margin-right: 10px;
+    color: var(--text-color-secondary);
+}
+
+#header-search-input {
+    border: none;
+    outline: none;
+    background-color: transparent;
+    color: var(--text-color-primary);
+    font-size: 1em;
+    width: 100%;
+}
+
+#header-search-input::placeholder {
+    color: var(--text-color-secondary);
+}
+
+/* Task Queue */
+.task-queue-container {
+    position: relative; /* For potential dropdown/expanded view */
+}
+
+/* Task Queue Button - ensure it's a good container */
+#task-queue-button {
+    position: relative; /* Needed for absolute positioning of icon and SVG */
+    width: 48px; /* Adjust size to fit progress ring and icon */
+    height: 48px;
+    padding: 0; /* Remove padding if fixed size is used */
+    background-color: transparent;
+    border: none;
+    color: var(--icon-color);
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#task-queue-button:hover {
+    background-color: var(--shadow-color);
+}
+
+#task-queue-button .material-icons {
+    font-size: 24px; /* Adjust icon size if needed */
+    position: absolute; /* Position icon in the center of the button */
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2; /* Ensure icon is above progress bar */
+    color: var(--icon-color); /* Make sure icon color is set */
+}
+
+/* Circular Progress SVG */
+.circular-progress {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg); /* Start progress from the top */
+    z-index: 1; /* Behind the icon */
+}
+
+.circular-progress .progress-background {
+    stroke: var(--border-color); /* Light grey for the track */
+    /* fill: none; stroke-width: 3; already in HTML for clarity */
+}
+
+.circular-progress .progress-bar {
+    stroke: var(--accent-color); /* Accent color for progress */
+    stroke-linecap: round; /* Rounded ends for the progress path */
+    transition: stroke-dasharray 0.3s ease;
+    /* fill: none; stroke-width: 3; stroke-dasharray; already in HTML */
+}
+
+/* Example of setting progress (can be done via JS later) */
+/* To show 75% progress: stroke-dasharray: 75, 100; */
+/* For a spinning/indeterminate effect if no specific progress: */
+/*
+.circular-progress.indeterminate .progress-bar {
+    stroke-dasharray: 25, 100;
+    animation: spin 1.5s linear infinite;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(-90deg);
+    }
+    100% {
+        transform: rotate(270deg);
+    }
+}
+*/
+
+/* Adjust theme switcher position if it was in #main-header previously and needs specific positioning now */
+#theme-switcher {
+    /* Ensure it's positioned correctly, e.g., if it's part of the header items or separate */
+    /* Example: if it's meant to be part of .task-queue-container or similar flex group */
+    /* For now, assuming its previous absolute positioning is fine relative to #main-header */
+    /* Resetting some properties if they conflict with flex layout, or adjust as needed */
+    position: static; /* Remove absolute if it's a flex item now, or adjust */
+    margin-left: 15px; /* Example spacing if it's part of a group */
+}
+
+/* Home Page Specific Styles */
+#home-page {
+    padding: 0; /* Remove padding if #main-content already has it, or adjust */
+}
+
+#home-page h2 {
+    margin-bottom: 20px;
+    font-size: 1.8em;
+    color: var(--text-color-primary);
+}
+
+/* Song Card Grid */
+#song-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); /* Responsive grid */
+    gap: 20px;
+}
+
+/* Individual Song Card */
+.song-card {
+    background-color: var(--secondary-bg-color);
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: 0 2px 8px var(--shadow-color);
+    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* Ensures child elements adhere to border-radius */
+}
+
+.song-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 15px var(--shadow-color);
+}
+
+.card-art-container {
+    position: relative;
+    width: 100%;
+    padding-bottom: 100%; /* 1:1 Aspect Ratio for the art container */
+    margin-bottom: 10px;
+    border-radius: 6px;
+    overflow: hidden; /* Important for the image and play button positioning */
+    cursor: pointer; /* For navigating to song detail */
+}
+
+.song-card-art {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+}
+.song-card:hover .song-card-art {
+    transform: scale(1.05); /* Subtle zoom on card hover */
+}
+
+.play-on-card-button {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    background-color: rgba(0, 0, 0, 0.6); /* Semi-transparent background */
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0; /* Hidden by default */
+    transform: translateY(10px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.song-card:hover .play-on-card-button {
+    opacity: 1;
+    transform: translateY(0);
+}
+.play-on-card-button:hover {
+    background-color: var(--accent-color); /* Use theme accent on hover */
+}
+.play-on-card-button .material-icons {
+    font-size: 24px;
+    color: white; /* Icon color explicitly white */
+}
+
+
+.song-card-info {
+    text-align: left; /* Ensure text is aligned left */
+    overflow: hidden; /* For ellipsis on title/artist */
+    flex-grow: 1; /* Allows info to take space before actions */
+    margin-bottom: 10px;
+}
+
+.song-card-title {
+    font-size: 1em;
+    font-weight: 500;
+    color: var(--text-color-primary);
+    margin: 0 0 4px 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.song-card-artist {
+    font-size: 0.85em;
+    color: var(--text-color-secondary);
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.song-card-actions {
+    display: flex;
+    justify-content: flex-end; /* Align add to collection to the right */
+    align-items: center;
+    margin-top: auto; /* Push actions to the bottom if card height varies */
+}
+
+.add-to-collection-button {
+    background: transparent;
+    border: none;
+    color: var(--icon-color);
+    padding: 6px;
+    border-radius: 50%;
+}
+.add-to-collection-button:hover {
+    background-color: var(--shadow-color);
+    color: var(--accent-color);
+}
+.add-to-collection-button .material-icons {
+    font-size: 22px;
+}
+
+
+/* No Songs Message */
+#no-songs-message {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--text-color-secondary);
+}
+#no-songs-message p {
+    font-size: 1.1em;
+}
+.inline-link { /* For links within text, like the one in no-songs-message */
+    color: var(--accent-color);
+    text-decoration: underline;
+    font-weight: 500;
+}
+.inline-link:hover {
+    color: var(--accent-color-darker);
+}
+
+/* Search Page Specific Styles */
+#search-page {
+    padding: 0; /* Adjust if #main-content already has padding */
+}
+
+#search-page h2 {
+    margin-bottom: 25px;
+    font-size: 1.8em;
+    color: var(--text-color-primary);
+    text-align: center;
+}
+
+.search-input-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 30px;
+    padding: 20px;
+    background-color: var(--secondary-bg-color);
+    border-radius: 8px;
+    box-shadow: 0 2px 8px var(--shadow-color);
+}
+
+#search-page-input {
+    width: 100%;
+    max-width: 600px;
+    padding: 15px 20px;
+    font-size: 1.1em;
+    border: 1px solid var(--border-color);
+    border-radius: 25px; /* Pill shape */
+    margin-bottom: 15px;
+    text-align: center;
+    background-color: var(--primary-bg-color);
+    color: var(--text-color-primary);
+}
+#search-page-input:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 3px rgba(var(--accent-color-rgb), 0.3); /* Use RGB version of accent */
+}
+
+.search-source-selector-container {
+    margin-bottom: 20px;
+    font-size: 0.9em;
+    color: var(--text-color-secondary);
+}
+
+#search-source-select {
+    padding: 8px 12px;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
+    background-color: var(--primary-bg-color);
+    color: var(--text-color-primary);
+    margin-left: 8px;
+}
+
+#search-page-button {
+    padding: 12px 30px;
+    font-size: 1em;
+    /* background-color: var(--accent-color); -- Already set by general button styles */
+    /* color: white; -- Already set by general button styles */
+    /* border: none; -- Already set by general button styles */
+    border-radius: 25px;
+    cursor: pointer;
+    display: inline-flex; /* To align icon and text */
+    align-items: center;
+    /* transition: background-color 0.2s; -- Already set by general button styles */
+}
+#search-page-button .material-icons {
+    margin-right: 8px;
+    /* color: white; -- Inherits from button or can be set if needed */
+}
+/* #search-page-button:hover {
+    background-color: var(--accent-color-darker); -- Already set by general button styles
+} */
+
+/* Search Results Info */
+.search-results-info {
+    font-size: 1em;
+    color: var(--text-color-secondary);
+    margin-bottom: 20px;
+    text-align: center;
+}
+.search-results-info strong {
+    color: var(--text-color-primary);
+}
+
+/* Styles for song cards in search results (if different from home page) */
+/* .search-results-grid .song-card { ... } */
+/* For now, assume .song-card styles are reusable. */
+
+.add-to-download-queue-button { /* Replaces .add-to-collection-button styling for search cards */
+    background: transparent;
+    border: none;
+    color: var(--accent-color); /* Use accent color to signify action */
+    padding: 6px;
+    border-radius: 50%;
+}
+.add-to-download-queue-button:hover {
+    background-color: var(--shadow-color);
+    color: var(--accent-color-darker);
+}
+.add-to-download-queue-button .material-icons {
+    font-size: 24px; /* Slightly larger for emphasis */
+}
+
+/* Animation for search input area when results are visible */
+.search-input-area {
+    /* ... existing styles ... */
+    transition: margin-bottom 0.5s ease-out, transform 0.5s ease-out;
+    /* transform-origin: top center; */ /* If using scale */
+}
+
+.search-input-area.results-visible {
+    margin-bottom: 20px; /* Reduced margin when results show */
+    /* Example: transform: translateY(-10px) scale(0.95); */ /* Optional: slight scale down */
+}
+
+#search-results-area {
+    /* ... existing styles ... */
+    width: 100%; /* Ensure it uses available width */
+    padding-top: 20px; /* Keep existing padding or adjust */
+}
+.search-results-grid { /* If this is a new class for the grid */
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 20px;
+}
+
+
+/* Dialog Overlay */
+.dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6); /* Semi-transparent black */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000; /* High z-index */
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0s 0.3s;
+}
+
+.dialog-overlay.visible {
+    opacity: 1;
+    visibility: visible;
+    transition-delay: 0s;
+}
+
+/* Dialog Box */
+.dialog-box {
+    background-color: var(--secondary-bg-color);
+    padding: 25px;
+    border-radius: 8px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+    width: 90%;
+    max-width: 450px;
+    position: relative;
+    transform: scale(0.9);
+    transition: transform 0.3s ease;
+}
+.dialog-overlay.visible .dialog-box {
+    transform: scale(1);
+}
+
+.dialog-box h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: var(--text-color-primary);
+}
+.dialog-box h4 {
+    margin-top: 20px;
+    margin-bottom: 10px;
+    font-size: 1em;
+}
+
+#existing-collections-list .collection-item-button {
+    display: block;
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 8px;
+    background-color: var(--primary-bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    text-align: left;
+    cursor: pointer;
+    color: var(--text-color-primary);
+}
+#existing-collections-list .collection-item-button:hover {
+    background-color: var(--shadow-color);
+}
+
+
+.dialog-box label {
+    display: block;
+    margin-top: 10px;
+    margin-bottom: 3px;
+    font-size: 0.9em;
+    color: var(--text-color-secondary);
+}
+
+.dialog-box input[type="text"],
+.dialog-box textarea {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--primary-bg-color);
+    color: var(--text-color-primary);
+    font-size: 0.95em;
+}
+.dialog-box textarea {
+    min-height: 60px;
+    resize: vertical;
+}
+
+.dialog-button { /* General dialog button */
+    padding: 8px 15px;
+    margin-top: 15px;
+    margin-right: 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.9em;
+}
+.dialog-button.primary {
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+}
+.dialog-button.primary:hover {
+    background-color: var(--accent-color-darker);
+}
+.dialog-button.secondary {
+    background-color: var(--border-color);
+    color: var(--text-color-primary);
+    border: none;
+}
+.dialog-button.secondary:hover {
+    background-color: var(--shadow-color);
+}
+
+#create-new-collection-button { /* Specific styling if needed */
+    display: block; /* Make it full width or adjust */
+    width: 100%;
+    margin-bottom: 15px;
+}
+
+.dialog-close-button {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: transparent;
+    border: none;
+    padding: 8px;
+    border-radius: 50%;
+}
+.dialog-close-button .material-icons { color: var(--icon-color); }
+.dialog-close-button:hover { background-color: var(--shadow-color); }
+
+.dialog-box hr {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 20px 0;
+}
+
+/* Dialog Overlay */
+.dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6); /* Semi-transparent black */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000; /* High z-index */
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0s 0.3s;
+}
+
+.dialog-overlay.visible {
+    opacity: 1;
+    visibility: visible;
+    transition-delay: 0s;
+}
+
+/* Dialog Box */
+.dialog-box {
+    background-color: var(--secondary-bg-color);
+    padding: 25px;
+    border-radius: 8px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+    width: 90%;
+    max-width: 450px;
+    position: relative;
+    transform: scale(0.9);
+    transition: transform 0.3s ease;
+}
+.dialog-overlay.visible .dialog-box {
+    transform: scale(1);
+}
+
+.dialog-box h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: var(--text-color-primary);
+}
+.dialog-box h4 {
+    margin-top: 20px;
+    margin-bottom: 10px;
+    font-size: 1em;
+}
+
+#existing-collections-list .collection-item-button {
+    display: block;
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 8px;
+    background-color: var(--primary-bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    text-align: left;
+    cursor: pointer;
+    color: var(--text-color-primary);
+}
+#existing-collections-list .collection-item-button:hover {
+    background-color: var(--shadow-color);
+}
+
+
+.dialog-box label {
+    display: block;
+    margin-top: 10px;
+    margin-bottom: 3px;
+    font-size: 0.9em;
+    color: var(--text-color-secondary);
+}
+
+.dialog-box input[type="text"],
+.dialog-box textarea {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--primary-bg-color);
+    color: var(--text-color-primary);
+    font-size: 0.95em;
+}
+.dialog-box textarea {
+    min-height: 60px;
+    resize: vertical;
+}
+
+.dialog-button { /* General dialog button */
+    padding: 8px 15px;
+    margin-top: 15px;
+    margin-right: 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.9em;
+}
+.dialog-button.primary {
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+}
+.dialog-button.primary:hover {
+    background-color: var(--accent-color-darker);
+}
+.dialog-button.secondary {
+    background-color: var(--border-color);
+    color: var(--text-color-primary);
+    border: none;
+}
+.dialog-button.secondary:hover {
+    background-color: var(--shadow-color);
+}
+
+#create-new-collection-button { /* Specific styling if needed */
+    display: block; /* Make it full width or adjust */
+    width: 100%;
+    margin-bottom: 15px;
+}
+
+.dialog-close-button {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: transparent;
+    border: none;
+    padding: 8px;
+    border-radius: 50%;
+}
+.dialog-close-button .material-icons { color: var(--icon-color); }
+.dialog-close-button:hover { background-color: var(--shadow-color); }
+
+.dialog-box hr {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 20px 0;
+}
+
+/* Expanded Task Queue List */
+.expanded-task-list {
+    position: absolute;
+    top: calc(100% + 10px); /* Below the button with a small gap */
+    right: 0;
+    width: 380px; /* Adjust width as needed */
+    max-height: 400px; /* Limit height and make it scrollable */
+    overflow-y: auto;
+    background-color: var(--secondary-bg-color);
+    border-radius: 8px;
+    box-shadow: 0 4px 15px var(--shadow-color);
+    border: 1px solid var(--border-color);
+    z-index: 1100; /* Ensure it's above other header/content elements */
+    padding: 15px;
+
+    /* Animation for fly-out/appearance */
+    opacity: 0;
+    transform: translateY(-10px) scale(0.95);
+    visibility: hidden; /* Use visibility for accessibility with aria-hidden */
+    transition: opacity 0.2s ease-out, transform 0.2s ease-out, visibility 0s 0.2s;
+    /* Delay visibility transition until after opacity/transform */
+}
+
+.expanded-task-list.visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    visibility: visible;
+    transition: opacity 0.2s ease-out, transform 0.2s ease-out, visibility 0s 0s;
+}
+
+.expanded-task-list h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 1.1em;
+    color: var(--text-color-primary);
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 8px;
+}
+
+.expanded-task-list ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+/* Task Item Styling */
+.task-item {
+    display: flex;
+    align-items: flex-start; /* Align items to the top */
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+.task-item:last-child {
+    border-bottom: none;
+}
+
+.task-item-cover {
+    width: 50px;
+    height: 50px;
+    object-fit: cover;
+    border-radius: 4px;
+    margin-right: 12px;
+    flex-shrink: 0; /* Prevent image from shrinking */
+}
+
+.task-item-info {
+    flex-grow: 1;
+    overflow: hidden; /* For text ellipsis */
+    margin-right: 10px;
+}
+
+.task-item-info h4,
+.task-item-info p {
+    margin: 0 0 4px 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.task-item-title {
+    font-size: 0.95em;
+    color: var(--text-color-primary);
+    font-weight: 500;
+}
+
+.task-item-artist,
+.task-item-album {
+    font-size: 0.8em;
+    color: var(--text-color-secondary);
+}
+
+.task-item-description {
+    font-size: 0.75em;
+    color: var(--text-color-secondary);
+    /* For multi-line ellipsis (if desired, more complex CSS or JS needed) */
+    /* For now, it will be single line due to white-space: nowrap */
+}
+
+.task-item-progress {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px; /* Space for an icon */
+}
+
+.task-item-progress .material-icons {
+    font-size: 20px;
+    color: var(--accent-color);
+}
+
+.empty-queue-message {
+    text-align: center;
+    color: var(--text-color-secondary);
+    padding: 20px;
+}
+    /* Example: if it's meant to be part of .task-queue-container or similar flex group */
+    /* For now, assuming its previous absolute positioning is fine relative to #main-header */
+    /* Resetting some properties if they conflict with flex layout, or adjust as needed */
+    position: static; /* Remove absolute if it's a flex item now, or adjust */
+    margin-left: 15px; /* Example spacing if it's part of a group */
+}
+
+
+#main-drawer {
+    grid-area: drawer;
+    background-color: var(--secondary-bg-color);
+    /* padding: 20px; */ /* Padding will be adjusted based on state */
+    box-shadow: 2px 0 4px var(--shadow-color);
+    z-index: 900;
+    /* transition: width 0.3s ease; */ /* For collapse/expand */
+    border-right: 1px solid var(--border-color);
+    overflow-y: auto;
+    width: 260px; /* Expanded width */
+    padding: 20px;
+    transition: width 0.3s ease, padding 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden; /* Hide content when collapsing */
+}
+
+#main-drawer.collapsed {
+    width: 80px; /* Collapsed width */
+    padding: 20px 10px; /* Adjust padding for collapsed state */
+}
+
+#drawer-toggle-button {
+    background: transparent;
+    border: none;
+    color: var(--icon-color);
+    cursor: pointer;
+    padding: 10px;
+    margin-bottom: 15px;
+    align-self: flex-end; /* Position to the right in collapsed, or use absolute */
+    border-radius: 50%;
+    display: flex; /* Ensure icon is centered */
+    align-items: center;
+    justify-content: center;
+}
+#main-drawer.collapsed #drawer-toggle-button {
+    align-self: center; /* Center button when drawer is collapsed */
+}
+
+
+#drawer-toggle-button:hover {
+    background-color: var(--shadow-color);
+}
+
+.drawer-logo-container {
+    display: flex;
+    align-items: center;
+    padding: 0 0 20px 0; /* Padding below logo area */
+    margin-bottom: 15px;
+    border-bottom: 1px solid var(--border-color);
+}
+#main-drawer.collapsed .drawer-logo-container {
+    padding: 0;
+    border-bottom: none; /* No border when collapsed */
+    justify-content: center; /* Center icon when collapsed */
+    margin-bottom: 15px;
+}
+
+.drawer-logo-icon {
+    width: 32px;
+    height: 32px;
+    margin-right: 10px;
+    display: inline-block; /* Default state */
+}
+#main-drawer.collapsed .drawer-logo-icon {
+    margin-right: 0; /* No margin for collapsed icon */
+}
+
+
+.drawer-title {
+    font-size: 1.2em;
+    font-weight: 500;
+    color: var(--text-color-primary);
+    white-space: nowrap; /* Prevent wrapping */
+}
+#main-drawer.collapsed .drawer-title {
+    display: none; /* Hide title when collapsed */
+}
+
+
+.drawer-navigation ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.drawer-navigation .drawer-link {
+    display: flex;
+    align-items: center;
+    padding: 12px 10px;
+    margin-bottom: 8px;
+    border-radius: 6px;
+    color: var(--text-color-secondary);
+    text-decoration: none;
+    transition: background-color 0.2s, color 0.2s;
+    white-space: nowrap; /* Prevent link text from wrapping */
+}
+#main-drawer.collapsed .drawer-link {
+    justify-content: center; /* Center icon when collapsed */
+    padding: 12px;
+}
+
+
+.drawer-navigation .drawer-link:hover {
+    background-color: var(--shadow-color);
+    color: var(--text-color-primary);
+}
+
+.drawer-navigation .drawer-link.active {
+    background-color: var(--accent-color);
+    color: white; /* Or a light color suitable for accent background */
+}
+#main-drawer.collapsed .drawer-link.active {
+    background-color: var(--accent-color); /* Keep accent for active collapsed items */
+}
+
+.drawer-navigation .drawer-link .material-icons {
+    margin-right: 15px;
+    font-size: 24px;
+    color: inherit; /* Icon inherits color from parent link */
+}
+#main-drawer.collapsed .drawer-link .material-icons {
+    margin-right: 0; /* No margin for icon when collapsed */
+}
+
+.drawer-navigation .drawer-link .link-text {
+    font-size: 0.95em;
+    transition: opacity 0.2s ease; /* Smooth fade for text */
+}
+
+#main-drawer.collapsed .drawer-link .link-text {
+    display: none; /* Hide text when collapsed */
+    /* Alternative: opacity: 0; pointer-events: none; position: absolute to animate out */
+}
+
+#main-content {
+    grid-area: content;
+    overflow-y: auto; /* Enable scrolling for content area */
+    padding: 20px;
+    background-color: var(--primary-bg-color);
+}
+
+#main-player {
+    grid-area: player;
+    /* background-color, box-shadow, z-index, border-top already set */
+    /* padding will be adjusted */
+    padding: 0; /* Remove default padding if #player-content handles it */
+    height: 80px; /* Default height for the player */
+    transition: height 0.3s ease, padding 0.3s ease;
+    display: flex; /* To center show button when content is hidden */
+    align-items: center;
+    justify-content: center;
+    background-color: var(--secondary-bg-color); /* Ensure it has a solid bg */
+}
+
+#main-player.collapsed-player {
+    height: 40px; /* Or a smaller height for the "show" button area */
+    padding: 5px 20px;
+}
+
+#player-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    height: 100%;
+    padding: 0 20px; /* Padding inside the content area */
+    opacity: 1;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+#player-content.hidden {
+    opacity: 0;
+    visibility: hidden;
+    height: 0; /* Collapse height when hidden */
+    padding: 0;
+}
+
+/* Player Left Section (Album Art & Track Info) */
+.player-left {
+    display: flex;
+    align-items: center;
+    flex: 1; /* Takes up available space, adjust flex basis if needed */
+    min-width: 200px; /* Ensure some space for track info */
+    overflow: hidden;
+}
+
+#player-album-art {
+    width: 50px;
+    height: 50px;
+    object-fit: cover;
+    border-radius: 4px;
+    margin-right: 15px;
+    box-shadow: 0 0 8px rgba(0,0,0,0.3);
+}
+
+.player-track-info {
+    overflow: hidden;
+}
+
+.player-track-info h4, .player-track-info p {
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text-color-primary);
+}
+.player-track-info h4 { font-size: 0.9em; font-weight: 500; }
+.player-track-info p { font-size: 0.75em; color: var(--text-color-secondary); }
+
+
+/* Player Center Section (Controls & Progress) */
+.player-center {
+    display: flex;
+    flex-direction: column; /* Stack controls on top of progress bar */
+    align-items: center;
+    justify-content: center;
+    flex: 2; /* More space for controls */
+    margin: 0 20px;
+}
+
+.player-center .player-control-button { /* For main play/pause/next/prev */
+    margin: 0 8px;
+}
+
+
+.player-progress-bar-container {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    max-width: 400px; /* Limit width of progress area */
+    margin-top: 5px;
+}
+
+#player-progress-bar {
+    flex-grow: 1;
+    height: 6px;
+    margin: 0 10px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--border-color);
+    border-radius: 3px;
+    cursor: pointer;
+}
+#player-progress-bar::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    background: var(--accent-color);
+    border-radius: 50%;
+    cursor: pointer;
+}
+#player-progress-bar::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    background: var(--accent-color);
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+}
+
+#player-current-time, #player-duration {
+    font-size: 0.75em;
+    color: var(--text-color-secondary);
+    min-width: 30px; /* Prevent layout shift */
+    text-align: center;
+}
+
+/* Player Right Section (Volume, Mode, Hide) */
+.player-right {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex: 1;
+    min-width: 150px;
+}
+
+#player-volume-slider {
+    width: 80px; /* Adjust as needed */
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--border-color);
+    border-radius: 2px;
+    cursor: pointer;
+    margin: 0 10px;
+}
+#player-volume-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 10px;
+    height: 10px;
+    background: var(--accent-color);
+    border-radius: 50%;
+}
+#player-volume-slider::-moz-range-thumb {
+    width: 10px;
+    height: 10px;
+    background: var(--accent-color);
+    border-radius: 50%;
+    border: none;
+}
+
+
+/* General Player Control Button Style */
+.player-control-button {
+    background: transparent;
+    border: none;
+    color: var(--icon-color);
+    padding: 8px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.player-control-button:hover {
+    background-color: var(--shadow-color);
+}
+.player-control-button .material-icons {
+    font-size: 22px; /* Adjust as needed, main play/pause could be larger */
+}
+#player-play-pause-button .material-icons {
+    font-size: 30px; /* Larger play/pause icon */
+}
+
+/* Show button for when player is hidden */
+#player-show-button {
+    /* Styles for when it's visible */
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 10px var(--shadow-color);
+}
+#player-show-button.hidden {
+    display: none;
+}
+#player-show-button .material-icons {
+    font-size: 24px;
+    color: white;
+}
+
+/* Basic placeholder text styles */
+h1, h2, h3, h4, h5, h6 {
+    color: var(--text-color-primary);
+    font-weight: 500;
+}
+
+p {
+    color: var(--text-color-secondary);
+}
+
+a {
+    color: var(--accent-color);
+    text-decoration: none;
+}
+
+a:hover {
+    color: var(--accent-color-darker);
+}
+
+button {
+    font-family: var(--font-family-primary);
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+button:hover {
+    background-color: var(--accent-color-darker);
+}
+
+/* Utility for icons */
+.material-icons {
+    font-family: 'Material Icons';
+    font-weight: normal;
+    font-style: normal;
+    font-size: 24px; /* Preferred icon size */
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    -webkit-font-feature-settings: 'liga';
+    -webkit-font-smoothing: antialiased;
+    color: var(--icon-color);
+}
+
+/* Background Animation Styling */
+#background-effects {
+    position: fixed; /* Or absolute if app-container is the positioning context */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden; /* Prevent bands from showing outside */
+    z-index: -1; /* Place it behind all other content */
+}
+
+.color-band {
+    position: absolute;
+    opacity: 0.3; /* Initial opacity, can be adjusted */
+    filter: blur(100px); /* Heavy blur for a soft, diffused look (毛玻璃 - maoboli effect part) */
+    border-radius: 50%; /* Makes them somewhat circular/oval for diffusion */
+    /* Animation will be defined below */
+    animation: driftAndSpread 20s infinite alternate ease-in-out;
+}
+
+/* Define unique properties for each band (size, initial position, animation delay, color) */
+.band1 {
+    width: 300px;
+    height: 300px;
+    background: linear-gradient(45deg, var(--accent-color), transparent);
+    top: 10%;
+    left: 5%;
+    animation-delay: 0s;
+}
+
+.band2 {
+    width: 400px;
+    height: 400px;
+    background: linear-gradient(45deg, var(--accent-color-darker), transparent);
+    top: 30%;
+    left: 60%;
+    animation-duration: 25s; /* Vary duration for more dynamic feel */
+    animation-delay: -5s; /* Start at different points in animation cycle */
+}
+
+.band3 {
+    width: 250px;
+    height: 250px;
+    background: linear-gradient(45deg, var(--accent-color), var(--secondary-bg-color)); /* Mix with secondary for variation */
+    top: 70%;
+    left: 20%;
+    animation-duration: 18s;
+    animation-delay: -10s;
+}
+/* Add more bands as needed with different properties */
+
+@keyframes driftAndSpread {
+    0% {
+        transform: translateX(0px) translateY(0px) scale(1);
+        opacity: 0.3;
+    }
+    50% {
+        transform: translateX(100px) translateY(50px) scale(1.5);
+        opacity: 0.5;
+    }
+    100% {
+        transform: translateX(-50px) translateY(-100px) scale(1.2);
+        opacity: 0.3;
+    }
+}
+
+/* Theme switcher button style */
+#theme-switcher {
+    background-color: transparent;
+    color: var(--icon-color);
+    border: none;
+    padding: 8px;
+    border-radius: 50%; /* Make it round */
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute; /* Example positioning */
+    top: 10px;
+    right: 20px;
+}
+
+#theme-switcher:hover {
+    background-color: var(--shadow-color); /* Subtle hover effect */
+}
+
+#theme-switcher .material-icons {
+    font-size: 24px;
+    color: var(--icon-color);
+}
