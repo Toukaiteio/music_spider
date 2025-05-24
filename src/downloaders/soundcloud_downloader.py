@@ -11,6 +11,7 @@ import subprocess
 import shlex
 import tempfile
 import glob
+import concurrent.futures
 # Global variables from main.py
 user_id = "77130-7014-3319-567702"
 oauth_token = "2-303884-1556525673-bal84X32zv4Kw"
@@ -124,42 +125,117 @@ def convert_m3u8_to_mp3(m3u8_path, output_file, track_id=None, progress_callback
     :param progress_callback: 进度回调函数
     :param file_type: 文件类型（用于回调）
     """
+    # Keep track of completed segments for progress reporting
+    completed_segment_count = 0
+    total_segments_for_progress = 0 # Will be updated after reading m3u8
 
-    def download_m3u8_segments(m3u8_path, output_dir):
-        """下载M3U8中的所有片段到指定目录"""
+    def download_segment(segment_url, segment_path, segment_index, total_segments_local, current_track_id, current_file_type, current_progress_callback):
+        nonlocal completed_segment_count # To update the count in the outer scope
+        try:
+            r = requests.get(segment_url, headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
+                "Origin": "https://soundcloud.com",
+                'Referer': 'https://soundcloud.com/'
+            }, timeout=10) # Added timeout
+            r.raise_for_status() # Raise an exception for bad status codes
+            with open(segment_path, 'wb') as f_seg:
+                f_seg.write(r.content)
+            
+            completed_segment_count += 1
+            if current_progress_callback:
+                current_progress_callback(
+                    track_id=current_track_id,
+                    current_size=completed_segment_count, # Use the thread-safe counter
+                    total_size=total_segments_local, # Total segments in this specific m3u8
+                    file_type=current_file_type,
+                    status="downloading_segments" # New status
+                )
+            return segment_path
+        except requests.exceptions.RequestException as e:
+            print(f"下载失败 {segment_url}: {e}")
+            # Optionally, call progress_callback with an error for this specific segment if needed
+            # For now, just returning None, and overall download might fail if too many segments are missing
+            return None
+        except Exception as e: # Catch other potential errors like file write errors
+            print(f"处理片段 {segment_url} 时发生错误: {e}")
+            return None
+
+    def download_m3u8_segments_concurrent(m3u8_file_path, output_dir, current_track_id, current_file_type, current_progress_callback):
+        nonlocal total_segments_for_progress # To assign the total number of segments
         os.makedirs(output_dir, exist_ok=True)
-        with open(m3u8_path) as f:
-            segments = [line.strip() for line in f if line.startswith('http')]
+        segment_urls = []
+        with open(m3u8_file_path) as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith('http'): # Assuming direct URLs to segments
+                    segment_urls.append(line)
+        
+        total_segments_local = len(segment_urls)
+        total_segments_for_progress = total_segments_local # Update for outer scope progress
+        
+        if not segment_urls:
+            print("M3U8文件中未找到任何片段URL。")
+            return []
 
-        segment_files = []
-        for i, url in enumerate(segments):
-            try:
-                r = requests.get(url, headers={
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
-                    "Origin": "https://soundcloud.com",
-                    'Referer': 'https://soundcloud.com/'
-                })
+        # Pre-allocate list to store segment paths in order
+        ordered_segment_files = [None] * total_segments_local
+        futures = []
+        # Using up to 10 workers, can be adjusted
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            for i, url in enumerate(segment_urls):
                 seg_path = os.path.join(output_dir, f'segment_{i:03d}.ts')
-                with open(seg_path, 'wb') as fseg:
-                    fseg.write(r.content)
-                segment_files.append(seg_path)
-                if progress_callback:
-                    progress_callback(
-                        track_id=track_id,
-                        current_size=i + 1,
-                        total_size=len(segments),
-                        file_type=file_type,
-                        status="downloading"
-                    )
-            except Exception as e:
-                print(f"下载失败 {url}: {e}")
-        return segment_files
+                futures.append(executor.submit(download_segment, url, seg_path, i, total_segments_local, current_track_id, current_file_type, current_progress_callback))
+
+            for i, future in enumerate(futures):
+                try:
+                    # Result is the segment_path or None
+                    segment_file_path = future.result() 
+                    if segment_file_path:
+                        # Store in the correct position based on submission order
+                        ordered_segment_files[i] = segment_file_path
+                except Exception as e:
+                    # This catches errors from the future.result() call itself, though download_segment should handle its own.
+                    print(f"等待片段 {i} 下载结果时发生错误: {e}")
+                    # ordered_segment_files[i] will remain None
+
+        # Filter out None values from segments that failed to download
+        successful_segment_files = [path for path in ordered_segment_files if path is not None]
+        
+        if len(successful_segment_files) < total_segments_local:
+            print(f"警告: 成功下载 {len(successful_segment_files)} 个片段中的 {total_segments_local} 个。")
+            # Depending on strictness, one might raise an error here if too few segments downloaded.
+
+        return successful_segment_files
+
 
     # 1. 下载所有片段
     with tempfile.TemporaryDirectory() as tmpdir:
-        segment_files = download_m3u8_segments(m3u8_path, tmpdir)
+        # Pass progress_callback, track_id, and file_type to the new concurrent downloader
+        segment_files = download_m3u8_segments_concurrent(m3u8_path, tmpdir, track_id, file_type, progress_callback)
+        
         if not segment_files:
+            # Call progress_callback with error status before raising RuntimeError
+            if progress_callback:
+                progress_callback(
+                    track_id=track_id,
+                    current_size=0, # Or completed_segment_count if it's meaningful here
+                    total_size=total_segments_for_progress if total_segments_for_progress > 0 else 1, # Avoid division by zero
+                    file_type=file_type,
+                    status="error",
+                    error_message="未能下载任何m3u8片段"
+                )
             raise RuntimeError("未能下载任何m3u8片段")
+        
+        # Optional: Callback after all segments are downloaded successfully (or partially)
+        # This provides a clear step before concatenation starts.
+        if progress_callback:
+            progress_callback(
+                track_id=track_id,
+                current_size=completed_segment_count,
+                total_size=total_segments_for_progress,
+                file_type=file_type,
+                status="all_segments_downloaded" # New status
+            )
         # 2. 生成FFmpeg合并用的文件列表
         concat_file = os.path.join(tmpdir, "segments.txt")
         with open(concat_file, "w", encoding="utf-8") as f:
@@ -184,19 +260,43 @@ def convert_m3u8_to_mp3(m3u8_path, output_file, track_id=None, progress_callback
             universal_newlines=True,
             bufsize=1
         )
-        # 简单进度：合并时直接回调100%
-        for line in process.stdout:
-            pass
-        process.wait()
-        if process.returncode != 0:
-            raise RuntimeError("FFmpeg failed to merge segments to mp3")
+        # 简单进度：合并时直接回调100% - Consider a more specific status like "concatenating"
         if progress_callback:
             progress_callback(
                 track_id=track_id,
-                current_size=len(segment_files),
-                total_size=len(segment_files),
+                current_size=completed_segment_count, # Reflects actual downloaded segments
+                total_size=total_segments_for_progress,
                 file_type=file_type,
-                status="completed_file"
+                status="concatenating_segments" 
+            )
+
+        for line in process.stdout: # Process ffmpeg output (can be used for more detailed progress if needed)
+            pass
+        process.wait()
+        if process.returncode != 0:
+            # FFmpeg failure - report error via progress_callback
+            ffmpeg_error_message = "FFmpeg failed to merge segments to mp3."
+            # Try to capture more detailed error from ffmpeg if possible (stderr reading would be needed)
+            # For now, a generic message.
+            if progress_callback:
+                progress_callback(
+                    track_id=track_id,
+                    current_size=completed_segment_count,
+                    total_size=total_segments_for_progress,
+                    file_type=file_type,
+                    status="error",
+                    error_message=ffmpeg_error_message
+                )
+            raise RuntimeError(ffmpeg_error_message)
+        
+        # FFmpeg success - report final completion for this file_type
+        if progress_callback:
+            progress_callback(
+                track_id=track_id,
+                current_size=total_segments_for_progress, # Assuming all segments contributed to the final file
+                total_size=total_segments_for_progress,
+                file_type=file_type,
+                status="completed_file" # This status indicates the mp3 is ready
             )
         # 4. 删除所有切片
         for seg in segment_files:
