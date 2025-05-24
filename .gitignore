@@ -1,0 +1,5 @@
+/downloads
+*.pyc
+/util/__pycache__
+*.txt
+test.py
