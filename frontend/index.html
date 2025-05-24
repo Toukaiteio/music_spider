@@ -17,80 +17,79 @@
         <header id="main-header">
             <div class="header-logo">
                 <img src="placeholder_logo.png" alt="Logo"> <!-- Replace with a real logo or keep placeholder -->
-                <span>MusicStream</span>
             </div>
             <div class="search-bar-container">
                 <span class="material-icons search-icon">search</span>
                 <input type="text" id="header-search-input" placeholder="Search for music...">
             </div>
-            <div class="task-queue-container">
-                <button id="task-queue-button" aria-label="Task Queue">
-                    <svg class="circular-progress" viewBox="0 0 36 36">
-                        <path class="progress-background"
-                            d="M18 2.0845
-                               a 15.9155 15.9155 0 0 1 0 31.831
-                               a 15.9155 15.9155 0 0 1 0 -31.831"
-                            fill="none"
-                            stroke-width="3">
-                        </path>
-                        <path class="progress-bar"
-                            d="M18 2.0845
-                               a 15.9155 15.9155 0 0 1 0 31.831
-                               a 15.9155 15.9155 0 0 1 0 -31.831"
-                            fill="none"
-                            stroke-width="3"
-                            stroke-dasharray="0, 100"> <!-- Initial progress: 0% -->
-                        </path>
-                    </svg>
-                    <span class="material-icons">queue_music</span> <!-- This should be on top -->
-                </button>
-                <div id="expanded-task-queue" class="expanded-task-list" aria-hidden="true">
-                    <h3>Download Queue</h3>
-                    <ul>
-                        <!-- Example Task Item 1 -->
-                        <li class="task-item">
-                            <img src="placeholder_cover_1.png" alt="Cover" class="task-item-cover">
-                            <div class="task-item-info">
-                                <h4 class="task-item-title">Example Song Title Example Song Title Example Song Title</h4>
-                                <p class="task-item-artist">Artist Name</p>
-                                <p class="task-item-album">Album Name</p>
-                                <p class="task-item-description">Short description of the song or download status here...</p>
-                            </div>
-                            <div class="task-item-progress">
-                                <!-- Progress bar or status icon can go here -->
-                                <span class="material-icons">hourglass_empty</span>
-                            </div>
-                        </li>
-                        <!-- Example Task Item 2 -->
-                        <li class="task-item">
-                            <img src="placeholder_cover_2.png" alt="Cover" class="task-item-cover">
-                            <div class="task-item-info">
-                                <h4 class="task-item-title">Another Track Example</h4>
-                                <p class="task-item-artist">Another Artist</p>
-                                <p class="task-item-album">Single</p>
-                                <p class="task-item-description">Downloading - 50%</p>
-                            </div>
-                            <div class="task-item-progress">
-                                <span class="material-icons">downloading</span>
-                            </div>
-                        </li>
-                        <!-- Add more example items if needed -->
-                    </ul>
-                    <p class="empty-queue-message" style="display:none;">Queue is empty.</p>
+            <div class="header-actions-right"> <!-- New container -->
+                <div class="task-queue-container"> <!-- This existing container is fine for the button + dropdown -->
+                    <button id="task-queue-button" aria-label="Task Queue">
+                        <svg class="circular-progress" viewBox="0 0 36 36">
+                            <path class="progress-background"
+                                d="M18 2.0845
+                                   a 15.9155 15.9155 0 0 1 0 31.831
+                                   a 15.9155 15.9155 0 0 1 0 -31.831"
+                                fill="none"
+                                stroke-width="3">
+                            </path>
+                            <path class="progress-bar"
+                                d="M18 2.0845
+                                   a 15.9155 15.9155 0 0 1 0 31.831
+                                   a 15.9155 15.9155 0 0 1 0 -31.831"
+                                fill="none"
+                                stroke-width="3"
+                                stroke-dasharray="0, 100"> <!-- Initial progress: 0% -->
+                            </path>
+                        </svg>
+                        <span class="material-icons">queue_music</span> <!-- This should be on top -->
+                    </button>
+                    <div id="expanded-task-queue" class="expanded-task-list" aria-hidden="true">
+                        <h3>Download Queue</h3>
+                        <ul>
+                            <!-- Example Task Item 1 -->
+                            <li class="task-item">
+                                <img src="placeholder_cover_1.png" alt="Cover" class="task-item-cover">
+                                <div class="task-item-info">
+                                    <h4 class="task-item-title">Example Song Title Example Song Title Example Song Title</h4>
+                                    <p class="task-item-artist">Artist Name</p>
+                                    <p class="task-item-album">Album Name</p>
+                                    <p class="task-item-description">Short description of the song or download status here...</p>
+                                </div>
+                                <div class="task-item-progress">
+                                    <!-- Progress bar or status icon can go here -->
+                                    <span class="material-icons">hourglass_empty</span>
+                                </div>
+                            </li>
+                            <!-- Example Task Item 2 -->
+                            <li class="task-item">
+                                <img src="placeholder_cover_2.png" alt="Cover" class="task-item-cover">
+                                <div class="task-item-info">
+                                    <h4 class="task-item-title">Another Track Example</h4>
+                                    <p class="task-item-artist">Another Artist</p>
+                                    <p class="task-item-album">Single</p>
+                                    <p class="task-item-description">Downloading - 50%</p>
+                                </div>
+                                <div class="task-item-progress">
+                                    <span class="material-icons">downloading</span>
+                                </div>
+                            </li>
+                            <!-- Add more example items if needed -->
+                        </ul>
+                        <p class="empty-queue-message" style="display:none;">Queue is empty.</p>
+                    </div>
                 </div>
+                <button id="theme-switcher" class="theme-btn">
+                    <span class="material-icons">brightness_6</span> <!-- Icon for theme toggle -->
+                </button>
             </div>
-            <button id="theme-switcher" class="theme-btn">
-                <span class="material-icons">brightness_6</span> <!-- Icon for theme toggle -->
-            </button>
         </header>
         <aside id="main-drawer">
-            <button id="drawer-toggle-button" aria-label="Toggle Drawer">
-                <span class="material-icons">menu</span>
-            </button>
-            <div class="drawer-logo-container">
-                <!-- Optional: Small logo or icon when expanded -->
-                <img src="placeholder_logo_icon.png" alt="Logo Icon" class="drawer-logo-icon">
+            <div class="drawer-header"> <!-- Renamed and now wraps title and button -->
                 <span class="drawer-title">Navigation</span>
+                <button id="drawer-toggle-button" aria-label="Toggle Drawer">
+                    <span class="material-icons">menu</span>
+                </button>
             </div>
             <nav class="drawer-navigation">
                 <ul>

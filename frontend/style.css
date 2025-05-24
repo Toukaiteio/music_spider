@@ -102,17 +102,16 @@ body {
 
 /* Logo */
 .header-logo {
-    display: flex;
+    display: flex; 
     align-items: center;
-    font-size: 1.5em;
-    font-weight: bold;
-    color: var(--accent-color); /* Use accent color for logo text */
+    /* font-size, font-weight, color removed as they were for the text */
 }
 
 .header-logo img {
-    height: 40px; /* Adjust as needed */
-    margin-right: 10px;
-    filter: drop-shadow(0 0 5px var(--accent-color)); /* Optional: glow effect for logo */
+    height: 40px; 
+    margin-right: 0; /* Removed margin as logo is standalone */
+    display: block; /* Ensures the image behaves as a block, helps with layout */
+    filter: drop-shadow(0 0 5px var(--accent-color)); 
 }
 
 /* Search Bar */
@@ -227,14 +226,48 @@ body {
 }
 */
 
-/* Adjust theme switcher position if it was in #main-header previously and needs specific positioning now */
+/* New container for right-side header actions */
+.header-actions-right {
+    display: flex;
+    align-items: center;
+    gap: 10px; /* Adds space between the task queue and theme switcher */
+}
+
+/* Task Queue Container - ensure it fits well in the flex layout */
+.task-queue-container {
+    position: relative; /* Stays relative for its dropdown */
+    /* No specific flex item styles needed unless it needs to grow/shrink */
+}
+
+/* Theme Switcher Button */
 #theme-switcher {
-    /* Ensure it's positioned correctly, e.g., if it's part of the header items or separate */
-    /* Example: if it's meant to be part of .task-queue-container or similar flex group */
-    /* For now, assuming its previous absolute positioning is fine relative to #main-header */
-    /* Resetting some properties if they conflict with flex layout, or adjust as needed */
-    position: static; /* Remove absolute if it's a flex item now, or adjust */
-    margin-left: 15px; /* Example spacing if it's part of a group */
+    background-color: transparent;
+    color: var(--icon-color);
+    border: none;
+    padding: 8px; /* Keep padding consistent */
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex; /* Keep for icon centering */
+    align-items: center;
+    justify-content: center;
+    /* Remove absolute positioning if it had it, it's now a flex item */
+    position: static; /* Ensure it's part of the flex flow */
+    margin-left: 0; /* Remove previous margin if it was for spacing from task queue */
+}
+
+#theme-switcher:hover {
+    background-color: var(--shadow-color);
+}
+
+#theme-switcher .material-icons {
+    font-size: 24px;
+    color: var(--icon-color); /* Ensure icon color is explicitly set or inherited correctly */
+}
+
+/* Ensure task queue button styles are compatible */
+#task-queue-button {
+    /* position: relative; width: 48px; height: 48px; padding: 0; already set */
+    /* No changes likely needed here unless its margin/padding was causing issues */
 }
 
 /* Home Page Specific Styles */
@@ -945,6 +978,33 @@ body {
 #main-drawer.collapsed {
     width: 80px; /* Collapsed width */
     padding: 20px 10px; /* Adjust padding for collapsed state */
+    /* Ensure #main-drawer itself is a flex column if not already set for .drawer-navigation to grow */
+    /* display: flex; flex-direction: column; -- This is already set from previous step */
+}
+
+/* New/Adjusted styles for Drawer Header area */
+.drawer-header { /* Replaces .drawer-logo-container */
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* Title on left, button on right */
+    padding: 0 0 15px 0; /* Padding similar to original .drawer-logo-container's bottom */
+    margin-bottom: 15px;   /* Margin similar */
+    border-bottom: 1px solid var(--border-color); /* Border similar */
+}
+#main-drawer.collapsed .drawer-header {
+    justify-content: center; /* Center toggle button when collapsed */
+    padding-bottom: 15px; /* Keep padding for spacing */
+    /* border-bottom: none; */ /* Optionally remove border when collapsed if title is hidden */
+}
+
+.drawer-title { /* Assuming it's kept */
+    font-size: 1.2em;
+    font-weight: 500;
+    color: var(--text-color-primary);
+    white-space: nowrap;
+}
+#main-drawer.collapsed .drawer-title {
+    display: none; /* Title is hidden when collapsed */
 }
 
 #drawer-toggle-button {
@@ -952,58 +1012,26 @@ body {
     border: none;
     color: var(--icon-color);
     cursor: pointer;
-    padding: 10px;
-    margin-bottom: 15px;
-    align-self: flex-end; /* Position to the right in collapsed, or use absolute */
+    padding: 8px; /* Consistent padding */
+    margin-bottom: 0; /* Remove margin-bottom as it's part of flex now */
+    /* align-self: initial; */ /* Remove align-self, handled by parent flex */
     border-radius: 50%;
-    display: flex; /* Ensure icon is centered */
+    display: flex;
     align-items: center;
     justify-content: center;
 }
-#main-drawer.collapsed #drawer-toggle-button {
-    align-self: center; /* Center button when drawer is collapsed */
-}
-
+/* #main-drawer.collapsed #drawer-toggle-button is now handled by .drawer-header's justify-content */
 
 #drawer-toggle-button:hover {
     background-color: var(--shadow-color);
 }
 
-.drawer-logo-container {
-    display: flex;
-    align-items: center;
-    padding: 0 0 20px 0; /* Padding below logo area */
-    margin-bottom: 15px;
-    border-bottom: 1px solid var(--border-color);
-}
-#main-drawer.collapsed .drawer-logo-container {
-    padding: 0;
-    border-bottom: none; /* No border when collapsed */
-    justify-content: center; /* Center icon when collapsed */
-    margin-bottom: 15px;
-}
+/* Styles for .drawer-logo-icon are removed */
 
-.drawer-logo-icon {
-    width: 32px;
-    height: 32px;
-    margin-right: 10px;
-    display: inline-block; /* Default state */
+.drawer-navigation {
+    flex-grow: 1; /* Allow navigation to fill remaining space */
+    overflow-y: auto; /* If nav list can be long */
 }
-#main-drawer.collapsed .drawer-logo-icon {
-    margin-right: 0; /* No margin for collapsed icon */
-}
-
-
-.drawer-title {
-    font-size: 1.2em;
-    font-weight: 500;
-    color: var(--text-color-primary);
-    white-space: nowrap; /* Prevent wrapping */
-}
-#main-drawer.collapsed .drawer-title {
-    display: none; /* Hide title when collapsed */
-}
-
 
 .drawer-navigation ul {
     list-style: none;
