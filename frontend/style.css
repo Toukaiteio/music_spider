@@ -91,10 +91,8 @@ body {
     align-items: center;
     justify-content: space-between;
     padding: 15px 30px; /* Increased padding */
-    background-color: var(--glass-bg-color); /* Frosted glass effect */
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
-    border-bottom: 1px solid var(--glass-border-color); /* Subtle border for glass */
     position: relative; /* For theme switcher positioning if not already set */
     height: 70px; /* Fixed height for the header */
     z-index: 1000; /* Keep header on top */
@@ -229,8 +227,10 @@ body {
 /* New container for right-side header actions */
 .header-actions-right {
     display: flex;
+    justify-content: space-between;
+    height: 100%;
     align-items: center;
-    gap: 10px; /* Adds space between the task queue and theme switcher */
+    width: 106px; /* Adds space between the task queue and theme switcher */
 }
 
 /* Task Queue Container - ensure it fits well in the flex layout */
@@ -242,6 +242,8 @@ body {
 /* Theme Switcher Button */
 #theme-switcher {
     background-color: transparent;
+    height: 48px;
+    width: 48px;
     color: var(--icon-color);
     border: none;
     padding: 8px; /* Keep padding consistent */
@@ -949,7 +951,6 @@ body {
     text-align: center;
     color: var(--text-color-secondary);
     padding: 20px;
-}
     /* Example: if it's meant to be part of .task-queue-container or similar flex group */
     /* For now, assuming its previous absolute positioning is fine relative to #main-header */
     /* Resetting some properties if they conflict with flex layout, or adjust as needed */
@@ -960,12 +961,10 @@ body {
 
 #main-drawer {
     grid-area: drawer;
-    background-color: var(--secondary-bg-color);
     /* padding: 20px; */ /* Padding will be adjusted based on state */
-    box-shadow: 2px 0 4px var(--shadow-color);
+    box-shadow: 0px -2px 2px var(--shadow-color);
     z-index: 900;
     /* transition: width 0.3s ease; */ /* For collapse/expand */
-    border-right: 1px solid var(--border-color);
     overflow-y: auto;
     width: 260px; /* Expanded width */
     padding: 20px;
@@ -974,7 +973,9 @@ body {
     flex-direction: column;
     overflow-x: hidden; /* Hide content when collapsing */
 }
-
+#main-drawer::-webkit-scrollbar {
+    display: none;
+}
 #main-drawer.collapsed {
     width: 80px; /* Collapsed width */
     padding: 20px 10px; /* Adjust padding for collapsed state */
@@ -1032,7 +1033,9 @@ body {
     flex-grow: 1; /* Allow navigation to fill remaining space */
     overflow-y: auto; /* If nav list can be long */
 }
-
+.drawer-navigation::-webkit-scrollbar {
+    display: none; /* Hide scrollbar for cleaner look */
+}
 .drawer-navigation ul {
     list-style: none;
     padding: 0;
@@ -1092,7 +1095,6 @@ body {
     grid-area: content;
     overflow-y: auto; /* Enable scrolling for content area */
     padding: 20px;
-    background-color: var(--primary-bg-color);
 }
 
 #main-player {
@@ -1105,7 +1107,6 @@ body {
     display: flex; /* To center show button when content is hidden */
     align-items: center;
     justify-content: center;
-    background-color: var(--secondary-bg-color); /* Ensure it has a solid bg */
 }
 
 #main-player.collapsed-player {
@@ -1177,13 +1178,17 @@ body {
 .player-center .player-control-button { /* For main play/pause/next/prev */
     margin: 0 8px;
 }
-
+.player-control-buttons {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
 
 .player-progress-bar-container {
     display: flex;
     align-items: center;
     width: 100%;
-    max-width: 400px; /* Limit width of progress area */
     margin-top: 5px;
 }
 
@@ -1294,6 +1299,11 @@ body {
     justify-content: center;
     cursor: pointer;
     box-shadow: 0 2px 10px var(--shadow-color);
+    transform: translateY(0px);
+    transition: transform 0.2s ease-in-out;
+}
+#player-show-button:not(.hidden):hover {
+    transform: translateY(-8px);
 }
 #player-show-button.hidden {
     display: none;

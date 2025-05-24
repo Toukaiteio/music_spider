@@ -1,194 +1,296 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Music Downloader</title>
-    <link rel="stylesheet" href="style.css">
-</head>
-<body>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
     <div id="app-container">
-        <div id="background-effects">
-            <div class="color-band band1"></div>
-            <div class="color-band band2"></div>
-            <div class="color-band band3"></div>
-            <!-- Add more bands if desired -->
+      <div id="background-effects">
+        <div class="color-band band1"></div>
+        <div class="color-band band2"></div>
+        <div class="color-band band3"></div>
+        <!-- Add more bands if desired -->
+      </div>
+      <header id="main-header">
+        <div class="header-logo">
+          <img src="placeholder_logo.png" alt="Logo" />
+          <!-- Replace with a real logo or keep placeholder -->
         </div>
-        <header id="main-header">
-            <div class="header-logo">
-                <img src="placeholder_logo.png" alt="Logo"> <!-- Replace with a real logo or keep placeholder -->
-            </div>
-            <div class="search-bar-container">
-                <span class="material-icons search-icon">search</span>
-                <input type="text" id="header-search-input" placeholder="Search for music...">
-            </div>
-            <div class="header-actions-right"> <!-- New container -->
-                <div class="task-queue-container"> <!-- This existing container is fine for the button + dropdown -->
-                    <button id="task-queue-button" aria-label="Task Queue">
-                        <svg class="circular-progress" viewBox="0 0 36 36">
-                            <path class="progress-background"
-                                d="M18 2.0845
+        <div class="search-bar-container">
+          <span class="material-icons search-icon">search</span>
+          <input
+            type="text"
+            id="header-search-input"
+            placeholder="Search for music..."
+          />
+        </div>
+        <div class="header-actions-right">
+          <!-- New container -->
+          <div class="task-queue-container">
+            <!-- This existing container is fine for the button + dropdown -->
+            <button id="task-queue-button" aria-label="Task Queue">
+              <svg class="circular-progress" viewBox="0 0 36 36">
+                <path
+                  class="progress-background"
+                  d="M18 2.0845
                                    a 15.9155 15.9155 0 0 1 0 31.831
                                    a 15.9155 15.9155 0 0 1 0 -31.831"
-                                fill="none"
-                                stroke-width="3">
-                            </path>
-                            <path class="progress-bar"
-                                d="M18 2.0845
+                  fill="none"
+                  stroke-width="3"
+                ></path>
+                <path
+                  class="progress-bar"
+                  d="M18 2.0845
                                    a 15.9155 15.9155 0 0 1 0 31.831
                                    a 15.9155 15.9155 0 0 1 0 -31.831"
-                                fill="none"
-                                stroke-width="3"
-                                stroke-dasharray="0, 100"> <!-- Initial progress: 0% -->
-                            </path>
-                        </svg>
-                        <span class="material-icons">queue_music</span> <!-- This should be on top -->
-                    </button>
-                    <div id="expanded-task-queue" class="expanded-task-list" aria-hidden="true">
-                        <h3>Download Queue</h3>
-                        <ul>
-                            <!-- Example Task Item 1 -->
-                            <li class="task-item">
-                                <img src="placeholder_cover_1.png" alt="Cover" class="task-item-cover">
-                                <div class="task-item-info">
-                                    <h4 class="task-item-title">Example Song Title Example Song Title Example Song Title</h4>
-                                    <p class="task-item-artist">Artist Name</p>
-                                    <p class="task-item-album">Album Name</p>
-                                    <p class="task-item-description">Short description of the song or download status here...</p>
-                                </div>
-                                <div class="task-item-progress">
-                                    <!-- Progress bar or status icon can go here -->
-                                    <span class="material-icons">hourglass_empty</span>
-                                </div>
-                            </li>
-                            <!-- Example Task Item 2 -->
-                            <li class="task-item">
-                                <img src="placeholder_cover_2.png" alt="Cover" class="task-item-cover">
-                                <div class="task-item-info">
-                                    <h4 class="task-item-title">Another Track Example</h4>
-                                    <p class="task-item-artist">Another Artist</p>
-                                    <p class="task-item-album">Single</p>
-                                    <p class="task-item-description">Downloading - 50%</p>
-                                </div>
-                                <div class="task-item-progress">
-                                    <span class="material-icons">downloading</span>
-                                </div>
-                            </li>
-                            <!-- Add more example items if needed -->
-                        </ul>
-                        <p class="empty-queue-message" style="display:none;">Queue is empty.</p>
-                    </div>
-                </div>
-                <button id="theme-switcher" class="theme-btn">
-                    <span class="material-icons">brightness_6</span> <!-- Icon for theme toggle -->
-                </button>
-            </div>
-        </header>
-        <aside id="main-drawer">
-            <div class="drawer-header"> <!-- Renamed and now wraps title and button -->
-                <span class="drawer-title">Navigation</span>
-                <button id="drawer-toggle-button" aria-label="Toggle Drawer">
-                    <span class="material-icons">menu</span>
-                </button>
-            </div>
-            <nav class="drawer-navigation">
-                <ul>
-                    <li>
-                        <a href="#home" class="drawer-link active" data-page="home">
-                            <span class="material-icons">home</span>
-                            <span class="link-text">Home</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="#search" class="drawer-link" data-page="search">
-                            <span class="material-icons">search</span>
-                            <span class="link-text">Search</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="#collections" class="drawer-link" data-page="collections">
-                            <span class="material-icons">collections_bookmark</span>
-                            <span class="link-text">My Collections</span>
-                        </a>
-                    </li>
-                    <!-- Add more links as needed -->
-                </ul>
-            </nav>
-        </aside>
-        <main id="main-content"></main>
-        <footer id="main-player">
-            <div id="player-content" class="hidden"> <!-- Start hidden -->
-                <div class="player-left">
-                    <img src="placeholder_album_art.png" alt="Album Art" id="player-album-art">
-                    <div class="player-track-info">
-                        <h4 id="player-track-title">Track Title</h4>
-                        <p id="player-track-artist">Artist Name</p>
-                    </div>
-                </div>
-                <div class="player-center">
-                    <button id="player-prev-button" class="player-control-button" aria-label="Previous Track">
-                        <span class="material-icons">skip_previous</span>
-                    </button>
-                    <button id="player-play-pause-button" class="player-control-button" aria-label="Play/Pause">
-                        <span class="material-icons">play_arrow</span> <!-- Initial state: Play -->
-                    </button>
-                    <button id="player-next-button" class="player-control-button" aria-label="Next Track">
-                        <span class="material-icons">skip_next</span>
-                    </button>
-                    <div class="player-progress-bar-container">
-                        <span id="player-current-time">0:00</span>
-                        <input type="range" id="player-progress-bar" value="0" min="0" max="100">
-                        <span id="player-duration">0:00</span>
-                    </div>
-                </div>
-                <div class="player-right">
-                    <button id="player-playback-mode-button" class="player-control-button" aria-label="Playback Mode">
-                        <span class="material-icons">repeat</span> <!-- Default: Repeat all -->
-                    </button>
-                    <button id="player-volume-button" class="player-control-button" aria-label="Volume">
-                        <span class="material-icons">volume_up</span>
-                    </button>
-                    <input type="range" id="player-volume-slider" value="100" min="0" max="100" aria-label="Volume Slider">
-                    <button id="player-hide-button" class="player-control-button" aria-label="Hide Player">
-                         <span class="material-icons">expand_more</span>
-                    </button>
-                </div>
-            </div>
-            <button id="player-show-button" class="hidden" aria-label="Show Player">
-                <span class="material-icons">music_note</span> <!-- Or some other icon -->
+                  fill="none"
+                  stroke-width="3"
+                  stroke-dasharray="0, 100"
+                >
+                  <!-- Initial progress: 0% -->
+                </path>
+              </svg>
+              <span class="material-icons">queue_music</span>
+              <!-- This should be on top -->
             </button>
-        </footer>
+            <div
+              id="expanded-task-queue"
+              class="expanded-task-list"
+              aria-hidden="true"
+            >
+              <h3>Download Queue</h3>
+              <ul>
+                <!-- Example Task Item 1 -->
+                <li class="task-item">
+                  <img
+                    src="placeholder_cover_1.png"
+                    alt="Cover"
+                    class="task-item-cover"
+                  />
+                  <div class="task-item-info">
+                    <h4 class="task-item-title">
+                      Example Song Title Example Song Title Example Song Title
+                    </h4>
+                    <p class="task-item-artist">Artist Name</p>
+                    <p class="task-item-album">Album Name</p>
+                    <p class="task-item-description">
+                      Short description of the song or download status here...
+                    </p>
+                  </div>
+                  <div class="task-item-progress">
+                    <!-- Progress bar or status icon can go here -->
+                    <span class="material-icons">hourglass_empty</span>
+                  </div>
+                </li>
+                <!-- Example Task Item 2 -->
+                <li class="task-item">
+                  <img
+                    src="placeholder_cover_2.png"
+                    alt="Cover"
+                    class="task-item-cover"
+                  />
+                  <div class="task-item-info">
+                    <h4 class="task-item-title">Another Track Example</h4>
+                    <p class="task-item-artist">Another Artist</p>
+                    <p class="task-item-album">Single</p>
+                    <p class="task-item-description">Downloading - 50%</p>
+                  </div>
+                  <div class="task-item-progress">
+                    <span class="material-icons">downloading</span>
+                  </div>
+                </li>
+                <!-- Add more example items if needed -->
+              </ul>
+              <p class="empty-queue-message" style="display: none">
+                Queue is empty.
+              </p>
+            </div>
+          </div>
+          <button id="theme-switcher" class="theme-btn">
+            <span class="material-icons">brightness_6</span>
+            <!-- Icon for theme toggle -->
+          </button>
+        </div>
+      </header>
+      <aside id="main-drawer">
+        <div class="drawer-header">
+          <!-- Renamed and now wraps title and button -->
+          <span class="drawer-title">Navigation</span>
+          <button id="drawer-toggle-button" aria-label="Toggle Drawer">
+            <span class="material-icons">menu</span>
+          </button>
+        </div>
+        <nav class="drawer-navigation">
+          <ul>
+            <li>
+              <a href="#home" class="drawer-link active" data-page="home">
+                <span class="material-icons">home</span>
+                <span class="link-text">Home</span>
+              </a>
+            </li>
+            <li>
+              <a href="#search" class="drawer-link" data-page="search">
+                <span class="material-icons">search</span>
+                <span class="link-text">Search</span>
+              </a>
+            </li>
+            <li>
+              <a
+                href="#collections"
+                class="drawer-link"
+                data-page="collections"
+              >
+                <span class="material-icons">collections_bookmark</span>
+                <span class="link-text">My Collections</span>
+              </a>
+            </li>
+            <!-- Add more links as needed -->
+          </ul>
+        </nav>
+      </aside>
+      <main id="main-content"></main>
+      <footer id="main-player">
+        <div id="player-content" class="hidden">
+          <!-- Start hidden -->
+          <div class="player-left">
+            <img
+              src="placeholder_album_art.png"
+              alt="Album Art"
+              id="player-album-art"
+            />
+            <div class="player-track-info">
+              <h4 id="player-track-title">Track Title</h4>
+              <p id="player-track-artist">Artist Name</p>
+            </div>
+          </div>
+          <div class="player-center">
+            <div class="player-control-buttons">
+              <button
+                id="player-prev-button"
+                class="player-control-button"
+                aria-label="Previous Track"
+              >
+                <span class="material-icons">skip_previous</span>
+              </button>
+              <button
+                id="player-play-pause-button"
+                class="player-control-button"
+                aria-label="Play/Pause"
+              >
+                <span class="material-icons">play_arrow</span>
+                <!-- Initial state: Play -->
+              </button>
+              <button
+                id="player-next-button"
+                class="player-control-button"
+                aria-label="Next Track"
+              >
+                <span class="material-icons">skip_next</span>
+              </button>
+            </div>
+            <div class="player-progress-bar-container">
+              <span id="player-current-time">0:00</span>
+              <input
+                type="range"
+                id="player-progress-bar"
+                value="0"
+                min="0"
+                max="100"
+              />
+              <span id="player-duration">0:00</span>
+            </div>
+          </div>
+          <div class="player-right">
+            <button
+              id="player-playback-mode-button"
+              class="player-control-button"
+              aria-label="Playback Mode"
+            >
+              <span class="material-icons">repeat</span>
+              <!-- Default: Repeat all -->
+            </button>
+            <button
+              id="player-volume-button"
+              class="player-control-button"
+              aria-label="Volume"
+            >
+              <span class="material-icons">volume_up</span>
+            </button>
+            <input
+              type="range"
+              id="player-volume-slider"
+              value="100"
+              min="0"
+              max="100"
+              aria-label="Volume Slider"
+            />
+            <button
+              id="player-hide-button"
+              class="player-control-button"
+              aria-label="Hide Player"
+            >
+              <span class="material-icons">expand_more</span>
+            </button>
+          </div>
+        </div>
+        <button id="player-show-button" class="hidden" aria-label="Show Player">
+          <span class="material-icons">music_note</span>
+          <!-- Or some other icon -->
+        </button>
+      </footer>
     </div>
     <script src="script.js"></script>
 
     <!-- Add to Collection Dialog -->
-    <div id="add-to-collection-dialog" class="dialog-overlay" aria-hidden="true">
-        <div class="dialog-box" role="dialog" aria-labelledby="dialog-title">
-            <h3 id="dialog-title">Add to Collection</h3>
-            <div id="existing-collections-list">
-                <!-- Collections will be listed here by JS -->
-                <p>Loading collections...</p> 
-            </div>
-            <div id="no-collections-message" style="display:none;">
-                <p>No collections found. Create one?</p>
-            </div>
-            <button id="create-new-collection-button" class="dialog-button">Create New Collection</button>
-            <hr>
-            <div id="create-collection-form" style="display:none;">
-                <h4>Create New Collection</h4>
-                <label for="new-collection-name">Name (Required):</label>
-                <input type="text" id="new-collection-name" required>
-                <label for="new-collection-category">Category (Optional):</label>
-                <input type="text" id="new-collection-category">
-                <label for="new-collection-description">Description (Optional):</label>
-                <textarea id="new-collection-description"></textarea>
-                <button id="save-collection-button" class="dialog-button primary">Save Collection</button>
-                <button id="cancel-create-collection-button" class="dialog-button secondary">Cancel</button>
-            </div>
-            <button id="close-dialog-button" class="dialog-close-button" aria-label="Close Dialog">
-                <span class="material-icons">close</span>
-            </button>
+    <div
+      id="add-to-collection-dialog"
+      class="dialog-overlay"
+      aria-hidden="true"
+    >
+      <div class="dialog-box" role="dialog" aria-labelledby="dialog-title">
+        <h3 id="dialog-title">Add to Collection</h3>
+        <div id="existing-collections-list">
+          <!-- Collections will be listed here by JS -->
+          <p>Loading collections...</p>
         </div>
+        <div id="no-collections-message" style="display: none">
+          <p>No collections found. Create one?</p>
+        </div>
+        <button id="create-new-collection-button" class="dialog-button">
+          Create New Collection
+        </button>
+        <hr />
+        <div id="create-collection-form" style="display: none">
+          <h4>Create New Collection</h4>
+          <label for="new-collection-name">Name (Required):</label>
+          <input type="text" id="new-collection-name" required />
+          <label for="new-collection-category">Category (Optional):</label>
+          <input type="text" id="new-collection-category" />
+          <label for="new-collection-description"
+            >Description (Optional):</label
+          >
+          <textarea id="new-collection-description"></textarea>
+          <button id="save-collection-button" class="dialog-button primary">
+            Save Collection
+          </button>
+          <button
+            id="cancel-create-collection-button"
+            class="dialog-button secondary"
+          >
+            Cancel
+          </button>
+        </div>
+        <button
+          id="close-dialog-button"
+          class="dialog-close-button"
+          aria-label="Close Dialog"
+        >
+          <span class="material-icons">close</span>
+        </button>
+      </div>
     </div>
-</body>
+  </body>
 </html>

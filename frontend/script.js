@@ -256,7 +256,6 @@ document.addEventListener('DOMContentLoaded', () => {
    `,
         search: `
        <div id="search-page">
-           <h2>Search Music</h2>
            <div class="search-input-area">
                <input type="text" id="search-page-input" placeholder="Enter artist, song, or album...">
                <div class="search-source-selector-container">
