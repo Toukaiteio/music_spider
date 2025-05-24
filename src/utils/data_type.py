@@ -15,8 +15,6 @@ class DictSerializable:
             if not key.startswith('_')
         }
 T = TypeVar('T')
-IS_LOCAL_MODE = True
-SERVER_HOST = "http://127.0.0.1:8080"
 class ResultBase(Generic[T]):
     def __init__(self, code: int, data: T):
         self.code = code
@@ -44,8 +42,8 @@ class MusicItemData(DictSerializable):
         self.duration = duration
         self.genre = genre
         self.preview_cover = preview_cover
-        self.cover_path = cover_path
-        self.audio_path = audio_path
+        self.cover_path = None
+        self.audio_path = None
 
 class MusicItem:
     def __init__(

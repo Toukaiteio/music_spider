@@ -6,8 +6,11 @@ import mimetypes
 import json # Not strictly used in the moved logic, but kept for now
 from pyquery import PyQuery as pq
 import re
-from ..utils.data_type import MusicItem # Relative import
-
+from utils.data_type import MusicItem # Relative import
+import subprocess
+import shlex
+import tempfile
+import glob
 # Global variables from main.py
 user_id = "77130-7014-3319-567702"
 oauth_token = "2-303884-1556525673-bal84X32zv4Kw"
@@ -22,19 +25,17 @@ else:
 version = None # Will be initialized by get_app_version
 
 def get_app_version():
-    global version # Ensure we are setting the global version
+
     url = "https://soundcloud.com/versions.json"
     try:
         resp = requests.get(url)
         resp.raise_for_status()
         data = resp.json()
-        version = data.get("app")
-        return version
+        return data.get("app")
     except Exception as e:
         print(f"Error fetching app version: {e}")
         # Fallback or default version if needed
-        version = "UNKNOWN_VERSION" # Or some default
-        return version
+        return "UNKNOWN_VERSION"
 
 # Initialize version right after defining get_app_version
 version = get_app_version()
@@ -50,7 +51,18 @@ def fetch_ext_from_url(url):
         return mimetypes.guess_extension(mime)
     return ".bin"
 
-
+    """
+    使用FFmpeg将M3U8转换为MP3
+    :param m3u8_url: M3U8文件路径或URL
+    :param output_file: 输出MP3文件路径
+    """
+    command = [
+        'ffmpeg',
+        '-i', m3u8_url,  # 输入文件/URL
+        '-c', 'copy',    # 直接复制流不重新编码
+        output_file      # 输出文件
+    ]
+    subprocess.run(command, check=True)
 def update_client_id():
     global client_id, version
     new_version = get_app_version() # Fetch latest version
@@ -103,10 +115,101 @@ def ms_to_mmss(ms):
     seconds = seconds % 60
     return f"{minutes:02}:{seconds:02}"
 
+def convert_m3u8_to_mp3(m3u8_path, output_file, track_id=None, progress_callback=None, file_type="audio"):
+    """
+    先下载M3U8中的所有片段到本地，再用FFmpeg合并为MP3，合并后删除切片
+    :param m3u8_path: 本地M3U8文件路径
+    :param output_file: 输出MP3文件路径
+    :param track_id: 用于进度回调的track_id
+    :param progress_callback: 进度回调函数
+    :param file_type: 文件类型（用于回调）
+    """
+
+    def download_m3u8_segments(m3u8_path, output_dir):
+        """下载M3U8中的所有片段到指定目录"""
+        os.makedirs(output_dir, exist_ok=True)
+        with open(m3u8_path) as f:
+            segments = [line.strip() for line in f if line.startswith('http')]
+
+        segment_files = []
+        for i, url in enumerate(segments):
+            try:
+                r = requests.get(url, headers={
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36',
+                    "Origin": "https://soundcloud.com",
+                    'Referer': 'https://soundcloud.com/'
+                })
+                seg_path = os.path.join(output_dir, f'segment_{i:03d}.ts')
+                with open(seg_path, 'wb') as fseg:
+                    fseg.write(r.content)
+                segment_files.append(seg_path)
+                if progress_callback:
+                    progress_callback(
+                        track_id=track_id,
+                        current_size=i + 1,
+                        total_size=len(segments),
+                        file_type=file_type,
+                        status="downloading"
+                    )
+            except Exception as e:
+                print(f"下载失败 {url}: {e}")
+        return segment_files
+
+    # 1. 下载所有片段
+    with tempfile.TemporaryDirectory() as tmpdir:
+        segment_files = download_m3u8_segments(m3u8_path, tmpdir)
+        if not segment_files:
+            raise RuntimeError("未能下载任何m3u8片段")
+        # 2. 生成FFmpeg合并用的文件列表
+        concat_file = os.path.join(tmpdir, "segments.txt")
+        with open(concat_file, "w", encoding="utf-8") as f:
+            for seg in segment_files:
+                f.write(f"file '{os.path.abspath(seg)}'\n")
+
+        # 3. 用FFmpeg合并为MP3
+        command = [
+            'ffmpeg',
+            '-y',
+            '-f', 'concat',
+            '-safe', '0',
+            '-i', concat_file,
+            '-vn',
+            '-acodec', 'libmp3lame',
+            output_file
+        ]
+        process = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            universal_newlines=True,
+            bufsize=1
+        )
+        # 简单进度：合并时直接回调100%
+        for line in process.stdout:
+            pass
+        process.wait()
+        if process.returncode != 0:
+            raise RuntimeError("FFmpeg failed to merge segments to mp3")
+        if progress_callback:
+            progress_callback(
+                track_id=track_id,
+                current_size=len(segment_files),
+                total_size=len(segment_files),
+                file_type=file_type,
+                status="completed_file"
+            )
+        # 4. 删除所有切片
+        for seg in segment_files:
+            try:
+                os.remove(seg)
+            except Exception:
+                pass
+
 def _save_file_with_progress(file_url: str, filename: str, track_id: str, progress_callback: callable, file_type: str, stream: bool = True):
     """
     Downloads a file from file_url to filename, reporting progress.
     Attempts streaming download first if stream=True. Falls back to non-streaming if stream fails or if stream=False.
+    如果是m3u8文件，下载后自动转为mp3，并追踪转换进度。
     """
     try:
         resp = requests.get(
@@ -114,7 +217,7 @@ def _save_file_with_progress(file_url: str, filename: str, track_id: str, progre
             stream=stream,
             headers={
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
-                "Accept": "*/*", # More generic accept for various file types
+                "Accept": "*/*",  # More generic accept for various file types
                 "Accept-Language": "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7,ja;q=0.6",
                 "Accept-Encoding": "gzip, deflate, br, zstd",
                 "Origin": "https://soundcloud.com",
@@ -125,7 +228,61 @@ def _save_file_with_progress(file_url: str, filename: str, track_id: str, progre
 
         total_size = int(resp.headers.get('content-length', 0))
         current_size = 0
-        
+
+        # 判断是否为m3u8文件
+        ext = os.path.splitext(filename)[1].lower()
+        is_m3u8 = ext == ".m3u8" or resp.headers.get("Content-Type", "").startswith("application/vnd.apple.mpegurl") or resp.headers.get("Content-Type", "").startswith("audio/mpegurl")
+
+        if is_m3u8:
+            # 先保存m3u8文件
+            with open(filename, "wb") as f:
+                if stream:
+                    for chunk in resp.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
+                            current_size += len(chunk)
+                            if progress_callback:
+                                progress_callback(
+                                    track_id=track_id,
+                                    current_size=current_size,
+                                    total_size=total_size,
+                                    file_type=file_type,
+                                    status="downloading"
+                                )
+                else:
+                    f.write(resp.content)
+                    current_size = total_size
+
+            if progress_callback:
+                progress_callback(
+                    track_id=track_id,
+                    current_size=current_size,
+                    total_size=total_size,
+                    file_type=file_type,
+                    status="completed_file"
+                )
+            # 转换为mp3
+            mp3_file = os.path.splitext(filename)[0] + ".mp3"
+            try:
+                convert_m3u8_to_mp3(filename, mp3_file, track_id=track_id, progress_callback=progress_callback, file_type=file_type)
+                # 删除原m3u8文件
+                os.remove(filename)
+                print(f"File {mp3_file} (converted from m3u8) downloaded and converted successfully.")
+                return True
+            except Exception as e:
+                print(f"Error converting m3u8 to mp3: {e}")
+                if progress_callback:
+                    progress_callback(
+                        track_id=track_id,
+                        current_size=0,
+                        total_size=0,
+                        file_type=file_type,
+                        status="error",
+                        error_message=str(e)
+                    )
+                return False
+
+        # 普通文件下载
         with open(filename, "wb") as f:
             if stream:
                 for chunk in resp.iter_content(chunk_size=8192):
@@ -140,14 +297,14 @@ def _save_file_with_progress(file_url: str, filename: str, track_id: str, progre
                                 file_type=file_type,
                                 status="downloading"
                             )
-            else: # Non-streaming download
+            else:  # Non-streaming download
                 f.write(resp.content)
-                current_size = total_size # Assume full download if non-streaming and no error
+                current_size = total_size  # Assume full download if non-streaming and no error
 
-        if progress_callback: # Final progress update after loop or non-stream download
+        if progress_callback:  # Final progress update after loop or non-stream download
             progress_callback(
                 track_id=track_id,
-                current_size=current_size, # current_size should be total_size if download was successful
+                current_size=current_size,  # current_size should be total_size if download was successful
                 total_size=total_size,
                 file_type=file_type,
                 status="completed_file"
@@ -160,8 +317,8 @@ def _save_file_with_progress(file_url: str, filename: str, track_id: str, progre
         if progress_callback:
             progress_callback(
                 track_id=track_id,
-                current_size=0, # Or current_size before error if known and meaningful
-                total_size=0, # Or total_size if known
+                current_size=0,  # Or current_size before error if known and meaningful
+                total_size=0,  # Or total_size if known
                 file_type=file_type,
                 status="error",
                 error_message=str(e)
@@ -173,15 +330,6 @@ def _save_file_with_progress(file_url: str, filename: str, track_id: str, progre
         return False
 
 
-def _download_file_stream(file_url, filename): # Renamed to avoid conflict, made internal
-    # This function is now effectively replaced by _save_file_with_progress
-    # Kept here for reference during diff, will be removed.
-    pass
-
-def _download_file_no_stream(file_url, filename): # Renamed, made internal
-    # This function is now effectively replaced by _save_file_with_progress
-    # Kept here for reference during diff, will be removed.
-    pass
 
 def download_audio_internal(track_authorization, transcodings, save_path_dir, track_id: str, progress_callback: callable = None):
     global version, client_id
@@ -272,7 +420,7 @@ def download_cover_internal(cover_url: str, save_path_full: str, track_id: str, 
 
 
 def search_tracks(query: str, limit: int = 20) -> list[dict]:
-    global client_id, version, user_id, oauth_token # Ensure globals are accessible
+    global client_id, version, user_id, oauth_token,version # Ensure globals are accessible
     
     quoted_query = quote(query)
     api_url = (
@@ -307,7 +455,6 @@ def search_tracks(query: str, limit: int = 20) -> list[dict]:
         if new_client_id:
             client_id = new_client_id # Update global client_id for the retry
             # Update version as well, as update_client_id might have fetched a new one
-            global version
             version = get_app_version() if version == "UNKNOWN_VERSION" or not version else version
 
             api_url = (
@@ -471,7 +618,7 @@ async def _soundcloud_module_test():
             else:
                 print(f"  [PROGRESS] Track ID: {track_id}, Type: {file_type}, {current_size} bytes - Status: {status}" + (f" Error: {error_message}" if error_message else ""))
 
-        downloaded_item = download_track(
+        downloaded_item = await download_track(
             track_info=first_track_info,
             progress_callback=test_progress_callback
         )
@@ -520,7 +667,7 @@ if __name__ == '__main__':
 #     asyncio.run(_soundcloud_module_test())
 #
 # Correcting _soundcloud_module_test to be synchronous as it contains no await calls
-def _soundcloud_module_test_sync(): # Renamed to avoid confusion with async def
+async def _soundcloud_module_test_sync(): # Renamed to avoid confusion with async def
     print("Testing SoundCloud Downloader Module (Synchronous Test)...")
     search_query = "NCS Alan Walker" 
     print(f"\nSearching for tracks with query: '{search_query}'")
@@ -538,7 +685,7 @@ def _soundcloud_module_test_sync(): # Renamed to avoid confusion with async def
             else:
                 print(f"  [PROGRESS] Track ID: {track_id}, Type: {file_type}, {current_size} bytes - Status: {status}" + (f" Error: {error_message}" if error_message else ""))
 
-        downloaded_item = download_track(
+        downloaded_item = await download_track(
             track_info=first_track_info,
             progress_callback=test_progress_callback
         )

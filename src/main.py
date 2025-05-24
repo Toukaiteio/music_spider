@@ -6,8 +6,8 @@ import time # For throttling progress updates
 import os # For file system operations
 
 # Relative imports for project modules
-from .utils.data_type import ResultBase, MusicItemData, MusicItem
-from .downloaders import soundcloud_downloader
+from utils.data_type import ResultBase, MusicItemData, MusicItem
+from downloaders import soundcloud_downloader
 # Placeholder for future: from .downloaders import other_downloader
 
 DOWNLOADER_MODULES = {
