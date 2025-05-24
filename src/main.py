@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import json
 import websockets
 import uuid # For generating cmd_id if needed, or client sends it
@@ -78,55 +79,60 @@ async def handle_download_track(websocket, cmd_id: str, payload: dict):
     
     # Throttling state for progress updates
     last_progress_send_time = {} # Key: (track_id, file_type), Value: timestamp
+    loop = asyncio.get_running_loop()
 
-    async def progress_callback_ws(track_id: str, current_size: int, total_size: int, file_type: str, status: str, error_message: str = None):
-        nonlocal last_progress_send_time # Access the outer scope variable
+    def progress_callback_ws(track_id: str, current_size: int, total_size: int, file_type: str, status: str, error_message: str = None, *, main_loop, current_websocket, original_cmd_id):
+        # nonlocal last_progress_send_time # Access the outer scope variable - last_progress_send_time is in the outer scope of handle_download_track
         progress_percent = (current_size / total_size) * 100 if total_size > 0 else 0
         
         # Throttle "downloading" updates
         if status == "downloading":
             now = time.time()
-            throttle_key = (track_id, file_type)
+            throttle_key = (track_id, file_type) # This key seems fine for throttling.
             last_sent = last_progress_send_time.get(throttle_key, 0)
             # Send update if it's been more than 0.5 sec OR if it's the final chunk for this file_type
             if (now - last_sent < 0.5) and (current_size < total_size if total_size > 0 else True) : # Check if not the final chunk
                 return # Skip sending update
             last_progress_send_time[throttle_key] = now
 
-        progress_update = {
-            "original_cmd_id": cmd_id,
+        progress_update_payload = {
+            "original_cmd_id": original_cmd_id, # Use the bound original_cmd_id
             "status_type": "download_progress",
             "track_id": track_id,
             "file_type": file_type,
             "status": status,
             "current_size": current_size,
             "total_size": total_size,
-            "progress_percent": round(progress_percent, 2), # Round to 2 decimal places
+            "progress_percent": round(progress_percent, 2),
         }
         if error_message:
-            progress_update["error_message"] = error_message
+            progress_update_payload["error_message"] = error_message
         
-        try:
-            if websocket.closed: # Check if websocket is closed before sending
-                print(f"WebSocket connection closed for cmd_id {cmd_id}, cannot send progress for track {track_id}.")
-                return
-            await websocket.send(json.dumps(ResultBase(code=0, data=progress_update).get_json()))
-        except websockets.exceptions.ConnectionClosed:
-            print(f"Connection closed for cmd_id {cmd_id} during progress send for track {track_id}.")
-        except Exception as e:
-            print(f"Error sending progress for cmd_id {cmd_id}, track {track_id}: {e}")
+        json_message = json.dumps(ResultBase(code=0, data=progress_update_payload).get_json())
+
+        # Schedule the send operation on the main event loop
+        if not current_websocket.closed: # Use the bound current_websocket
+            asyncio.run_coroutine_threadsafe(current_websocket.send(json_message), main_loop) # Use the bound main_loop
+        else:
+            print(f"WebSocket connection closed for cmd_id {original_cmd_id}, cannot send progress for track {track_id}.")
 
     try:
         print(f"Starting download for track: {track_data.get('title', track_id_for_progress)} (cmd_id: {cmd_id})")
         
-        loop = asyncio.get_running_loop()
+        partial_progress_callback = functools.partial(
+            progress_callback_ws,
+            main_loop=loop,
+            current_websocket=websocket, # Pass the specific websocket instance
+            original_cmd_id=cmd_id     # Pass the specific cmd_id
+        )
+        
         # Call the download_track method from the selected downloader_module
         music_item_result = await loop.run_in_executor(
             None,  # Uses the default ThreadPoolExecutor
             downloader_module.download_track, # Use selected module
             track_data,
             "./downloads",  # base_download_path
-            progress_callback_ws
+            partial_progress_callback # Pass the new partial callback
         )
 
         if music_item_result and isinstance(music_item_result, MusicItem):
