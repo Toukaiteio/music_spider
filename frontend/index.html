@@ -26,6 +26,7 @@
             id="header-search-input"
             placeholder="Search for music..."
           />
+          <span class="search-source-indicator" style="margin-left: 8px; font-size: 0.9em; color: var(--text-color-secondary);">Source: SoundCloud</span>
         </div>
         <div class="header-actions-right">
           <!-- New container -->
@@ -63,46 +64,7 @@
             >
               <h3>Download Queue</h3>
               <ul>
-                <!-- Example Task Item 1 -->
-                <li class="task-item">
-                  <img
-                    src="placeholder_cover_1.png"
-                    alt="Cover"
-                    class="task-item-cover"
-                  />
-                  <div class="task-item-info">
-                    <h4 class="task-item-title">
-                      Example Song Title Example Song Title Example Song Title
-                    </h4>
-                    <p class="task-item-artist">Artist Name</p>
-                    <p class="task-item-album">Album Name</p>
-                    <p class="task-item-description">
-                      Short description of the song or download status here...
-                    </p>
-                  </div>
-                  <div class="task-item-progress">
-                    <!-- Progress bar or status icon can go here -->
-                    <span class="material-icons">hourglass_empty</span>
-                  </div>
-                </li>
-                <!-- Example Task Item 2 -->
-                <li class="task-item">
-                  <img
-                    src="placeholder_cover_2.png"
-                    alt="Cover"
-                    class="task-item-cover"
-                  />
-                  <div class="task-item-info">
-                    <h4 class="task-item-title">Another Track Example</h4>
-                    <p class="task-item-artist">Another Artist</p>
-                    <p class="task-item-album">Single</p>
-                    <p class="task-item-description">Downloading - 50%</p>
-                  </div>
-                  <div class="task-item-progress">
-                    <span class="material-icons">downloading</span>
-                  </div>
-                </li>
-                <!-- Add more example items if needed -->
+                <!-- Task items will be dynamically inserted here by JS -->
               </ul>
               <p class="empty-queue-message" style="display: none">
                 Queue is empty.
@@ -132,12 +94,6 @@
               </a>
             </li>
             <li>
-              <a href="#search" class="drawer-link" data-page="search">
-                <span class="material-icons">search</span>
-                <span class="link-text">Search</span>
-              </a>
-            </li>
-            <li>
               <a
                 href="#collections"
                 class="drawer-link"
@@ -149,9 +105,22 @@
             </li>
             <!-- Add more links as needed -->
           </ul>
+          <div class="drawer-list-header">
+            <h3>My Saved Playlists</h3>
+          </div>
+          <ul id="local-collections-list" class="drawer-sub-list">
+            <!-- Local collections will be populated here by JS -->
+          </ul>
         </nav>
       </aside>
       <main id="main-content"></main>
+      <div id="drawer-context-menu" class="custom-context-menu" style="display: none; position: absolute; z-index: 1500;">
+          <ul>
+              <li data-action="create_collection">New Collection</li>
+              <li data-action="edit_collection">Edit Collection</li>
+              <li data-action="delete_collection">Delete Collection</li>
+          </ul>
+      </div>
       <footer id="main-player">
         <div id="player-content" class="hidden">
           <!-- Start hidden -->

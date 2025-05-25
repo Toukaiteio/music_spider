@@ -134,6 +134,68 @@ body {
     color: var(--text-color-secondary);
 }
 
+/* Song Detail Page Styles */
+#song-detail-page {
+    display: flex;
+    padding: 20px;
+    gap: 20px;
+}
+.song-detail-left {
+    flex: 2; /* Takes 2/3 of the space */
+    display: flex;
+    flex-direction: column;
+}
+.song-detail-left #detail-cover-art {
+    width: 100%;
+    max-width: 400px; /* Limit cover size */
+    height: auto;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    box-shadow: 0 4px 15px var(--shadow-color);
+}
+.song-detail-left #detail-title {
+    margin-top: 0;
+    font-size: 1.8em;
+    color: var(--text-color-primary);
+}
+.song-detail-left #detail-artist {
+    font-size: 1.2em;
+    color: var(--text-color-secondary);
+    margin-bottom: 10px;
+}
+.song-detail-left #detail-description {
+    font-size: 0.9em;
+    line-height: 1.5;
+    color: var(--text-color-secondary);
+    margin-bottom: 20px;
+    max-height: 150px; /* Example max height for description */
+    overflow-y: auto; /* Scroll if too long */
+    padding-right: 10px; /* Space for scrollbar if it appears */
+}
+.song-detail-left #detail-action-buttons button {
+    margin-right: 10px;
+    margin-bottom: 10px; /* Spacing if they wrap */
+    padding: 10px 15px; /* Standard button padding */
+}
+.song-detail-left #detail-action-buttons button .material-icons {
+    margin-right: 8px; /* Space between icon and text */
+}
+
+.song-detail-right {
+    flex: 1; /* Takes 1/3 of the space */
+    padding-left: 20px;
+    border-left: 1px solid var(--border-color);
+    display: flex;
+    align-items: center; /* Vertically center placeholder text */
+    justify-content: center; /* Horizontally center placeholder text */
+    min-height: 300px; /* Ensure it has some height */
+}
+.song-detail-right p {
+    font-size: 1.1em;
+    color: var(--text-color-secondary);
+    text-align: center;
+}
+
 #header-search-input {
     border: none;
     outline: none;
@@ -203,6 +265,10 @@ body {
     stroke-linecap: round; /* Rounded ends for the progress path */
     transition: stroke-dasharray 0.3s ease;
     /* fill: none; stroke-width: 3; stroke-dasharray; already in HTML */
+}
+
+.circular-progress.hidden {
+    display: none;
 }
 
 /* Example of setting progress (can be done via JS later) */
@@ -1090,6 +1156,87 @@ body {
     display: none; /* Hide text when collapsed */
     /* Alternative: opacity: 0; pointer-events: none; position: absolute to animate out */
 }
+
+/* Drawer Sub-list for Local Collections */
+.drawer-list-header {
+    padding: 10px 10px 5px 10px;
+    margin-top: 15px;
+    border-top: 1px solid var(--border-color);
+}
+#main-drawer.collapsed .drawer-list-header {
+    display: none; /* Hide header when collapsed */
+}
+.drawer-list-header h3 {
+    margin: 0;
+    font-size: 0.9em;
+    font-weight: 500;
+    color: var(--text-color-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+#local-collections-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+#local-collections-list li a.local-collection-link {
+    padding-left: 15px; /* Indent slightly more than main links */
+    font-size: 0.9em; /* Slightly smaller font */
+}
+#main-drawer.collapsed #local-collections-list li a.local-collection-link .link-text {
+    display: none; /* Text is already hidden by general .link-text rule, but good for clarity */
+}
+#main-drawer.collapsed #local-collections-list li a.local-collection-link {
+    justify-content: center; /* Center icon if drawer is collapsed */
+     /* Icons for local collections could be different, e.g. 'playlist_play' or 'queue_music' */
+}
+#local-collections-list .no-collections-message {
+    padding: 10px 15px;
+    color: var(--text-color-secondary);
+    font-size: 0.85em;
+    font-style: italic;
+}
+#main-drawer.collapsed #local-collections-list .no-collections-message {
+    display: none;
+}
+
+
+/* Custom Context Menu Styling */
+.custom-context-menu {
+    background-color: var(--secondary-bg-color);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 2px 10px var(--shadow-color);
+    border-radius: 6px;
+    padding: 5px 0;
+    min-width: 180px;
+}
+.custom-context-menu ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.custom-context-menu li {
+    padding: 8px 15px;
+    cursor: pointer;
+    color: var(--text-color-primary);
+    font-size: 0.9em;
+}
+.custom-context-menu li:hover {
+    background-color: var(--accent-color);
+    color: white; /* Or a light color suitable for accent background */
+}
+.custom-context-menu li.disabled {
+    color: var(--text-color-secondary);
+    cursor: not-allowed;
+    background-color: transparent; /* Ensure no hover effect */
+}
+.custom-context-menu li.disabled:hover {
+    color: var(--text-color-secondary); /* Keep color same on hover */
+    background-color: transparent;
+}
+
 
 #main-content {
     grid-area: content;
