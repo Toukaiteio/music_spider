@@ -159,8 +159,8 @@ async def handle_download_track(websocket, cmd_id: str, payload: dict):
 
     except Exception as e:
         print(f"Exception during download process for cmd_id {cmd_id} (track: {track_data.get('title', track_id_for_progress)}): {e}")
-        # import traceback # For debugging
-        # traceback.print_exc() # For debugging
+        import traceback # For debugging
+        traceback.print_exc() # For debugging
         if not websocket.closed:
             await websocket.send(json.dumps(ResultBase(code=1, data={"original_cmd_id": cmd_id, "error": f"Server error during download: {str(e)}"}).get_json()))
 

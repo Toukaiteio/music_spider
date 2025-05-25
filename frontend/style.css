@@ -141,9 +141,10 @@ body {
     gap: 20px;
 }
 .song-detail-left {
-    flex: 2; /* Takes 2/3 of the space */
+    /* flex: 2; Takes 2/3 of the space */
     display: flex;
     flex-direction: column;
+    max-width: 400px;
 }
 .song-detail-left #detail-cover-art {
     width: 100%;
@@ -173,12 +174,7 @@ body {
     padding-right: 10px; /* Space for scrollbar if it appears */
 }
 .song-detail-left #detail-action-buttons button {
-    margin-right: 10px;
-    margin-bottom: 10px; /* Spacing if they wrap */
-    padding: 10px 15px; /* Standard button padding */
-}
-.song-detail-left #detail-action-buttons button .material-icons {
-    margin-right: 8px; /* Space between icon and text */
+    padding: 13px; /* Standard button padding */
 }
 
 .song-detail-right {
@@ -199,7 +195,7 @@ body {
 #header-search-input {
     border: none;
     outline: none;
-    background-color: transparent;
+    background-color: transparent !important;
     color: var(--text-color-primary);
     font-size: 1em;
     width: 100%;
@@ -461,18 +457,29 @@ body {
     margin-top: auto; /* Push actions to the bottom if card height varies */
 }
 
-.add-to-collection-button {
+.search-result-download-button,.add-to-collection-button {
     background: transparent;
     border: none;
     color: var(--icon-color);
     padding: 6px;
     border-radius: 50%;
+    height: 36px;
+    width: 36px;
 }
-.add-to-collection-button:hover {
+.detail-play-button,.detail-add-to-collection-button {
+    background: transparent;
+    border: none;
+    color: white;
+    padding: 6px;
+    border-radius: 50%;
+    height: 50px;
+    width: 50px;
+}
+.detail-play-button,.detail-add-to-collection-button,.search-result-download-button,.add-to-collection-button:hover {
     background-color: var(--shadow-color);
     color: var(--accent-color);
 }
-.add-to-collection-button .material-icons {
+.search-result-download-button,.add-to-collection-button .material-icons {
     font-size: 22px;
 }
 
@@ -1097,7 +1104,6 @@ body {
 
 .drawer-navigation {
     flex-grow: 1; /* Allow navigation to fill remaining space */
-    overflow-y: auto; /* If nav list can be long */
 }
 .drawer-navigation::-webkit-scrollbar {
     display: none; /* Hide scrollbar for cleaner look */
@@ -1325,6 +1331,10 @@ body {
 .player-center .player-control-button { /* For main play/pause/next/prev */
     margin: 0 8px;
 }
+.player-center .player-control-button span {
+    max-width: 30px;
+    max-height: 30px;
+}
 .player-control-buttons {
     width: 100%;
     display: flex;
@@ -1528,8 +1538,27 @@ button:hover {
     opacity: 0.3; /* Initial opacity, can be adjusted */
     filter: blur(100px); /* Heavy blur for a soft, diffused look (毛玻璃 - maoboli effect part) */
     border-radius: 50%; /* Makes them somewhat circular/oval for diffusion */
-    /* Animation will be defined below */
-    animation: driftAndSpread 20s infinite alternate ease-in-out;
+    /* transition: background .5s ease-in-out; */
+    /* animation: floatBand 22s ease-in-out infinite alternate; */
+    will-change: transform;
+}
+
+@keyframes floatBand {
+    0% {
+        transform: translateY(0px) rotate(0deg);
+    }
+    25% {
+        transform: translateY(-30px) rotate(3deg);
+    }
+    50% {
+        transform: translateY(20px) rotate(-2deg);
+    }
+    75% {
+        transform: translateY(-15px) rotate(2deg);
+    }
+    100% {
+        transform: translateY(0px) rotate(0deg);
+    }
 }
 
 /* Define unique properties for each band (size, initial position, animation delay, color) */
@@ -1563,20 +1592,7 @@ button:hover {
 }
 /* Add more bands as needed with different properties */
 
-@keyframes driftAndSpread {
-    0% {
-        transform: translateX(0px) translateY(0px) scale(1);
-        opacity: 0.3;
-    }
-    50% {
-        transform: translateX(100px) translateY(50px) scale(1.5);
-        opacity: 0.5;
-    }
-    100% {
-        transform: translateX(-50px) translateY(-100px) scale(1.2);
-        opacity: 0.3;
-    }
-}
+
 
 /* Theme switcher button style */
 #theme-switcher {
@@ -1602,3 +1618,19 @@ button:hover {
     font-size: 24px;
     color: var(--icon-color);
 }
+.climax-flash {
+    box-shadow: 0 0 40px 10px rgba(255,255,255,0.25), 0 0 0 1000px rgba(0,0,0,0.08) inset;
+    animation: climaxFlash 1.2s infinite alternate cubic-bezier(.4,1.6,.4,1);
+}
+@keyframes climaxFlash {
+    0% { box-shadow: 0 0 40px 10px rgba(255,255,255,0.18), 0 0 0 1000px rgba(0,0,0,0.10) inset; }
+    100% { box-shadow: 0 0 80px 30px rgba(255,255,255,0.38), 0 0 0 1000px rgba(0,0,0,0.04) inset; }
+}
+/* .color-band {
+    transform: scale(1);
+    transition: transform 0.25s cubic-bezier(.4,1.6,.4,1);
+}
+
+.color-band.beat {
+    transform: scale(1.55);
+} */

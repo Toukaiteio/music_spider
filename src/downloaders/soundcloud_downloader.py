@@ -52,18 +52,6 @@ def fetch_ext_from_url(url):
         return mimetypes.guess_extension(mime)
     return ".bin"
 
-    """
-    使用FFmpeg将M3U8转换为MP3
-    :param m3u8_url: M3U8文件路径或URL
-    :param output_file: 输出MP3文件路径
-    """
-    command = [
-        'ffmpeg',
-        '-i', m3u8_url,  # 输入文件/URL
-        '-c', 'copy',    # 直接复制流不重新编码
-        output_file      # 输出文件
-    ]
-    subprocess.run(command, check=True)
 def update_client_id():
     global client_id, version
     new_version = get_app_version() # Fetch latest version
@@ -594,8 +582,12 @@ def download_track(track_info: dict, base_download_path: str = "./downloads", pr
         return None
 
     title = track_info.get("title", "Unknown Title")
-    artist = track_info.get("publisher_metadata", {}).get("artist", "") or track_info.get("user", {}).get("username", "Unknown Artist")
-    album_title = track_info.get("publisher_metadata", {}).get("album_title", "")
+    if(track_info.get("publisher_metadata")):
+        artist = track_info.get("publisher_metadata", {}).get("artist", "") or track_info.get("user", {}).get("username", "Unknown Artist")
+        album_title = track_info.get("publisher_metadata", {}).get("album_title", "")
+    else:
+        artist = "Unknown Artist"
+        album_title = "Unknown Album"
     description = track_info.get("description", "")
     tags_str = track_info.get("tag_list", "")
     tags = [tag.strip() for tag in tags_str.split("\"") if tag.strip()] if tags_str else []
@@ -661,8 +653,19 @@ def download_track(track_info: dict, base_download_path: str = "./downloads", pr
             progress_callback=progress_callback # Pass callback
         )
         if downloaded_audio_file_path:
-            music_item.set_audio(downloaded_audio_file_path)
-            print(f"Audio downloaded to: {downloaded_audio_file_path}")
+            # If the downloaded file is an m3u8, replace with the corresponding mp3 file
+            base, ext = os.path.splitext(downloaded_audio_file_path)
+            if ext.lower() == ".m3u8":
+                mp3_file_path = base + ".mp3"
+                if os.path.exists(mp3_file_path):
+                    music_item.set_audio(mp3_file_path)
+                    print(f"Audio downloaded and converted to: {mp3_file_path}")
+                else:
+                    music_item.set_audio(downloaded_audio_file_path)
+                    print(f"Audio downloaded to: {downloaded_audio_file_path} (m3u8, mp3 not found)")
+            else:
+                music_item.set_audio(downloaded_audio_file_path)
+                print(f"Audio downloaded to: {downloaded_audio_file_path}")
         else:
             print(f"Failed to download audio for {music_id}")
             # Callback for audio download failure is handled within download_audio_internal

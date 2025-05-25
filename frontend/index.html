@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Music Downloader</title>
     <link rel="stylesheet" href="style.css" />
+    <script src="https://cdn.jsdelivr.net/npm/colorthief@2.6.0/dist/color-thief.min.js"></script>
   </head>
   <body>
     <div id="app-container">
@@ -25,8 +26,9 @@
             type="text"
             id="header-search-input"
             placeholder="Search for music..."
+            autocomplete="off"
           />
-          <span class="search-source-indicator" style="margin-left: 8px; font-size: 0.9em; color: var(--text-color-secondary);">Source: SoundCloud</span>
+          <!-- <span class="search-source-indicator" style="margin-left: 8px; font-size: 0.9em; color: var(--text-color-secondary);">Source: SoundCloud</span> -->
         </div>
         <div class="header-actions-right">
           <!-- New container -->
@@ -99,8 +101,8 @@
                 class="drawer-link"
                 data-page="collections"
               >
-                <span class="material-icons">collections_bookmark</span>
-                <span class="link-text">My Collections</span>
+                <span class="material-icons">favorite</span>
+                <span class="link-text">My Favorites</span>
               </a>
             </li>
             <!-- Add more links as needed -->
@@ -211,7 +213,7 @@
         </button>
       </footer>
     </div>
-    <script src="script.js"></script>
+    <script type="module" src="script.js"></script>
 
     <!-- Add to Collection Dialog -->
     <div
