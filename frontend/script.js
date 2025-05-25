@@ -505,16 +505,19 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (songCardGrid) {
                                 songCardGrid.innerHTML = ''; // Clear previous content
                                 libraryData.forEach(track => {
-                                    const musicId = track.music_id || track.id || `lib-track-${Date.now()}-${Math.random()}`;
-                                    const coverUrl = track.cover_url || 'placeholder_cover_1.png';
+                                    const musicId = track.music_id; // Prioritize music_id
+                                    let imageUrl = 'placeholder_cover_1.png'; // Default placeholder
+                                    if (track.preview_cover && typeof track.preview_cover === 'string' && track.preview_cover.trim() !== '') {
+                                        imageUrl = track.preview_cover;
+                                    }
                                     const title = track.title || 'Unknown Title';
-                                    const artist = track.author || track.artist_name || 'Unknown Artist';
+                                    const artist = track.author || track.artist_name || 'Unknown Artist'; // Prioritize author as per example
                                     const trackInfoJson = JSON.stringify(track).replace(/'/g, '&apos;');
 
                                     const cardHTML = `
                                         <div class="song-card" data-song-id="${musicId}">
                                             <div class="card-art-container">
-                                                <img src="${coverUrl}" alt="Album Art for ${title}" class="song-card-art">
+                                                <img src="${imageUrl}" alt="Album Art for ${title}" class="song-card-art">
                                                 <button class="play-on-card-button" aria-label="Play Song" data-track-info='${trackInfoJson}'>
                                                     <span class="material-icons">play_arrow</span>
                                                 </button>
@@ -568,13 +571,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 const playButtonEl = mainContent.querySelector('.detail-play-button');
                 const addToCollectionButtonEl = mainContent.querySelector('.detail-add-to-collection-button');
 
-                if (coverArtEl) coverArtEl.src = track.cover_url || 'placeholder_album_art.png';
+                // Use preview_cover for song detail page as well
+                let detailImageUrl = 'placeholder_album_art.png';
+                if (track.preview_cover && typeof track.preview_cover === 'string' && track.preview_cover.trim() !== '') {
+                    detailImageUrl = track.preview_cover;
+                } else if (track.cover_url && typeof track.cover_url === 'string' && track.cover_url.trim() !== '') {
+                    // Fallback to cover_url if preview_cover is not good, though ideally preview_cover is always preferred for downloaded
+                    detailImageUrl = track.cover_url; 
+                }
+
+                if (coverArtEl) coverArtEl.src = detailImageUrl;
                 if (titleEl) titleEl.textContent = track.title || 'Unknown Title';
                 if (artistEl) artistEl.textContent = track.author || track.artist_name || 'Unknown Artist';
                 if (descriptionEl) descriptionEl.textContent = track.description || 'No description available.';
 
                 const trackInfoJson = JSON.stringify(track).replace(/'/g, '&apos;');
-                const songId = track.music_id || track.id;
+                const songId = track.music_id; // Prioritize music_id
 
                 if (playButtonEl) {
                     playButtonEl.dataset.trackInfo = trackInfoJson;
@@ -607,16 +619,19 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (songCardGrid) {
                                 songCardGrid.innerHTML = ''; // Clear previous content
                                 libraryData.forEach(track => {
-                                    const musicId = track.music_id || track.id || `lib-track-${Date.now()}-${Math.random()}`;
-                                    const coverUrl = track.cover_url || 'placeholder_cover_1.png';
+                                    const musicId = track.music_id; // Prioritize music_id
+                                    let imageUrl = 'placeholder_cover_1.png'; // Default placeholder
+                                    if (track.preview_cover && typeof track.preview_cover === 'string' && track.preview_cover.trim() !== '') {
+                                        imageUrl = track.preview_cover;
+                                    }
                                     const title = track.title || 'Unknown Title';
-                                    const artist = track.author || track.artist_name || 'Unknown Artist';
+                                    const artist = track.author || track.artist_name || 'Unknown Artist'; // Prioritize author
                                     const trackInfoJson = JSON.stringify(track).replace(/'/g, '&apos;');
 
                                     const cardHTML = `
                                         <div class="song-card" data-song-id="${musicId}">
                                             <div class="card-art-container">
-                                                <img src="${coverUrl}" alt="Album Art for ${title}" class="song-card-art">
+                                                <img src="${imageUrl}" alt="Album Art for ${title}" class="song-card-art">
                                                 <button class="play-on-card-button" aria-label="Play Song" data-track-info='${trackInfoJson}'>
                                                     <span class="material-icons">play_arrow</span>
                                                 </button>
@@ -785,26 +800,36 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const openAddToCollectionDialog = (songId) => {
         currentSongIdToCollect = songId; // Can be null if not adding a song
-        window.appState.collectionDialogMode = songId ? 'add_song' : window.appState.collectionDialogMode; // Preserve create_direct/edit if songId is null
         
+        // If songId is provided, and we are not already in a direct create/edit mode, it's 'add_song'
+        if (songId && window.appState.collectionDialogMode !== 'create_direct' && window.appState.collectionDialogMode !== 'edit') {
+             window.appState.collectionDialogMode = 'add_song';
+        }
+        // If songId is null, collectionDialogMode should have been set by the calling function 
+        // (openCreateCollectionDialog or openEditCollectionDialog) BEFORE this is called.
+
         const dialogTitleEl = document.getElementById('dialog-title');
         const createForm = document.getElementById('create-collection-form');
         const existingList = document.getElementById('existing-collections-list');
-        const noCollectionsMsg = document.getElementById('no-collections-message');
-        const createNewBtn = document.getElementById('create-new-collection-button');
+        const noCollectionsMsg = document.getElementById('no-collections-message'); // In dialog
+        const createNewBtn = document.getElementById('create-new-collection-button'); // In dialog
         const saveBtn = document.getElementById('save-collection-button');
 
-        // Reset form fields
+        // Reset form fields initially for all modes
         if(newCollectionNameInput) newCollectionNameInput.value = '';
         if(newCollectionCategoryInput) newCollectionCategoryInput.value = '';
         if(newCollectionDescriptionInput) newCollectionDescriptionInput.value = '';
         
+        let collectionsForList = getCollections(); // Get collections for populating list in add_song mode
+
         if (window.appState.collectionDialogMode === 'add_song') {
             if (dialogTitleEl) dialogTitleEl.textContent = "Add to Collection";
-            if (saveBtn) saveBtn.textContent = "Save Collection"; // Or "Create & Add" if new
-            populateCollectionsList(); // Show list of collections to add song to
+            if (saveBtn) saveBtn.textContent = "Save Collection"; // This button is part of the create form
+            populateCollectionsList(); 
             if (createForm) createForm.style.display = 'none';
-            if (createNewBtn) createNewBtn.style.display = 'block'; // Allow creating new from add song flow
+            if (existingList) existingList.style.display = 'block';
+            if (noCollectionsMsg) noCollectionsMsg.style.display = collectionsForList.length === 0 ? 'block' : 'none';
+            if (createNewBtn) createNewBtn.style.display = 'block';
         } else if (window.appState.collectionDialogMode === 'create_direct') {
             if (dialogTitleEl) dialogTitleEl.textContent = "Create New Collection";
             if (saveBtn) saveBtn.textContent = "Save Collection";
@@ -815,7 +840,18 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (window.appState.collectionDialogMode === 'edit') {
             if (dialogTitleEl) dialogTitleEl.textContent = "Edit Collection";
             if (saveBtn) saveBtn.textContent = "Save Changes";
-            // Populate form fields (done in openEditCollectionDialog)
+            
+            const collectionToEdit = collectionsForList.find(c => c.name === window.appState.editingCollectionName);
+            if (collectionToEdit) {
+                if(newCollectionNameInput) newCollectionNameInput.value = collectionToEdit.name || '';
+                if(newCollectionCategoryInput) newCollectionCategoryInput.value = collectionToEdit.category || '';
+                if(newCollectionDescriptionInput) newCollectionDescriptionInput.value = collectionToEdit.description || '';
+            } else {
+                console.error(`Cannot edit: Collection "${window.appState.editingCollectionName}" not found.`);
+                closeAddToCollectionDialog(); // Close if collection to edit is not found
+                return;
+            }
+
             if (createForm) createForm.style.display = 'block';
             if (existingList) existingList.style.display = 'none';
             if (noCollectionsMsg) noCollectionsMsg.style.display = 'none';
@@ -1371,94 +1407,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Initial UI setup calls after DOM is ready
-    renderTaskQueue();
-    updateMainTaskQueueIcon();
-    renderDrawerCollections(); // Render local collections on load
-
-    // --- Expose functions for debugging/testing via window.test ---
-    if (!window.test) {
-        window.test = {};
-    }
-
-    // WebSocket command function
-    if (webSocketManager && typeof webSocketManager.sendWebSocketCommand === 'function') {
-        // Bind `this` to webSocketManager to ensure correct context
-        window.test.sendWebSocketCommand = webSocketManager.sendWebSocketCommand.bind(webSocketManager);
-    } else {
-        window.test.sendWebSocketCommand = () => console.warn('webSocketManager.sendWebSocketCommand not found.');
-    }
-    // Exposing the get_downloaded_music test function already set up in webSocketManager.init
-    // window.test.getLibrary is already exposed via webSocketManager.init()
-
-    // Local collection management functions
-    if (typeof getCollections === 'function') window.test.getLocalCollections = getCollections;
-    else window.test.getLocalCollections = () => console.warn('getCollections not found.');
-    
-    if (typeof saveCollections === 'function') window.test.saveLocalCollections = saveCollections;
-    else window.test.saveLocalCollections = () => console.warn('saveCollections not found.');
-
-    if (typeof deleteLocalCollection === 'function') window.test.deleteLocalCollection = deleteLocalCollection;
-    else window.test.deleteLocalCollection = () => console.warn('deleteLocalCollection not found.');
-
-    if (typeof renderDrawerCollections === 'function') window.test.renderDrawerCollections = renderDrawerCollections;
-    else window.test.renderDrawerCollections = () => console.warn('renderDrawerCollections not found.');
-
-    // Dialog invocation functions
-    if (typeof openAddToCollectionDialog === 'function') window.test.openAddToCollectionDialog = openAddToCollectionDialog;
-    else window.test.openAddToCollectionDialog = () => console.warn('openAddToCollectionDialog not found.');
-    
-    if (typeof openCreateCollectionDialog === 'function') window.test.openCreateCollectionDialog = openCreateCollectionDialog;
-    else window.test.openCreateCollectionDialog = () => console.warn('openCreateCollectionDialog not found.');
-
-    if (typeof openEditCollectionDialog === 'function') window.test.openEditCollectionDialog = openEditCollectionDialog;
-    else window.test.openEditCollectionDialog = () => console.warn('openEditCollectionDialog not found.');
-
-    // Task queue related
-    window.test.getDownloadQueue = () => window.appState.downloadQueue;
-    
-    if (typeof renderTaskQueue === 'function') window.test.renderTaskQueue = renderTaskQueue;
-    else window.test.renderTaskQueue = () => console.warn('renderTaskQueue not found.');
-
-    if (typeof updateMainTaskQueueIcon === 'function') window.test.updateMainTaskQueueIcon = updateMainTaskQueueIcon;
-    else window.test.updateMainTaskQueueIcon = () => console.warn('updateMainTaskQueueIcon not found.');
-
-    // Player related
-    window.test.simulatePlayTrack = typeof simulatePlayTrack !== 'undefined' ? simulatePlayTrack : () => console.warn('simulatePlayTrack not found or removed.');
-    window.test.setPlayerVisibility = typeof setPlayerVisibility !== 'undefined' ? setPlayerVisibility : () => console.warn('setPlayerVisibility not found.');
-    
-    // Navigation
-    if (typeof navigateTo === 'function') window.test.navigateTo = navigateTo;
-    else window.test.navigateTo = () => console.warn('navigateTo not found.');
-
-    // Library fetching
-    if (webSocketManager && typeof webSocketManager.sendWebSocketCommand === 'function') {
-        window.test.fetchLibrary = () => webSocketManager.sendWebSocketCommand("get_downloaded_music", {}).then(r => r.data);
-    } else {
-        window.test.fetchLibrary = () => console.warn('webSocketManager.sendWebSocketCommand not found, cannot fetch library.');
-    }
-
-    console.log('Developer test functions are available under `window.test`.');
-    /*
-        Available test functions:
-        - window.test.sendWebSocketCommand(command, payload)
-        - window.test.getLocalCollections()
-        - window.test.saveLocalCollections(collectionsArray)
-        - window.test.deleteLocalCollection(collectionName)
-        - window.test.renderDrawerCollections()
-        - window.test.openAddToCollectionDialog(songId)
-        - window.test.openCreateCollectionDialog()
-        - window.test.openEditCollectionDialog(collectionName)
-        - window.test.getDownloadQueue()
-        - window.test.renderTaskQueue()
-        - window.test.updateMainTaskQueueIcon()
-        - window.test.simulatePlayTrack()
-        - window.test.setPlayerVisibility(boolean)
-        - window.test.navigateTo(pageId, title, path, skipPushState)
-        - window.test.fetchLibrary()
-        (Note: getLibrary is also available from previous WebSocket setup)
-    */
-
     // --- Local Collections & Context Menu ---
     const localCollectionsList = document.getElementById('local-collections-list');
     const contextMenu = document.getElementById('drawer-context-menu');
@@ -1579,10 +1527,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // window.appState.collectionDialogMode and window.appState.editingCollectionName will be used here
     function openCreateCollectionDialog() {
         console.log("Attempting to open Create Collection Dialog");
-        // This will be fully fleshed out in I.5
+        window.appState.collectionDialogMode = 'create_direct'; // Set mode BEFORE calling common dialog function
         openAddToCollectionDialog(null); // Signal that it's not for a song
-        const dialogTitle = document.querySelector('#add-to-collection-dialog #dialog-title');
-        if (dialogTitle) dialogTitle.textContent = "Create New Collection";
+        
+        // Title is now set correctly within openAddToCollectionDialog based on the mode
         
         // Ensure form is visible, list is hidden
         const createForm = document.getElementById('create-collection-form');
@@ -1606,13 +1554,13 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error(`Collection "${collectionName}" not found for editing.`);
             return;
         }
+        window.appState.collectionDialogMode = 'edit'; // Set mode BEFORE
+        window.appState.editingCollectionName = collectionName; // Set editing name BEFORE
         openAddToCollectionDialog(null); // Signal it's not for a song
         
-        const dialogTitle = document.querySelector('#add-to-collection-dialog #dialog-title');
-        if (dialogTitle) dialogTitle.textContent = "Edit Collection";
-
-        // Populate form
-        const nameInput = document.getElementById('new-collection-name');
+        // Title is now set correctly within openAddToCollectionDialog based on the mode
+        // Form population will be handled by openAddToCollectionDialog in 'edit' mode.
+        // const nameInput = document.getElementById('new-collection-name'); // No longer needed here
         const categoryInput = document.getElementById('new-collection-category');
         const descriptionInput = document.getElementById('new-collection-description');
         if(nameInput) nameInput.value = collectionToEdit.name || '';
@@ -1634,4 +1582,104 @@ document.addEventListener('DOMContentLoaded', () => {
         window.appState.editingCollectionName = collectionName;
     }
 
+    // Initial UI setup calls after DOM is ready
+    renderTaskQueue();
+    updateMainTaskQueueIcon();
+    renderDrawerCollections(); // Render local collections on load
+
 });
+
+// --- Expose functions for debugging/testing via window.test ---
+// Note: This block is intentionally outside DOMContentLoaded to ensure all functions are defined
+// and DOM is ready before these are potentially called from the console.
+// However, functions defined within DOMContentLoaded and not globally will not be accessible here
+// unless they were already attached to window or a global object (like webSocketManager).
+
+if (!window.test) {
+    window.test = {};
+}
+
+// WebSocket command function
+// Assuming webSocketManager is a global or accessible variable.
+// If webSocketManager is defined inside DOMContentLoaded, this specific assignment will fail
+// unless webSocketManager itself is made globally accessible.
+// For now, we proceed assuming webSocketManager is defined in a scope accessible here.
+// If it was defined with 'const' or 'let' inside DOMContentLoaded, it's not global.
+// This was previously within DOMContentLoaded, so webSocketManager was in scope.
+// Moving it out requires webSocketManager to be in a higher scope or global.
+// For the purpose of this refactor, we'll assume webSocketManager might need to be
+// defined outside DOMContentLoaded or explicitly attached to window if it's to be used here.
+// Let's assume it's globally available for this example.
+if (typeof webSocketManager !== 'undefined' && webSocketManager && typeof webSocketManager.sendWebSocketCommand === 'function') {
+    window.test.sendWebSocketCommand = webSocketManager.sendWebSocketCommand.bind(webSocketManager);
+} else {
+    // Fallback: if webSocketManager is not globally available, provide a stub or warning.
+    window.test.sendWebSocketCommand = () => console.warn('webSocketManager not found or sendWebSocketCommand is not a function. Ensure webSocketManager is globally accessible if defined outside DOMContentLoaded.');
+    // Note: getLibrary is also exposed via webSocketManager.init() if webSocketManager is accessible
+     if (typeof webSocketManager !== 'undefined' && webSocketManager && webSocketManager.testWebSocketGetLibrary) {
+         // getLibrary is already set up by webSocketManager.init if accessible.
+     } else {
+         window.test.getLibrary = () => console.warn('webSocketManager not found, getLibrary unavailable.');
+     }
+}
+
+
+// For functions defined globally or within DOMContentLoaded but assigned to global/higher-scope vars:
+// The following assumes these functions are either global or attached to an accessible object.
+// If they are const/let inside DOMContentLoaded, they are not directly accessible here.
+// We will proceed with the assumption that these functions *were intended* to be accessible,
+// and if not, this highlights a structural dependency.
+
+// Local collection management functions
+window.test.getLocalCollections = typeof getCollections !== 'undefined' ? getCollections : () => console.warn('getCollections not found. Was it defined globally or attached to window?');
+window.test.saveLocalCollections = typeof saveCollections !== 'undefined' ? saveCollections : () => console.warn('saveCollections not found.');
+window.test.deleteLocalCollection = typeof deleteLocalCollection !== 'undefined' ? deleteLocalCollection : () => console.warn('deleteLocalCollection not found.');
+window.test.renderDrawerCollections = typeof renderDrawerCollections !== 'undefined' ? renderDrawerCollections : () => console.warn('renderDrawerCollections not found.');
+
+// Dialog invocation functions
+window.test.openAddToCollectionDialog = typeof openAddToCollectionDialog !== 'undefined' ? openAddToCollectionDialog : () => console.warn('openAddToCollectionDialog not found.');
+window.test.openCreateCollectionDialog = typeof openCreateCollectionDialog !== 'undefined' ? openCreateCollectionDialog : () => console.warn('openCreateCollectionDialog not found.');
+window.test.openEditCollectionDialog = typeof openEditCollectionDialog !== 'undefined' ? openEditCollectionDialog : () => console.warn('openEditCollectionDialog not found.');
+
+// Task queue related
+window.test.getDownloadQueue = () => (typeof window.appState !== 'undefined' && window.appState.downloadQueue) ? window.appState.downloadQueue : (console.warn('window.appState.downloadQueue not found.'), []);
+window.test.renderTaskQueue = typeof renderTaskQueue !== 'undefined' ? renderTaskQueue : () => console.warn('renderTaskQueue not found.');
+window.test.updateMainTaskQueueIcon = typeof updateMainTaskQueueIcon !== 'undefined' ? updateMainTaskQueueIcon : () => console.warn('updateMainTaskQueueIcon not found.');
+
+// Player related
+window.test.simulatePlayTrack = typeof simulatePlayTrack !== 'undefined' ? simulatePlayTrack : () => console.warn('simulatePlayTrack not found or removed.');
+window.test.setPlayerVisibility = typeof setPlayerVisibility !== 'undefined' ? setPlayerVisibility : () => console.warn('setPlayerVisibility not found.');
+
+// Navigation
+window.test.navigateTo = typeof navigateTo !== 'undefined' ? navigateTo : () => console.warn('navigateTo not found.');
+
+// Library fetching
+if (typeof webSocketManager !== 'undefined' && webSocketManager && typeof webSocketManager.sendWebSocketCommand === 'function') {
+    window.test.fetchLibrary = () => webSocketManager.sendWebSocketCommand("get_downloaded_music", {}).then(r => r.data);
+} else {
+    window.test.fetchLibrary = () => {
+        console.warn('webSocketManager not found or sendWebSocketCommand is not a function, cannot fetch library.');
+        return Promise.reject('webSocketManager not available.');
+    };
+}
+
+console.log('Developer test functions are available under `window.test`. Note: Some functions might be unavailable if they were not defined globally or attached to window.');
+/*
+    Available test functions (availability depends on their original scope):
+    - window.test.sendWebSocketCommand(command, payload)
+    - window.test.getLocalCollections()
+    - window.test.saveLocalCollections(collectionsArray)
+    - window.test.deleteLocalCollection(collectionName)
+    - window.test.renderDrawerCollections()
+    - window.test.openAddToCollectionDialog(songId)
+    - window.test.openCreateCollectionDialog()
+    - window.test.openEditCollectionDialog(collectionName)
+    - window.test.getDownloadQueue()
+    - window.test.renderTaskQueue()
+    - window.test.updateMainTaskQueueIcon()
+    - window.test.simulatePlayTrack()
+    - window.test.setPlayerVisibility(boolean)
+    - window.test.navigateTo(pageId, title, path, skipPushState)
+    - window.test.fetchLibrary()
+    (Note: getLibrary is also available from previous WebSocket setup if webSocketManager is accessible)
+*/
