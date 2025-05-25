@@ -230,6 +230,7 @@
         <div id="no-collections-message" style="display: none">
           <p>No collections found. Create one?</p>
         </div>
+        <button id="confirm-collection-changes-button" class="dialog-button primary" style="display: none;">Confirm Changes</button>
         <button id="create-new-collection-button" class="dialog-button">
           Create New Collection
         </button>
@@ -244,6 +245,8 @@
             >Description (Optional):</label
           >
           <textarea id="new-collection-description"></textarea>
+          <label for="new-collection-color">Color (Optional):</label>
+          <input type="color" id="new-collection-color" value="#6B7280">
           <button id="save-collection-button" class="dialog-button primary">
             Save Collection
           </button>
