@@ -339,11 +339,8 @@ async def handler(websocket, path): # path is not used yet, but part of websocke
         CONNECTED_CLIENTS.remove(websocket)
 
 async def main():
-    HOST = "localhost"
+    HOST = "0.0.0.0"
     PORT = 8765
-    # The websockets.serve function returns a Server object.
-    # To keep the server running, you need to await its wait_closed() method
-    # or keep the main coroutine running in some other way.
     server = await websockets.serve(handler, HOST, PORT)
     print(f"WebSocket server started on ws://{HOST}:{PORT}")
     await server.wait_closed() # Keep the server running until it's stopped

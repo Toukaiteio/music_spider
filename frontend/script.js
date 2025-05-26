@@ -492,9 +492,7 @@ document.addEventListener("DOMContentLoaded", () => {
   UIManager.renderTaskQueue(); // This UIManager function remains
   UIManager.updateMainTaskQueueIcon(); // This UIManager function remains
   // collectionManager.init() already called, which calls renderDrawerCollections
-});
-
-// --- Expose functions for debugging/testing via window.test ---
+  // --- Expose functions for debugging/testing via window.test ---
 // Note: Functions related to collections will be updated to point to collectionManager methods
 // Note: This block is intentionally outside DOMContentLoaded to ensure all functions are defined
 // and DOM is ready before these are potentially called from the console.
@@ -622,3 +620,6 @@ console.log(
     - window.test.fetchLibrary()
     (Note: getLibrary is also available from previous WebSocket setup if webSocketManager is accessible)
 */
+
+});
+

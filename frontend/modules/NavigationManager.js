@@ -23,7 +23,8 @@ class NavigationManager {
         this.uiManager = uiManager;
         // this.displaySearchResultsOnPage = displaySearchResultsOnPageCallback; // Removed
         this.renderDrawerCollections = renderDrawerCollectionsCallback;
-        this.getCollections = getCollectionsCallback;
+        if(getCollectionsCallback)
+            this.getCollections = getCollectionsCallback;
         this.appState = appState;
         this.searchManager = null; // Will be set by setSearchManager
         this.favoriteManager = null; // Will be set by setFavoriteManager
@@ -69,7 +70,9 @@ class NavigationManager {
         document.addEventListener('favoritesChanged', this.handleFavoriteChange);
         document.addEventListener('collectionChanged', this.handleCollectionChange.bind(this)); // Listen for collection changes
     }
-
+    getCollections(){
+        return JSON.parse(localStorage.getItem('userCollections')) || [];
+    }
     updateActiveDrawerLink(pageId, subPageId = null) {
         this.drawerLinksElements = document.querySelectorAll(".drawer-link"); // Refresh the list
         this.drawerLinksElements.forEach((link) => {
@@ -110,180 +113,182 @@ class NavigationManager {
         this.updateActiveDrawerLink(pageId, subPageId);
 
         this.mainContent.style.opacity = "0";
-        requestAnimationFrame(() => {
-            this.mainContent.style.transition = "opacity 0.3s ease-in-out";
-            this.mainContent.style.opacity = "1";
+        const thiz = this
+        console.log(thiz);
+        requestAnimationFrame((() => {
+            thiz.mainContent.style.transition = "opacity 0.3s ease-in-out";
+            thiz.mainContent.style.opacity = "1";
 
             // Page-specific logic
             if (pageId === "home") {
-                const homeLoadingMessage = this.mainContent.querySelector("#home-loading-message");
-                const songCardGrid = this.mainContent.querySelector("#song-card-grid");
-                const noSongsMessage = this.mainContent.querySelector("#no-songs-message");
+            const homeLoadingMessage = thiz.mainContent.querySelector("#home-loading-message");
+            const songCardGrid = thiz.mainContent.querySelector("#song-card-grid");
+            const noSongsMessage = thiz.mainContent.querySelector("#no-songs-message");
 
-                if (homeLoadingMessage) homeLoadingMessage.style.display = "block";
+            if (homeLoadingMessage) homeLoadingMessage.style.display = "block";
+            if (songCardGrid) songCardGrid.style.display = "none";
+            if (noSongsMessage) noSongsMessage.style.display = "none";
+
+            thiz.webSocketManager.sendWebSocketCommand("get_downloaded_music", {})
+                .then((response) => {
+                if (homeLoadingMessage) homeLoadingMessage.style.display = "none";
+                const libraryData = response.data && response.data.library ? response.data.library : [];
+                thiz.appState.library = libraryData;
+                thiz.playerManager.setPlayList(libraryData);
+                if (libraryData && libraryData.length > 0) {
+                    if (songCardGrid) {
+                    songCardGrid.innerHTML = ""; // Clear previous content
+                    libraryData.forEach((track) => {
+                        const musicId = track.music_id;
+                        let imageUrl = "placeholder_cover_1.png";
+                        if (track.preview_cover && typeof track.preview_cover === "string" && track.preview_cover.trim() !== "") {
+                        imageUrl = track.preview_cover;
+                        }
+                        const trackTitle = track.title || "Unknown Title";
+                        const isFavorite = thiz.favoriteManager ? thiz.favoriteManager.isFavorite(track.music_id) : false;
+                        songCardGrid.innerHTML += SongCardRenderer.render(track, 'library', { isFavorite });
+                    });
+                    songCardGrid.style.display = "grid";
+                    }
+                    if (noSongsMessage) noSongsMessage.style.display = "none";
+                } else {
+                    if (songCardGrid) songCardGrid.style.display = "none";
+                    if (noSongsMessage) noSongsMessage.style.display = "block";
+                }
+                })
+                .catch((error) => {
+                console.error("Failed to load library:", error);
+                if (homeLoadingMessage) {
+                    homeLoadingMessage.innerHTML = '<p style="color: red;">Failed to load your library. Please try again later.</p>';
+                    homeLoadingMessage.style.display = "block";
+                }
                 if (songCardGrid) songCardGrid.style.display = "none";
                 if (noSongsMessage) noSongsMessage.style.display = "none";
-
-                this.webSocketManager.sendWebSocketCommand("get_downloaded_music", {})
-                    .then((response) => {
-                        if (homeLoadingMessage) homeLoadingMessage.style.display = "none";
-                        const libraryData = response.data && response.data.library ? response.data.library : [];
-                        this.appState.library = libraryData;
-                        this.playerManager.setPlayList(libraryData);
-                        if (libraryData && libraryData.length > 0) {
-                            if (songCardGrid) {
-                                songCardGrid.innerHTML = ""; // Clear previous content
-                                libraryData.forEach((track) => {
-                                    const musicId = track.music_id;
-                                    let imageUrl = "placeholder_cover_1.png";
-                                    if (track.preview_cover && typeof track.preview_cover === "string" && track.preview_cover.trim() !== "") {
-                                        imageUrl = track.preview_cover;
-                                    }
-                                    const trackTitle = track.title || "Unknown Title";
-                                    const isFavorite = this.favoriteManager ? this.favoriteManager.isFavorite(track.music_id) : false;
-                                    songCardGrid.innerHTML += SongCardRenderer.render(track, 'library', { isFavorite });
-                                });
-                                songCardGrid.style.display = "grid";
-                            }
-                            if (noSongsMessage) noSongsMessage.style.display = "none";
-                        } else {
-                            if (songCardGrid) songCardGrid.style.display = "none";
-                            if (noSongsMessage) noSongsMessage.style.display = "block";
-                        }
-                    })
-                    .catch((error) => {
-                        console.error("Failed to load library:", error);
-                        if (homeLoadingMessage) {
-                            homeLoadingMessage.innerHTML = '<p style="color: red;">Failed to load your library. Please try again later.</p>';
-                            homeLoadingMessage.style.display = "block";
-                        }
-                        if (songCardGrid) songCardGrid.style.display = "none";
-                        if (noSongsMessage) noSongsMessage.style.display = "none";
-                    });
+                });
             } else if (pageId === "search-results") {
-                // Content is set by mainContent.innerHTML.
-                // SearchManager will be responsible for populating it.
-                // NavigationManager ensures the page is visible, then SearchManager fills it.
-                if (this.searchManager) {
-                    // Ensure DOM is updated before displayResults tries to access elements
-                    setTimeout(() => this.searchManager.displayResults(), 0);
-                } else {
-                    console.warn("NavigationManager: SearchManager not set, cannot display search results.");
-                    // Optionally display a message in the mainContent area
-                    this.mainContent.innerHTML += '<p style="color:red;text-align:center;">Error: Search functionality is currently unavailable.</p>';
-                }
+            // Content is set by mainContent.innerHTML.
+            // SearchManager will be responsible for populating it.
+            // NavigationManager ensures the page is visible, then SearchManager fills it.
+            if (thiz.searchManager) {
+                // Ensure DOM is updated before displayResults tries to access elements
+                setTimeout(() => thiz.searchManager.displayResults(), 0);
+            } else {
+                console.warn("NavigationManager: SearchManager not set, cannot display search results.");
+                // Optionally display a message in the mainContent area
+                thiz.mainContent.innerHTML += '<p style="color:red;text-align:center;">Error: Search functionality is currently unavailable.</p>';
+            }
             } else if (pageId === "song-detail") {
-                const track = this.appState.currentSongDetail;
-                if (!track) {
-                    this.mainContent.innerHTML = '<p style="color:red; text-align:center; padding:20px;">Error: Song details not found. Please go back and try again.</p>';
-                    return;
-                }
-                const coverArtEl = document.getElementById("detail-cover-art");
-                const titleEl = document.getElementById("detail-title");
-                const artistEl = document.getElementById("detail-artist");
-                const descriptionEl = document.getElementById("detail-description");
-                // Buttons are now handled by the main event listener in script.js for play/add to collection
+            const track = thiz.appState.currentSongDetail;
+            if (!track) {
+                thiz.mainContent.innerHTML = '<p style="color:red; text-align:center; padding:20px;">Error: Song details not found. Please go back and try again.</p>';
+                return;
+            }
+            const coverArtEl = document.getElementById("detail-cover-art");
+            const titleEl = document.getElementById("detail-title");
+            const artistEl = document.getElementById("detail-artist");
+            const descriptionEl = document.getElementById("detail-description");
+            // Buttons are now handled by the main event listener in script.js for play/add to collection
 
-                let detailImageUrl = "placeholder_album_art.png";
-                if (track.preview_cover && typeof track.preview_cover === "string" && track.preview_cover.trim() !== "") {
-                    detailImageUrl = track.preview_cover;
-                } else if (track.cover_url && typeof track.cover_url === "string" && track.cover_url.trim() !== "") {
-                    detailImageUrl = track.cover_url;
-                }
+            let detailImageUrl = "placeholder_album_art.png";
+            if (track.preview_cover && typeof track.preview_cover === "string" && track.preview_cover.trim() !== "") {
+                detailImageUrl = track.preview_cover;
+            } else if (track.cover_url && typeof track.cover_url === "string" && track.cover_url.trim() !== "") {
+                detailImageUrl = track.cover_url;
+            }
 
-                if (coverArtEl) coverArtEl.src = detailImageUrl;
-                if (titleEl) titleEl.textContent = track.title || "Unknown Title";
-                if (artistEl) artistEl.textContent = track.author || track.artist_name || "Unknown Artist";
-                if (descriptionEl) descriptionEl.textContent = track.description || "No description available.";
-                
-                // Add track info to buttons for script.js listener
-                const playButtonEl = this.mainContent.querySelector(".detail-play-button");
-                const addToCollectionButtonEl = this.mainContent.querySelector(".detail-add-to-collection-button");
-                const trackInfoJson = JSON.stringify(track).replace(/'/g, "&apos;");
-                const songId = track.music_id;
+            if (coverArtEl) coverArtEl.src = detailImageUrl;
+            if (titleEl) titleEl.textContent = track.title || "Unknown Title";
+            if (artistEl) artistEl.textContent = track.author || track.artist_name || "Unknown Artist";
+            if (descriptionEl) descriptionEl.textContent = track.description || "No description available.";
+            
+            // Add track info to buttons for script.js listener
+            const playButtonEl = thiz.mainContent.querySelector(".detail-play-button");
+            const addToCollectionButtonEl = thiz.mainContent.querySelector(".detail-add-to-collection-button");
+            const trackInfoJson = JSON.stringify(track).replace(/'/g, "&apos;");
+            const songId = track.music_id;
 
-                if (playButtonEl) playButtonEl.dataset.trackInfo = trackInfoJson;
-                if (addToCollectionButtonEl) {
-                    addToCollectionButtonEl.dataset.trackInfo = trackInfoJson;
-                    if (songId) addToCollectionButtonEl.dataset.songId = songId;
-                }
+            if (playButtonEl) playButtonEl.dataset.trackInfo = trackInfoJson;
+            if (addToCollectionButtonEl) {
+                addToCollectionButtonEl.dataset.trackInfo = trackInfoJson;
+                if (songId) addToCollectionButtonEl.dataset.songId = songId;
+            }
 
             } else if (pageId === "collections" || pageId === "collection-detail") {
-                const collectionsLoadingMessage = this.mainContent.querySelector("#collections-loading-message");
-                const songCardGrid = this.mainContent.querySelector("#song-card-grid");
-                const noMusicMessage = this.mainContent.querySelector("#collections-no-music-message");
-                const collectionNameElement = this.mainContent.querySelector("#collection-name");
+            const collectionsLoadingMessage = thiz.mainContent.querySelector("#collections-loading-message");
+            const songCardGrid = thiz.mainContent.querySelector("#song-card-grid");
+            const noMusicMessage = thiz.mainContent.querySelector("#collections-no-music-message");
+            const collectionNameElement = thiz.mainContent.querySelector("#collection-name");
 
 
-                if (collectionsLoadingMessage) collectionsLoadingMessage.style.display = "block";
-                if (songCardGrid) songCardGrid.style.display = "none";
-                if (noMusicMessage) noMusicMessage.style.display = "none";
+            if (collectionsLoadingMessage) collectionsLoadingMessage.style.display = "block";
+            if (songCardGrid) songCardGrid.style.display = "none";
+            if (noMusicMessage) noMusicMessage.style.display = "none";
+            
+            let collectionTracks = [];
+            let currentCollectionName = "";
+            thiz.currentOpenCollectionName = null; // Reset current open collection
+
+            if (pageId === "collection-detail" && subPageId) {
+                currentCollectionName = subPageId;
+                thiz.currentOpenCollectionName = subPageId; // Store for the event handler
+                if(collectionNameElement) collectionNameElement.textContent = currentCollectionName;
+
+                const collections = thiz.getCollections(); 
+                const collection = collections.find(c => c.name === subPageId);
+                if (collection && collection.songs) {
+                const allLibraryTracks = thiz.appState.library || [];
+                collectionTracks = collection.songs.map(musicId => 
+                    allLibraryTracks.find(track => String(track.music_id) === String(musicId))
+                ).filter(Boolean);
+                } else if (!collection) {
+                 thiz.navigateTo("collections", "Collections", "#collections", true); // Redirect if collection not found
+                 return;
+                }
+                 // Update the message for empty collections specifically
+                if (noMusicMessage && collectionTracks.length === 0) {
+                noMusicMessage.textContent = `This playlist "${currentCollectionName}" is empty.`;
+                }
+
+            } else { // My Favorites view (pageId === 'collections' && !subPageId)
+                currentCollectionName = "My Favorites";
+                 if(collectionNameElement) collectionNameElement.textContent = currentCollectionName;
                 
-                let collectionTracks = [];
-                let currentCollectionName = "";
-                this.currentOpenCollectionName = null; // Reset current open collection
-
-                if (pageId === "collection-detail" && subPageId) {
-                    currentCollectionName = subPageId;
-                    this.currentOpenCollectionName = subPageId; // Store for the event handler
-                    if(collectionNameElement) collectionNameElement.textContent = currentCollectionName;
-
-                    const collections = this.getCollections(); 
-                    const collection = collections.find(c => c.name === subPageId);
-                    if (collection && collection.songs) {
-                        const allLibraryTracks = this.appState.library || [];
-                        collectionTracks = collection.songs.map(musicId => 
-                            allLibraryTracks.find(track => String(track.music_id) === String(musicId))
-                        ).filter(Boolean);
-                    } else if (!collection) {
-                         this.navigateTo("collections", "Collections", "#collections", true); // Redirect if collection not found
-                         return;
-                    }
-                     // Update the message for empty collections specifically
-                    if (noMusicMessage && collectionTracks.length === 0) {
-                        noMusicMessage.textContent = `This playlist "${currentCollectionName}" is empty.`;
-                    }
-
-                } else { // My Favorites view (pageId === 'collections' && !subPageId)
-                    currentCollectionName = "My Favorites";
-                     if(collectionNameElement) collectionNameElement.textContent = currentCollectionName;
-                    
-                    if (this.favoriteManager) {
-                        const favoriteIds = this.favoriteManager.getFavoriteSongIds();
-                        const allLibraryTracks = this.appState.library || [];
-                        collectionTracks = allLibraryTracks.filter(track => favoriteIds.includes(String(track.music_id)));
-                    } else {
-                        collectionTracks = [];
-                    }
-                    if (noMusicMessage && collectionTracks.length === 0) {
-                        noMusicMessage.textContent = "You haven't added any songs to your favorites yet.";
-                    }
+                if (thiz.favoriteManager) {
+                const favoriteIds = thiz.favoriteManager.getFavoriteSongIds();
+                const allLibraryTracks = thiz.appState.library || [];
+                collectionTracks = allLibraryTracks.filter(track => favoriteIds.includes(String(track.music_id)));
+                } else {
+                collectionTracks = [];
                 }
-
-
-                if (collectionTracks.length > 0) {
-                    if (songCardGrid) {
-                        songCardGrid.innerHTML = ""; // Clear previous content
-                        collectionTracks.forEach((track) => {
-                            // For 'favorites-view', isFavorite is always true. For 'collection-detail', it's dynamic.
-                            const isFavorite = (pageId === 'collections' && !subPageId) || (this.favoriteManager ? this.favoriteManager.isFavorite(track.music_id) : false);
-                            const cardContext = (pageId === 'collections' && !subPageId) ? 'favorites-view' : 'collection-view';
-                            songCardGrid.innerHTML += SongCardRenderer.render(track, cardContext, { isFavorite });
-                        });
-                        songCardGrid.style.display = "grid";
-                        // Attach listener for remove buttons if this is a specific collection view
-                        if (pageId === 'collection-detail' && subPageId) {
-                            this._attachRemoveFromCollectionListeners(songCardGrid);
-                        }
-                    }
-                    if (noMusicMessage && collectionTracks.length > 0) noMusicMessage.style.display = "none";
-                } else { 
-                    if (songCardGrid) songCardGrid.style.display = "none";
-                    if (noMusicMessage) noMusicMessage.style.display = "block"; // Message is set above based on context
+                if (noMusicMessage && collectionTracks.length === 0) {
+                noMusicMessage.textContent = "You haven't added any songs to your favorites yet.";
                 }
-                if (collectionsLoadingMessage) collectionsLoadingMessage.style.display = "none";
             }
-        });
+
+
+            if (collectionTracks.length > 0) {
+                if (songCardGrid) {
+                songCardGrid.innerHTML = ""; // Clear previous content
+                collectionTracks.forEach((track) => {
+                    // For 'favorites-view', isFavorite is always true. For 'collection-detail', it's dynamic.
+                    const isFavorite = (pageId === 'collections' && !subPageId) || (thiz.favoriteManager ? thiz.favoriteManager.isFavorite(track.music_id) : false);
+                    const cardContext = (pageId === 'collections' && !subPageId) ? 'favorites-view' : 'collection-view';
+                    songCardGrid.innerHTML += SongCardRenderer.render(track, cardContext, { isFavorite });
+                });
+                songCardGrid.style.display = "grid";
+                // Attach listener for remove buttons if this is a specific collection view
+                if (pageId === 'collection-detail' && subPageId) {
+                    thiz._attachRemoveFromCollectionListeners(songCardGrid);
+                }
+                }
+                if (noMusicMessage && collectionTracks.length > 0) noMusicMessage.style.display = "none";
+            } else { 
+                if (songCardGrid) songCardGrid.style.display = "none";
+                if (noMusicMessage) noMusicMessage.style.display = "block"; // Message is set above based on context
+            }
+            if (collectionsLoadingMessage) collectionsLoadingMessage.style.display = "none";
+            }
+        }));
     }
     
     _attachRemoveFromCollectionListeners(songCardGridElement) {
@@ -440,7 +445,9 @@ class NavigationManager {
     setFavoriteManager(favoriteManager) {
         this.favoriteManager = favoriteManager;
     }
-    
+    setCollectionManager(collectionManager) {
+        this.collectionManager = collectionManager;
+    }
     getCurrentPageId() {
         const hash = location.hash.substring(1);
         const parts = hash.split('/');

@@ -457,7 +457,7 @@ body {
     margin-top: auto; /* Push actions to the bottom if card height varies */
 }
 
-.search-result-download-button,.add-to-collection-button {
+.remove-from-collection-button,.favorite-button,.search-result-download-button,.add-to-collection-button {
     background: transparent;
     border: none;
     color: var(--icon-color);
@@ -465,6 +465,9 @@ body {
     border-radius: 50%;
     height: 36px;
     width: 36px;
+}
+.remove-from-collection-button{
+    color:rgb(251, 119, 119)
 }
 .detail-play-button,.detail-add-to-collection-button {
     background: transparent;
@@ -475,7 +478,7 @@ body {
     height: 50px;
     width: 50px;
 }
-.detail-play-button,.detail-add-to-collection-button,.search-result-download-button,.add-to-collection-button:hover {
+.remove-from-collection-button:hover,.favorite-button:hover,.detail-play-button:hover,.detail-add-to-collection-button:hover,.search-result-download-button:hover,.add-to-collection-button:hover {
     background-color: var(--shadow-color);
     color: var(--accent-color);
 }
@@ -763,6 +766,14 @@ body {
     border-radius: 5px;
     cursor: pointer;
     font-size: 0.9em;
+}
+#confirm-collection-changes-button {
+    width: 100%;
+    margin: 0px;
+}
+.save-collection-buttons{
+    border-top: 1px solid var(--border-color);
+    width: 100%;
 }
 .dialog-button.primary {
     background-color: var(--accent-color);
