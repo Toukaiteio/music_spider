@@ -41,13 +41,18 @@ class WebSocketManager {
       console.log("WebSocket is already connected or connecting.");
       return;
     }
-
-    this.socket = new WebSocket("ws://localhost:8765");
+    const host = location.hostname
+    this.socket = new WebSocket(`ws://${host}:8765`);
     console.log("Attempting to connect to WebSocket server...");
 
     this.socket.onopen = () => {
       console.log("WebSocket connection established.");
       this.reconnectAttempts = 0;
+      if (this._ensureSocketOpenResolver) {
+        this._ensureSocketOpenResolver();
+        this._ensureSocketOpenResolver = null;
+      }
+      this.processCommandQueue();
     };
 
     this.socket.onmessage = (event) => {
@@ -179,70 +184,96 @@ class WebSocketManager {
       }
     };
   }
+  isSocketNeededForPage() {
+    return true;
+  }
+  ensureSocketOpen() {
+    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+      return Promise.resolve();
+    }
+    if (this._ensureSocketOpenPromise) {
+      return this._ensureSocketOpenPromise;
+    }
+    this._ensureSocketOpenPromise = new Promise((resolve) => {
+      this._ensureSocketOpenResolver = () => {
+        resolve();
+        this._ensureSocketOpenPromise = null;
+      };
+    });
+    if (!this.socket || this.socket.readyState !== WebSocket.CONNECTING) {
+      this.connect();
+    }
+    return this._ensureSocketOpenPromise;
+  }
 
-sendWebSocketCommand(command, payload) {
+  sendWebSocketCommand(command, payload) {
     return new Promise((resolve, reject) => {
-        const executeCommand = () => {
-            const cmd_id = this.generateCmdId();
-            const message = {
-                cmd_id: cmd_id,
-                command: command,
-                payload: payload,
-            };
-
-            try {
-                this.socket.send(JSON.stringify(message));
-                console.log("WebSocket command sent:", message);
-
-                const timeoutDuration = 15000; // 15 seconds
-                const timeout = setTimeout(() => {
-                    delete this.pendingRequests[cmd_id];
-                    reject(new Error(`Request timed out for cmd_id: ${cmd_id}`));
-                }, timeoutDuration);
-
-                this.pendingRequests[cmd_id] = { resolve, reject, timeout };
-            } catch (error) {
-                console.error("Error sending WebSocket command:", error);
-                reject(error);
-            }
+      const executeCommand = () => {
+        const cmd_id = this.generateCmdId();
+        const message = {
+          cmd_id: cmd_id,
+          command: command,
+          payload: payload,
         };
 
-        // Initialize the queue if not present
-        if (!this.commandQueue) {
-            this.commandQueue = [];
-        }
+        try {
+          this.socket.send(JSON.stringify(message));
+          console.log("WebSocket command sent:", message);
 
-        if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
-            // Queue the command to be sent after connection is open
-            this.commandQueue.push(executeCommand);
+          const timeoutDuration = 15000; // 15 seconds
+          const timeout = setTimeout(() => {
+            delete this.pendingRequests[cmd_id];
+            reject(new Error(`Request timed out for cmd_id: ${cmd_id}`));
+          }, timeoutDuration);
 
-            // Optionally, try to connect if not already connecting/connected
-            if (
-                !this.socket ||
-                (this.socket.readyState !== WebSocket.CONNECTING &&
-                    this.socket.readyState !== WebSocket.OPEN)
-            ) {
-                this.connect();
-            }
-        } else {
-            executeCommand();
+          this.pendingRequests[cmd_id] = { resolve, reject, timeout };
+        } catch (error) {
+          console.error("Error sending WebSocket command:", error);
+          reject(error);
         }
+      };
+
+      // Initialize the queue if not present
+      if (!this.commandQueue) {
+        this.commandQueue = [];
+      }
+
+      if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+        // Queue the command to be sent after connection is open
+        this.commandQueue.push(executeCommand);
+
+        // Optionally, try to connect if not already connecting/connected
+        if (
+          !this.socket ||
+          (this.socket.readyState !== WebSocket.CONNECTING &&
+            this.socket.readyState !== WebSocket.OPEN)
+        ) {
+          this.connect();
+        }
+      } else {
+        executeCommand();
+      }
     });
-}
+  }
 
-// Add this after connect() in the class
-processCommandQueue() {
-    if (this.commandQueue && this.commandQueue.length > 0 && this.socket && this.socket.readyState === WebSocket.OPEN) {
-        while (this.commandQueue.length > 0) {
-            const cmd = this.commandQueue.shift();
-            try {
-                cmd();
-            } catch (e) {
-                console.error("Error executing queued WebSocket command:", e);
-            }
+  // Add this after connect() in the class
+  processCommandQueue() {
+    if (
+      this.commandQueue &&
+      this.commandQueue.length > 0 &&
+      this.socket &&
+      this.socket.readyState === WebSocket.OPEN
+    ) {
+      while (this.commandQueue.length > 0) {
+        const cmd = this.commandQueue.shift();
+        try {
+          cmd();
+        } catch (e) {
+          console.error("Error executing queued WebSocket command:", e);
         }
+      }
     }
-}
+  }
 
   async testWebSocketGetLibrary() {
     console.log('Testing "get_downloaded_music" command...');

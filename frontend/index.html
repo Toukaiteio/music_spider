@@ -116,12 +116,16 @@
         </nav>
       </aside>
       <main id="main-content"></main>
-      <div id="drawer-context-menu" class="custom-context-menu" style="display: none; position: absolute; z-index: 1500;">
-          <ul>
-              <li data-action="create_collection">New Collection</li>
-              <li data-action="edit_collection">Edit Collection</li>
-              <li data-action="delete_collection">Delete Collection</li>
-          </ul>
+      <div
+        id="drawer-context-menu"
+        class="custom-context-menu"
+        style="display: none; position: absolute; z-index: 1500"
+      >
+        <ul>
+          <li data-action="create_collection">New Collection</li>
+          <li data-action="edit_collection">Edit Collection</li>
+          <li data-action="delete_collection">Delete Collection</li>
+        </ul>
       </div>
       <footer id="main-player">
         <div id="player-content" class="hidden">
@@ -230,12 +234,19 @@
         <div id="no-collections-message" style="display: none">
           <p>No collections found. Create one?</p>
         </div>
+
         <button id="create-new-collection-button" class="dialog-button">
           Create New Collection
         </button>
         <hr />
+        <button
+          id="confirm-collection-changes-button"
+          class="dialog-button primary"
+          style="display: none"
+        >
+          Confirm Changes
+        </button>
         <div id="create-collection-form" style="display: none">
-          <h4>Create New Collection</h4>
           <label for="new-collection-name">Name (Required):</label>
           <input type="text" id="new-collection-name" required />
           <label for="new-collection-category">Category (Optional):</label>
@@ -244,15 +255,20 @@
             >Description (Optional):</label
           >
           <textarea id="new-collection-description"></textarea>
-          <button id="save-collection-button" class="dialog-button primary">
-            Save Collection
-          </button>
-          <button
-            id="cancel-create-collection-button"
-            class="dialog-button secondary"
-          >
-            Cancel
-          </button>
+          <label for="new-collection-color">Color (Optional):</label>
+
+          <input type="color" id="new-collection-color" value="#6B7280" />
+          <div class="save-collection-buttons">
+            <button id="save-collection-button" class="dialog-button primary">
+              Save Collection
+            </button>
+            <button
+              id="cancel-create-collection-button"
+              class="dialog-button secondary"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
         <button
           id="close-dialog-button"

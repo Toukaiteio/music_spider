@@ -457,7 +457,7 @@ body {
     margin-top: auto; /* Push actions to the bottom if card height varies */
 }
 
-.search-result-download-button,.add-to-collection-button {
+.remove-from-collection-button,.favorite-button,.search-result-download-button,.add-to-collection-button {
     background: transparent;
     border: none;
     color: var(--icon-color);
@@ -465,6 +465,9 @@ body {
     border-radius: 50%;
     height: 36px;
     width: 36px;
+}
+.remove-from-collection-button{
+    color:rgb(251, 119, 119)
 }
 .detail-play-button,.detail-add-to-collection-button {
     background: transparent;
@@ -475,7 +478,7 @@ body {
     height: 50px;
     width: 50px;
 }
-.detail-play-button,.detail-add-to-collection-button,.search-result-download-button,.add-to-collection-button:hover {
+.remove-from-collection-button:hover,.favorite-button:hover,.detail-play-button:hover,.detail-add-to-collection-button:hover,.search-result-download-button:hover,.add-to-collection-button:hover {
     background-color: var(--shadow-color);
     color: var(--accent-color);
 }
@@ -698,6 +701,40 @@ body {
     background-color: var(--shadow-color);
 }
 
+#add-to-collection-dialog .collection-item-button {
+    /* ... existing styles ... */
+    transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out, color 0.2s ease-in-out;
+}
+
+#add-to-collection-dialog .collection-item-button.selected {
+    background-color: var(--accent-color); /* Or any color that indicates selection */
+    color: white; /* Assuming accent color has good contrast with white */
+    border-color: var(--accent-color-darker);
+}
+
+/* Ensure hover effects still work nicely */
+#add-to-collection-dialog .collection-item-button.selected:hover {
+    background-color: var(--accent-color-darker);
+}
+
+/* Styles for disabled action buttons on song cards */
+.song-card-actions .action-button-disabled {
+    color: var(--text-color-secondary); /* Muted color */
+    background-color: transparent; /* Ensure no interactive background */
+    cursor: default; /* Indicate non-interactive */
+    opacity: 0.7; /* Further visual indication of disabled state */
+}
+
+.song-card-actions .action-button-disabled:hover {
+    background-color: transparent; /* No hover effect */
+    color: var(--text-color-secondary); /* Keep color muted on hover */
+}
+
+.song-card-actions .action-button-disabled .material-icons {
+    font-size: 22px; /* Consistent with other action icons */
+    color: var(--text-color-secondary); /* Ensure icon is also muted */
+}
+
 
 .dialog-box label {
     display: block;
@@ -729,6 +766,14 @@ body {
     border-radius: 5px;
     cursor: pointer;
     font-size: 0.9em;
+}
+#confirm-collection-changes-button {
+    width: 100%;
+    margin: 0px;
+}
+.save-collection-buttons{
+    border-top: 1px solid var(--border-color);
+    width: 100%;
 }
 .dialog-button.primary {
     background-color: var(--accent-color);
@@ -1192,12 +1237,43 @@ body {
     font-size: 0.9em; /* Slightly smaller font */
 }
 #main-drawer.collapsed #local-collections-list li a.local-collection-link .link-text {
-    display: none; /* Text is already hidden by general .link-text rule, but good for clarity */
+    display: none;
 }
+
+/* Styles for the collection initial character display */
+.drawer-navigation ul#local-collections-list .drawer-link .collection-initial {
+    display: none; /* Hidden by default when drawer is expanded */
+    width: 24px;   
+    height: 24px;
+    border-radius: 50%; /* Make it circular */
+    text-align: center;
+    line-height: 24px; /* Vertically center text */
+    font-weight: bold;
+    color: #fff; /* White text, assuming background colors will be dark enough */
+    margin-right: 16px; /* Same as icons for alignment when expanded (though it's hidden) */
+    flex-shrink: 0; /* Prevent shrinking */
+    font-size: 14px; 
+}
+
+/* When drawer is collapsed, show initial and hide text for local collections */
+#main-drawer.collapsed .drawer-navigation ul#local-collections-list .drawer-link .collection-initial {
+    display: inline-flex; /* Show the initial */
+    justify-content: center;
+    align-items: center;
+    margin-right: 0; /* No margin when only initial is shown */
+}
+
+/* Ensure main navigation links (Home, My Favorites) still show their icons correctly when collapsed */
+#main-drawer.collapsed .drawer-navigation > ul > li > .drawer-link .material-icons {
+    /* margin-right: 0; -- This is already handled by a general rule */
+}
+
 #main-drawer.collapsed #local-collections-list li a.local-collection-link {
-    justify-content: center; /* Center icon if drawer is collapsed */
-     /* Icons for local collections could be different, e.g. 'playlist_play' or 'queue_music' */
+    justify-content: center; /* Center the initial when collapsed */
+    padding-left: 10px; /* Adjust padding for collapsed state, similar to other links */
+    padding-right: 10px;
 }
+
 #local-collections-list .no-collections-message {
     padding: 10px 15px;
     color: var(--text-color-secondary);
