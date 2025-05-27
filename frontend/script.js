@@ -4,36 +4,191 @@ import PlayerManager from "./modules/PlayerManager.js";
 import NavigationManager from "./modules/NavigationManager.js";
 import CollectionManager from "./modules/CollectionManager.js";
 import SearchManager from "./modules/SearchManager.js";
-import FavoriteManager from "./modules/FavoriteManager.js"; // Added FavoriteManager
-// Player Functionality
-// const playerHideButton = document.getElementById("player-hide-button");
-// const playerShowButton = document.getElementById("player-show-button");
-// const playerPlayPauseButton = document.getElementById(
-//   "player-play-pause-button"
-// ); // For icon toggling
+import FavoriteManager from "./modules/FavoriteManager.js"; 
 
-// Function to set player visibility state
-// const setPlayerVisibility = UIManager.setPlayerVisibility;
-
-// if (playerHideButton) {
-//   playerHideButton.addEventListener("click", () => {
-//     setPlayerVisibility(false);
-//   });
-// }
-
-// if (playerShowButton) {
-//   playerShowButton.addEventListener("click", () => {
-//     // When showing, ideally it would resume last playing track's info
-//     // For now, just make it visible. If no track was "playing", it shows default placeholders.
-//     setPlayerVisibility(true);
-//   });
-// }
-// Function to apply theme
 const applyTheme = UIManager.applyTheme;
-
-// Load saved theme or default to light
 const savedTheme = localStorage.getItem("theme") || "light-theme";
 applyTheme(savedTheme);
+
+// Define the HTML structure for the Lyrics Tool
+const lyricsToolHtml = `
+<div class="lyrics-tool-container">
+    <h4>Lyrics Editor (LRC Format)</h4>
+    <div id="lyrics-waveform-placeholder">Waveform Display Placeholder</div>
+    <div id="lyrics-playback-controls-placeholder">
+        <button id="lyrics-simulate-play" class="dialog-button">Simulate Play</button>
+        <button id="lyrics-reset-simulation" class="dialog-button secondary">Reset</button>
+        <button disabled>Speed Up</button>
+        <button disabled>Slow Down</button>
+    </div>
+    <label for="lrc-input-area">LRC Content:</label>
+    <textarea id="lrc-input-area" placeholder="[mm:ss.xx]Lyric line 1\n[mm:ss.xx]<00:00.xx>Word <00:00.xx>by <00:00.xx>word..." rows="10"></textarea>
+    <label for="lrc-preview-area">Preview:</label>
+    <div id="lrc-preview-area">Lyrics preview will appear here.</div>
+</div>
+`;
+
+let mockPlaybackTimeoutIds = [];
+
+window.parseLRC = function(lrcString) {
+    const lines = lrcString.split('\n');
+    const parsedLyrics = [];
+    const timeTagRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/; 
+    const wordTimeTagRegex = /<(\d{2}):(\d{2})\.(\d{2,3})>/g; 
+
+    for (const line of lines) {
+        const match = line.match(timeTagRegex);
+        if (match) {
+            const minutes = parseInt(match[1], 10);
+            const seconds = parseInt(match[2], 10);
+            const milliseconds = parseInt(match[3].padEnd(3, '0'), 10);
+            const time = minutes * 60 + seconds + milliseconds / 1000;
+            
+            let textContent = line.substring(match[0].length).trim();
+            const words = [];
+            let plainTextOnlyForLine = textContent; // Store text without word tags for the line's main text
+
+            if (textContent.includes('<')) { 
+                plainTextOnlyForLine = '';
+                const parts = textContent.split(/(<[^>]+>)/); // Split by tags, keeping delimiters
+                let currentAbsTime = time; // Word timings are often relative to line start, but we'll make them absolute
+
+                for(let i=0; i < parts.length; i++) {
+                    const part = parts[i];
+                    if (part.match(wordTimeTagRegex)) {
+                        const wordMatch = part.match(/<(\d{2}):(\d{2})\.(\d{2,3})>/);
+                        if (wordMatch) {
+                            const wordMinutes = parseInt(wordMatch[1], 10);
+                            const wordSeconds = parseInt(wordMatch[2], 10);
+                            const wordMilliseconds = parseInt(wordMatch[3].padEnd(3, '0'), 10);
+                            // IMPORTANT: LRC spec often has word timestamps *relative to the line's main timestamp*.
+                            // For absolute timing needed by playback simulation, we add the line's time.
+                            // If your LRCs use absolute word timestamps, remove `+ time`.
+                            currentAbsTime = time + (wordMinutes * 60 + wordSeconds + wordMilliseconds / 1000);
+                        }
+                    } else if (part.trim()) {
+                        words.push({ time: currentAbsTime, text: part.trim() });
+                        plainTextOnlyForLine += part.trim() + " ";
+                    }
+                }
+                plainTextOnlyForLine = plainTextOnlyForLine.trim();
+            }
+
+            parsedLyrics.push({
+                time: time,
+                text: plainTextOnlyForLine, 
+                words: words.length > 0 ? words : null 
+            });
+        }
+    }
+    return parsedLyrics.sort((a, b) => a.time - b.time);
+};
+
+window.renderLyricsPreview = function(parsedLyrics, targetElementSelector) {
+    const previewArea = document.querySelector(targetElementSelector);
+    if (!previewArea) return;
+    previewArea.innerHTML = ''; 
+
+    if (!parsedLyrics || parsedLyrics.length === 0) {
+        previewArea.textContent = 'No lyrics to display or invalid LRC format.';
+        return;
+    }
+
+    parsedLyrics.forEach(line => {
+        const p = document.createElement('p');
+        p.classList.add('lyric-line');
+        p.dataset.time = line.time.toFixed(3);
+
+        if (line.words && line.words.length > 0) {
+            line.words.forEach(word => {
+                const span = document.createElement('span');
+                span.classList.add('lyric-word');
+                span.textContent = word.text + ' '; 
+                span.dataset.time = word.time.toFixed(3);
+                p.appendChild(span);
+            });
+        } else {
+            p.textContent = line.text;
+        }
+        previewArea.appendChild(p);
+    });
+};
+
+window.resetMockPlayback = function() {
+    mockPlaybackTimeoutIds.forEach(clearTimeout);
+    mockPlaybackTimeoutIds = [];
+    document.querySelectorAll('#lrc-preview-area .highlighted-lyric').forEach(el => {
+        el.classList.remove('highlighted-lyric');
+    });
+     document.querySelectorAll('#lrc-preview-area .lyric-line.past-line').forEach(el => {
+        el.classList.remove('past-line');
+    });
+};
+
+window.startMockPlayback = function() {
+    window.resetMockPlayback(); // Clear previous timeouts and highlights
+
+    const lrcText = document.getElementById('lrc-input-area')?.value;
+    if (!lrcText) return;
+
+    const lyrics = window.parseLRC(lrcText);
+    if (!lyrics || lyrics.length === 0) return;
+
+    const previewArea = document.getElementById('lrc-preview-area');
+    if (!previewArea) return;
+
+    const lines = previewArea.querySelectorAll('.lyric-line');
+    let globalStartTime = Date.now(); // Start of the simulation
+    let lastHighlightedElement = null;
+
+    lyrics.forEach((line, lineIndex) => {
+        const lineElement = lines[lineIndex]; // Assumes direct mapping
+
+        // Highlight the entire line
+        const lineHighlightDelay = Math.max(0, (line.time * 1000) - (Date.now() - globalStartTime));
+        const lineTimeoutId = setTimeout(() => {
+            if (lastHighlightedElement) {
+                 lastHighlightedElement.classList.remove('highlighted-lyric');
+                 // Add 'past-line' to distinguish from upcoming lines for styling
+                 if(lastHighlightedElement.classList.contains('lyric-line')) lastHighlightedElement.classList.add('past-line');
+            }
+             if(lineElement) {
+                lineElement.classList.add('highlighted-lyric');
+                lineElement.classList.remove('past-line'); // Ensure current line isn't styled as past
+                lastHighlightedElement = lineElement;
+             }
+        }, lineHighlightDelay);
+        mockPlaybackTimeoutIds.push(lineTimeoutId);
+
+        // If word-level timing exists for this line
+        if (line.words && lineElement) {
+            const wordElements = lineElement.querySelectorAll('.lyric-word');
+            line.words.forEach((word, wordIndex) => {
+                const wordElement = wordElements[wordIndex]; // Assumes direct mapping
+                // Word time is absolute in our parsed structure
+                const wordHighlightDelay = Math.max(0, (word.time * 1000) - (Date.now() - globalStartTime));
+                
+                const wordTimeoutId = setTimeout(() => {
+                    if (lastHighlightedElement && lastHighlightedElement !== lineElement) { // If previous highlight was a word in another line
+                        lastHighlightedElement.classList.remove('highlighted-lyric');
+                    }
+                    // If the line itself was the last highlighted, remove its highlight
+                    if (lineElement && lineElement.classList.contains('highlighted-lyric') && wordElement) {
+                         lineElement.classList.remove('highlighted-lyric');
+                    }
+
+                    if(wordElement) {
+                        wordElement.classList.add('highlighted-lyric');
+                        lastHighlightedElement = wordElement;
+                    }
+                }, wordHighlightDelay);
+                mockPlaybackTimeoutIds.push(wordTimeoutId);
+            });
+        }
+    });
+};
+
+
 document.addEventListener("DOMContentLoaded", () => {
   const webSocketManager = new WebSocketManager();
   const playerManager = new PlayerManager({
@@ -41,9 +196,8 @@ document.addEventListener("DOMContentLoaded", () => {
     coverImgElement: document.getElementById("player-album-art"),
   });
   const themeSwitcher = document.getElementById("theme-switcher");
-  const body = document.body; // Or document.documentElement for html tag
+  const body = document.body; 
 
-  // Event listener for the button
   if (themeSwitcher) {
     themeSwitcher.addEventListener("click", () => {
       const currentTheme = body.classList.contains("dark-theme")
@@ -57,27 +211,17 @@ document.addEventListener("DOMContentLoaded", () => {
   if (!localStorage.getItem("favSongs")) {
     localStorage.setItem("favSongs", "[]");
   }
-  // Placeholder function to update task queue progress
 
-  // Example usage (remove or comment out for production):
-  // setTimeout(() => updateTaskQueueProgress(30), 2000);    // Show 30% after 2s
-  // setTimeout(() => updateTaskQueueProgress(75), 4000);    // Show 75% after 4s
-  // setTimeout(() => updateTaskQueueProgress(null), 6000); // Show indeterminate state after 6s (e.g., busy)
-  // setTimeout(() => updateTaskQueueProgress(100), 8000); // Show 100% after 8s
-  // setTimeout(() => updateTaskQueueProgress(0), 10000);   // Show 0% after 10s (reset)
-
-  // Expanded Task Queue Toggle
   const taskQueueButton = document.getElementById("task-queue-button");
   const expandedTaskQueue = document.getElementById("expanded-task-queue");
 
   if (taskQueueButton && expandedTaskQueue) {
     taskQueueButton.addEventListener("click", (event) => {
-      event.stopPropagation(); // Prevent click from immediately closing due to body listener
+      event.stopPropagation(); 
       const isVisible = expandedTaskQueue.classList.toggle("visible");
       expandedTaskQueue.setAttribute("aria-hidden", !isVisible);
     });
 
-    // Optional: Close when clicking outside
     document.addEventListener("click", (event) => {
       if (
         expandedTaskQueue.classList.contains("visible") &&
@@ -90,7 +234,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Drawer Toggle Functionality
   const drawerToggleButton = document.getElementById("drawer-toggle-button");
   const mainDrawer = document.getElementById("main-drawer");
   const drawerToggleIcon = drawerToggleButton
@@ -98,42 +241,36 @@ document.addEventListener("DOMContentLoaded", () => {
     : null;
 
   if (drawerToggleButton && mainDrawer && drawerToggleIcon) {
-    // Function to set drawer state, save preference
     const setDrawerState = (isCollapsed) => {
       mainDrawer.classList.toggle("collapsed", isCollapsed);
       drawerToggleIcon.textContent = isCollapsed ? "menu_open" : "menu";
       localStorage.setItem("drawerCollapsed", isCollapsed);
     };
-
-    // Load saved drawer state or default to not collapsed
     const savedDrawerState = localStorage.getItem("drawerCollapsed") === "true";
     setDrawerState(savedDrawerState);
-
     drawerToggleButton.addEventListener("click", () => {
       const isCollapsed = mainDrawer.classList.contains("collapsed");
       setDrawerState(!isCollapsed);
     });
   }
 
-  // Call simulatePlayTrack() for testing if you want to see the player populated on load
-  // setTimeout(simulatePlayTrack, 1000); // Example: "play" a track after 1s
-
   const mainContent = document.getElementById("main-content");
-  // let drawerLinks = document.querySelectorAll(".drawer-link"); // Will be handled by NavigationManager
-
-  // Application state container
+  
   window.appState = {
     searchResults: [],
     searchQuery: "",
     searchError: null,
     downloadQueue: [],
-    library: [], // Explicitly initialize library
-    currentSongDetail: null, // Explicitly initialize currentSongDetail
-    collectionDialogMode: "add_song", // 'add_song', 'create_direct', 'edit'
-    editingCollectionName: null, // Stores name of collection being edited
+    library: [], 
+    currentSongDetail: null, 
+    collectionDialogMode: "add_song", 
+    editingCollectionName: null,
+    isUploadPageActive: false, 
+    droppedFile: null,         
+    parsedMetadata: null,      
+    selectedCoverBase64: null, 
   };
 
-  // Page HTML structures - passed to NavigationManager
   const pageContents = {
     home: `
        <div id="home-page">
@@ -177,6 +314,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     <div id="detail-action-buttons">
                         <button class="detail-play-button"><span class="material-icons">play_arrow</span></button>
                         <button class="detail-add-to-collection-button"><span class="material-icons">playlist_add</span></button>
+                        <button class="detail-update-button icon-button" aria-label="Update Track Info"><span class="material-icons">edit</span></button>
                     </div>
                 </div>
                 <div class="song-detail-right">
@@ -202,96 +340,246 @@ document.addEventListener("DOMContentLoaded", () => {
                 </div>
             </div>
           `,
+    "update-track": `
+            <div id="update-track-page">
+                <h2>Update Track Information</h2>
+                <form id="update-track-form">
+                    <input type="hidden" id="update-music-id" name="music_id">
+                    <div>
+                        <label for="update-title">Title:</label>
+                        <input type="text" id="update-title" name="title" required>
+                    </div>
+                    <div>
+                        <label for="update-artist">Artist:</label>
+                        <input type="text" id="update-artist" name="artist" required>
+                    </div>
+                    <div>
+                        <label for="update-album">Album:</label>
+                        <input type="text" id="update-album" name="album">
+                    </div>
+                    <div>
+                        <label for="update-genre">Genre:</label>
+                        <input type="text" id="update-genre" name="genre">
+                    </div>
+                    <div>
+                        <label for="update-year">Year:</label>
+                        <input type="text" id="update-year" name="year">
+                    </div>
+                    <div>
+                        <label for="update-cover-path">Cover Path:</label>
+                        <input type="text" id="update-cover-path" name="cover_path">
+                    </div>
+                    <div>
+                        <label for="update-description">Description:</label>
+                        <textarea id="update-description" name="description" rows="3"></textarea>
+                    </div>
+                    ${lyricsToolHtml} 
+                    <button type="submit" id="save-track-update-button" class="dialog-button primary">Save Changes</button>
+                    <button type="button" id="cancel-track-update-button" class="dialog-button secondary">Cancel</button>
+                </form>
+            </div>
+        `,
+    "upload-track": `
+            <div id="upload-track-page">
+                <h2>Upload New Track</h2>
+                <div id="upload-file-info" style="margin-bottom:15px; padding:10px; background-color: var(--primary-bg-color); border-radius: 5px;">
+                    Audio file: <span id="upload-filename-placeholder">No file selected</span>
+                </div>
+                <form id="upload-track-form">
+                    <input type="hidden" id="upload-original-filepath" name="original_filepath">
+                    <div>
+                        <label for="upload-title">Title:</label>
+                        <input type="text" id="upload-title" name="title" required>
+                    </div>
+                    <div>
+                        <label for="upload-artist">Artist:</label>
+                        <input type="text" id="upload-artist" name="artist" required>
+                    </div>
+                    <div>
+                        <label for="upload-album">Album:</label>
+                        <input type="text" id="upload-album" name="album">
+                    </div>
+                    <div>
+                        <label for="upload-genre">Genre:</label>
+                        <input type="text" id="upload-genre" name="genre">
+                    </div>
+                    <div>
+                        <label for="upload-year">Year:</label>
+                        <input type="text" id="upload-year" name="year">
+                    </div>
+                    <div>
+                        <label for="upload-cover-file">Cover Image (Optional):</label>
+                        <input type="file" id="upload-cover-file" name="cover_file" accept="image/*">
+                        <img id="upload-cover-preview" src="#" alt="Cover Preview" style="max-width: 100px; max-height: 100px; display: none; margin-top: 10px;">
+                    </div>
+                    <div>
+                        <label for="upload-description">Description:</label>
+                        <textarea id="upload-description" name="description" rows="3"></textarea>
+                    </div>
+                    ${lyricsToolHtml}
+                    <button type="submit" id="submit-upload-button" class="dialog-button primary">Upload Track</button>
+                    <button type="button" id="cancel-upload-button" class="dialog-button secondary">Cancel</button>
+                </form>
+            </div>
+        `,
   };
 
-  // NavigationManager setup
   const navigationManager = new NavigationManager({
     mainContentElement: mainContent,
-    drawerLinksSelector: ".drawer-link", // Selector for all drawer links
+    drawerLinksSelector: ".drawer-link", 
     pageContents: pageContents,
     webSocketManager: webSocketManager,
     playerManager: playerManager,
     uiManager: UIManager,
-    // displaySearchResultsOnPageCallback: () => displaySearchResultsOnPage(), // Removed
-    // renderDrawerCollectionsCallback and getCollectionsCallback removed, CollectionManager will handle this.
     appState: window.appState,
   });
-  // navigationManager.init(); // Initialize NavigationManager -- will be called after SearchManager is set
 
-  // CollectionManager setup
   const collectionManager = new CollectionManager({
-    navigationManager: navigationManager, // Pass NavigationManager instance
-    appState: window.appState, // Pass appState if needed by CollectionManager
-    // IDs for DOM elements used by CollectionManager are defaults in its constructor
-    // but can be overridden here if needed.
-    // dialogElementId: "add-to-collection-dialog",
-    // drawerListElementId: "local-collections-list",
-    // etc.
+    navigationManager: navigationManager, 
+    appState: window.appState, 
   });
-  collectionManager.init(); // Initialize CollectionManager (sets up its listeners and renders collections)
+  collectionManager.init(); 
 
-  // SearchManager setup
   const searchManager = new SearchManager({
     webSocketManager: webSocketManager,
-    navigationManager: navigationManager, // Pass NavigationManager instance
+    navigationManager: navigationManager, 
     appState: window.appState,
-    uiManager: UIManager, // Pass UIManager
-    // searchInputSelector: "#header-search-input" // Default selector
+    uiManager: UIManager, 
   });
   
-  // FavoriteManager setup
   const favoriteManager = new FavoriteManager();
 
-  // Link SearchManager to NavigationManager
   navigationManager.setSearchManager(searchManager);
   navigationManager.setFavoriteManager(favoriteManager);
-  navigationManager.setCollectionManager(collectionManager); // Pass CollectionManager to NavigationManager
+  navigationManager.setCollectionManager(collectionManager); 
   searchManager.setFavoriteManager(favoriteManager);
   
-  // Now initialize NavigationManager after SearchManager has been set on it (if it were needed at init)
-  // and SearchManager has NavigationManager (for performSearch navigation)
   navigationManager.init(); 
-  searchManager.init(); // Initialize SearchManager (sets up its listeners)
+  searchManager.init(); 
+
+  // Global Drag and Drop
+  const dragOverlay = document.getElementById('drag-overlay');
+
+  window.addEventListener('dragenter', (event) => {
+    event.preventDefault();
+    if (window.appState.isUploadPageActive) return; 
+    if (dragOverlay) dragOverlay.style.display = 'flex';
+  });
+
+  window.addEventListener('dragover', (event) => {
+    event.preventDefault(); 
+  });
+
+  window.addEventListener('dragleave', (event) => {
+    if (!event.relatedTarget || event.relatedTarget.nodeName === "HTML") {
+        if (dragOverlay) dragOverlay.style.display = 'none';
+    }
+  });
+
+  window.addEventListener('drop', (event) => {
+    event.preventDefault();
+    if (dragOverlay) dragOverlay.style.display = 'none';
+    if (window.appState.isUploadPageActive) { 
+        console.log("Drop event on upload page, likely for cover art, ignoring for new track upload.");
+        return; 
+    }
+
+    const files = event.dataTransfer.files;
+    if (files.length > 0) {
+        const file = files[0];
+        if (file.type.startsWith('audio/')) {
+            window.appState.droppedFile = file;
+            window.jsmediatags.read(file, {
+                onSuccess: (tag) => {
+                    const tags = tag.tags;
+                    window.appState.parsedMetadata = {
+                        title: tags.title || '',
+                        artist: tags.artist || '',
+                        album: tags.album || '',
+                        year: tags.year || '',
+                        genre: tags.genre || '',
+                        picture: tags.picture || null, 
+                        lyrics: tags.lyrics ? (typeof tags.lyrics === 'string' ? tags.lyrics : tags.lyrics.lyrics) : null 
+                    };
+                    navigationManager.navigateTo("upload-track", "Upload New Track", "#upload-track");
+                },
+                onError: (error) => {
+                    console.warn('jsmediatags error:', error);
+                    window.appState.parsedMetadata = { title: file.name.replace(/\.[^/.]+$/, "") }; 
+                    navigationManager.navigateTo("upload-track", "Upload New Track", "#upload-track");
+                }
+            });
+        } else {
+            UIManager.showToast("Not an audio file. Please drop an audio file.", "error");
+        }
+    }
+  });
+
+  mainContent.addEventListener('change', function(event) {
+    if (event.target.id === 'upload-cover-file') {
+        const file = event.target.files[0];
+        if (file && file.type.startsWith('image/')) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const preview = document.getElementById('upload-cover-preview');
+                if (preview) {
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                }
+                window.appState.selectedCoverBase64 = e.target.result; 
+            };
+            reader.readAsDataURL(file);
+        } else if (file) {
+            UIManager.showToast("Please select an image file for the cover.", "error");
+            window.appState.selectedCoverBase64 = null;
+            const preview = document.getElementById('upload-cover-preview');
+            if (preview) {
+                 preview.src = "#";
+                 preview.style.display = 'none';
+            }
+            event.target.value = ''; 
+        }
+    }
+  });
+
+  mainContent.addEventListener('input', function(event) {
+    if (event.target.id === 'lrc-input-area') {
+        const lrcText = event.target.value;
+        const parsed = window.parseLRC(lrcText);
+        window.renderLyricsPreview(parsed, '#lrc-preview-area');
+    }
+  });
 
 
-  // Event delegation for dynamic content (like song cards, search results, etc.)
   mainContent.addEventListener("click", function (event) {
     const playButton = event.target.closest(".play-on-card-button");
     const artContainer = event.target.closest(".card-art-container");
     const addToCollectionButton = event.target.closest(
       ".add-to-collection-button"
     );
-    const favoriteButton = event.target.closest(".favorite-button"); // Added favorite button
-    const inlineLink = event.target.closest(".inline-link"); // For router links in text
+    const favoriteButton = event.target.closest(".favorite-button"); 
+    const inlineLink = event.target.closest(".inline-link"); 
     const addToDownloadQueueButton = event.target.closest(
       ".add-to-download-queue-button"
     );
-    // const searchResultDownloadButton = event.target.closest(".search-result-download-button"); // Handled by SearchManager
+    const deleteTrackButton = event.target.closest(".delete-track-button"); 
 
     if (playButton) {
       const trackInfoString = playButton.dataset.trackInfo;
       if (trackInfoString) {
         try {
           const trackInfo = JSON.parse(trackInfoString);
-          console.log("Play button clicked. Track Info:", trackInfo);
-          // Populate and show the player
-          // document.getElementById('player-album-art').src = '.' + trackInfo.cover_path || 'placeholder_album_art_2.png';
           document.getElementById("player-track-title").textContent =
             trackInfo.title || "Unknown Title";
           document.getElementById("player-track-artist").textContent =
             trackInfo.author || trackInfo.artist_name || "Unknown Artist";
-          // TODO: Set actual duration and handle playback (e.g., trackInfo.duration_ms)
-          // document.getElementById('player-duration').textContent = trackInfo.duration_formatted || '0:00';
           playerManager.playTrackById(trackInfo.music_id);
-          UIManager.setPlayerVisibility(true); // Corrected: Use UIManager.setPlayerVisibility
-          const playerPlayPauseButton = document.getElementById("player-play-pause-button"); // Ensure this is defined if used
+          UIManager.setPlayerVisibility(true); 
+          const playerPlayPauseButton = document.getElementById("player-play-pause-button"); 
           if (playerPlayPauseButton) {
             const playPauseIcon = playerPlayPauseButton.querySelector(".material-icons");
-            if (playPauseIcon) playPauseIcon.textContent = "pause_arrow"; // Assume immediate play
+            if (playPauseIcon) playPauseIcon.textContent = "pause_arrow"; 
           }
-
-          // Store current playing track info if needed by the player module
-          // window.playerModule.play(trackInfo);
         } catch (e) {
           console.error("Failed to parse track info for play button:", e);
         }
@@ -314,13 +602,6 @@ document.addEventListener("DOMContentLoaded", () => {
           try {
             const trackObject = JSON.parse(trackInfoString);
             window.appState.currentSongDetail = trackObject;
-            const songHash =
-            trackObject.music_id || trackObject.id || Date.now(); // music_id preferred
-            console.log(
-              "Navigating to song detail for:",
-              trackObject.title,
-              ` ID: ${songHash}`
-            );
             navigationManager.navigateToSongDetail(trackObject);
           } catch (e) {
             console.error(
@@ -334,10 +615,34 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
+    if (deleteTrackButton) {
+      const musicId = deleteTrackButton.dataset.songId;
+      if (musicId) {
+        webSocketManager.sendWebSocketCommand("delete_track", { music_id: musicId })
+          .then(() => {
+            const songCardToRemove = document.querySelector(`.song-card[data-song-id="${musicId}"]`);
+            if (songCardToRemove) {
+              songCardToRemove.remove();
+              if (window.appState && window.appState.library) {
+                window.appState.library = window.appState.library.filter(track => String(track.music_id || track.id) !== String(musicId));
+                if (window.appState.library.length === 0) {
+                    const noSongsMessage = document.getElementById('no-songs-message');
+                    if (noSongsMessage) noSongsMessage.style.display = 'block';
+                }
+              }
+            }
+          })
+          .catch(error => {
+            console.error(`Error sending delete_track command for ${musicId}:`, error);
+          });
+      } else {
+        console.warn("Delete button clicked, but no song-id data found.");
+      }
+    }
+
     if (addToCollectionButton) {
       const songIdForCollection = addToCollectionButton.dataset.songId;
-      const trackInfoString = addToCollectionButton.dataset.trackInfo; // For consistency if needed
-
+      const trackInfoString = addToCollectionButton.dataset.trackInfo; 
       if (songIdForCollection) {
         collectionManager.handleAddToCollectionButtonClick(songIdForCollection);
       } else if (trackInfoString) {
@@ -346,14 +651,10 @@ document.addEventListener("DOMContentLoaded", () => {
           const id = trackInfo.music_id || trackInfo.id;
           if (id) {
             collectionManager.handleAddToCollectionButtonClick(id);
-          } else {
-            console.error("Could not determine song ID for add to collection from track_info.");
           }
         } catch (e) {
           console.error("Error parsing track_info for add to collection:", e);
         }
-      } else {
-        console.error("Could not determine song ID for add to collection.");
       }
     }
 
@@ -365,71 +666,49 @@ document.addEventListener("DOMContentLoaded", () => {
             if (iconElement) {
                 iconElement.textContent = newStatus ? 'favorite' : 'favorite_border';
             }
-        } else {
-            console.warn("Favorite button clicked, but no song-id data found.");
         }
     }
 
     if (addToDownloadQueueButton) {
       const songCard = addToDownloadQueueButton.closest(".song-card");
       const songId = songCard ? songCard.dataset.songId : null;
-      const source = songCard ? songCard.dataset.source : "unknown"; // Get source from card
+      const source = songCard ? songCard.dataset.source : "unknown"; 
       const title = songCard
         ? songCard.querySelector(".song-card-title").textContent
         : "Unknown Title";
-      console.log(
-        `Add to download queue clicked for song ID: ${songId}, Title: ${title}, Source: ${source}`
-      );
-      // Later: downloadManager.addToQueue({ id: songId, title: title, source: source, ...other_details });
-      // Visually indicate it's added or processing (e.g., change icon)
       const icon = addToDownloadQueueButton.querySelector(".material-icons");
       if (icon) {
-        icon.textContent = "downloading"; // Example visual feedback
-        // setTimeout(() => { icon.textContent = 'check_circle'; }, 2000); // Simulate completion
+        icon.textContent = "downloading"; 
       }
     }
-
-    // Removed: searchPageButton logic is no longer needed here as the search page itself is removed.
-    // Header search is handled by a dedicated listener.
 
     if (inlineLink && inlineLink.dataset.page) {
       event.preventDefault();
       const pageId = inlineLink.dataset.page;
       const path = inlineLink.getAttribute("href");
-      const title = inlineLink.dataset.title || pageId.charAt(0).toUpperCase() + pageId.slice(1); // Simple title
+      const title = inlineLink.dataset.title || pageId.charAt(0).toUpperCase() + pageId.slice(1); 
       const subPageId = inlineLink.dataset.subpageid || null;
-      navigationManager.navigateTo(pageId, title, path, false, subPageId); // Corrected: Use navigationManager
+      navigationManager.navigateTo(pageId, title, path, false, subPageId); 
     }
 
-    // searchResultDownloadButton logic is now handled by SearchManager's delegated event listener.
-    // The 'searchResultDownloadButton' variable itself can be removed if not used elsewhere.
-    // if (searchResultDownloadButton) { ... } // This whole block is removed.
-
-    // Handle clicks on song detail page buttons
     const detailPlayButton = event.target.closest(".detail-play-button");
     const detailAddToCollectionButton = event.target.closest(
       ".detail-add-to-collection-button"
     );
+    const detailUpdateButton = event.target.closest(".detail-update-button"); 
 
     if (detailPlayButton) {
       const trackInfoString = detailPlayButton.dataset.trackInfo;
       if (trackInfoString) {
         try {
           const trackInfo = JSON.parse(trackInfoString);
-          console.log(
-            "Detail Page - Play button clicked. Track Info:",
-            trackInfo
-          );
-          // Populate and show the player (similar to card play button)
-          //   document.getElementById("player-album-art").src =
-          //     trackInfo.cover_url || "placeholder_album_art_2.png";
           document.getElementById("player-track-title").textContent =
             trackInfo.title || "Unknown Title";
           document.getElementById("player-track-artist").textContent =
             trackInfo.author || trackInfo.artist_name || "Unknown Artist";
-          UIManager.setPlayerVisibility(true); // Corrected: Use UIManager.setPlayerVisibility
+          UIManager.setPlayerVisibility(true); 
           playerManager.playTrackById(trackInfo.music_id);
-           const playerPlayPauseButton = document.getElementById("player-play-pause-button"); // Ensure this is defined
+           const playerPlayPauseButton = document.getElementById("player-play-pause-button"); 
            if (playerPlayPauseButton) {
             const playPauseIcon = playerPlayPauseButton.querySelector(".material-icons");
             if (playPauseIcon) playPauseIcon.textContent = "pause_arrow";
@@ -455,171 +734,269 @@ document.addEventListener("DOMContentLoaded", () => {
             const id = trackInfo.music_id || trackInfo.id;
             if (id) {
               collectionManager.handleAddToCollectionButtonClick(id);
-            } else {
-              console.error("Could not determine song ID for detail add to collection from track_info.");
             }
           } catch (e) {
             console.error("Error parsing track_info for detail add to collection:", e);
           }
-        } else {
-          console.error("No songId or trackInfo found on detail add to collection button.");
         }
       }
     }
+
+    if (detailUpdateButton) {
+        if (window.appState && window.appState.currentSongDetail) {
+            const trackToUpdate = window.appState.currentSongDetail;
+            const musicId = trackToUpdate.music_id || trackToUpdate.id; 
+            if (musicId) {
+                navigationManager.navigateTo(
+                    "update-track", 
+                    "Update " + (trackToUpdate.title || "Track"), 
+                    "#update-track/" + musicId, 
+                    false, 
+                    musicId 
+                );
+            } else {
+                UIManager.showToast("Error: Music ID is missing. Cannot update track.", "error");
+            }
+        } else {
+            UIManager.showToast("Could not load track details for update. Please try again.", "error");
+        }
+    }
+
+    const saveUpdateButton = event.target.closest("#save-track-update-button");
+    const cancelUpdateButton = event.target.closest("#cancel-track-update-button");
+    const submitUploadButton = event.target.closest("#submit-upload-button");
+    const cancelUploadButton = event.target.closest("#cancel-upload-button");
+    const lyricsSimulatePlayButton = event.target.closest("#lyrics-simulate-play");
+    const lyricsResetSimulationButton = event.target.closest("#lyrics-reset-simulation");
+    const lrcPreviewArea = event.target.closest("#lrc-preview-area");
+
+
+    if (saveUpdateButton) {
+        event.preventDefault(); 
+        const form = saveUpdateButton.closest("form");
+        if (form) {
+            const musicId = form.querySelector("#update-music-id").value;
+            const title = form.querySelector("#update-title").value.trim();
+            const artist = form.querySelector("#update-artist").value.trim();
+
+            if (!title || !artist) {
+                UIManager.showToast("Title and Artist cannot be empty.", "error");
+                return;
+            }
+
+            const payload = {
+                music_id: musicId,
+                title: title,
+                author: artist, 
+                album: form.querySelector("#update-album").value.trim(),
+                genre: form.querySelector("#update-genre").value.trim(),
+                year: form.querySelector("#update-year").value.trim(),
+                cover_path: form.querySelector("#update-cover-path").value.trim(),
+                description: form.querySelector("#update-description").value.trim(),
+                lyrics: form.querySelector("#lrc-input-area")?.value.trim() || null, 
+            };
+
+            webSocketManager.sendWebSocketCommand("update_track_info", payload)
+                .then((response) => {
+                    if (response.success || response.status === "success" || (response.data && response.data.success)) { 
+                        UIManager.showToast("Track updated successfully!", "success");
+                        if (window.appState && window.appState.library) {
+                            const index = window.appState.library.findIndex(track => String(track.music_id || track.id) === String(musicId));
+                            if (index !== -1) {
+                                window.appState.library[index] = { ...window.appState.library[index], ...payload };
+                            }
+                        }
+                        if (window.appState && window.appState.currentSongDetail && String(window.appState.currentSongDetail.music_id || window.appState.currentSongDetail.id) === String(musicId)) {
+                            window.appState.currentSongDetail = { ...window.appState.currentSongDetail, ...payload };
+                        }
+                        navigationManager.navigateTo("song-detail", payload.title, "#song-detail/" + musicId, false, musicId);
+                    } else {
+                        UIManager.showToast(response.message || "Failed to update track.", "error");
+                    }
+                })
+                .catch(error => {
+                    UIManager.showToast("Error updating track: " + (error.message || "Unknown error"), "error");
+                });
+        }
+    } else if (cancelUpdateButton) {
+        history.back();
+    }
+
+    if (submitUploadButton) {
+        event.preventDefault();
+        const form = submitUploadButton.closest("form");
+        if (form) {
+            const audioFile = window.appState.droppedFile;
+            if (!audioFile) {
+                UIManager.showToast("No audio file has been selected or dropped.", "error");
+                return;
+            }
+            const title = form.querySelector("#upload-title").value.trim();
+            const artist = form.querySelector("#upload-artist").value.trim();
+            if (!title || !artist) {
+                UIManager.showToast("Title and Artist fields are required.", "error");
+                return;
+            }
+
+            const payload = {
+                title: title,
+                author: artist,
+                album_name: form.querySelector("#upload-album").value.trim(),
+                genre: form.querySelector("#upload-genre").value.trim(),
+                year: form.querySelector("#upload-year").value.trim(),
+                description: form.querySelector("#upload-description").value.trim(),
+                original_filename: audioFile.name,
+                original_filepath: form.querySelector("#upload-original-filepath")?.value.trim() || audioFile.name,
+                cover_image_base64: window.appState.selectedCoverBase64 || null,
+                lyrics: form.querySelector("#lrc-input-area")?.value.trim() || null, 
+            };
+            
+            webSocketManager.sendWebSocketCommand("upload_track", payload)
+                .then(response => {
+                    console.log("Upload track response:", response);
+                    if (response.success || (response.data && response.data.success)) {
+                        UIManager.showToast("Track upload process started successfully!", "success");
+                        window.appState.droppedFile = null;
+                        window.appState.parsedMetadata = null;
+                        window.appState.selectedCoverBase64 = null;
+                        form.reset();
+                        const preview = document.getElementById('upload-cover-preview');
+                        if (preview) {
+                            preview.src = "#";
+                            preview.style.display = 'none';
+                        }
+                        document.getElementById('upload-filename-placeholder').textContent = "No file selected";
+                        const lrcInput = document.getElementById('lrc-input-area');
+                        if(lrcInput) lrcInput.value = '';
+                        const lrcPreview = document.getElementById('lrc-preview-area');
+                        if(lrcPreview) lrcPreview.innerHTML = 'Lyrics preview will appear here.';
+
+                        navigationManager.navigateTo("home", "Home", "#home"); 
+                    } else {
+                        UIManager.showToast(response.message || "Upload failed. Please check server logs.", "error");
+                    }
+                })
+                .catch(error => {
+                    console.error("Error uploading track:", error);
+                    UIManager.showToast("Upload failed: " + (error.message || "Unknown error"), "error");
+                });
+        }
+    } else if (cancelUploadButton) {
+        window.appState.droppedFile = null;
+        window.appState.parsedMetadata = null;
+        window.appState.selectedCoverBase64 = null;
+        const form = document.getElementById('upload-track-form');
+        if(form) form.reset();
+        const preview = document.getElementById('upload-cover-preview');
+        if (preview) {
+            preview.src = "#";
+            preview.style.display = 'none';
+        }
+        const filenamePlaceholder = document.getElementById('upload-filename-placeholder');
+        if(filenamePlaceholder) filenamePlaceholder.textContent = "No file selected";
+        const lrcInput = document.getElementById('lrc-input-area');
+        if(lrcInput) lrcInput.value = '';
+        const lrcPreview = document.getElementById('lrc-preview-area');
+        if(lrcPreview) lrcPreview.innerHTML = 'Lyrics preview will appear here.';
+        history.back(); 
+    }
+
+    if (lyricsSimulatePlayButton) {
+        window.startMockPlayback();
+    } else if (lyricsResetSimulationButton) {
+        window.resetMockPlayback();
+    }
+
+    if (lrcPreviewArea && event.target.closest('.lyric-line')) {
+        const clickedLineElement = event.target.closest('.lyric-line');
+        const lrcInputArea = document.getElementById('lrc-input-area');
+        if (clickedLineElement && lrcInputArea) {
+            // Reconstruct the text from spans if words exist, otherwise use textContent
+            let clickedLineText = "";
+            const wordSpans = clickedLineElement.querySelectorAll('.lyric-word');
+            if (wordSpans.length > 0) {
+                wordSpans.forEach(span => clickedLineText += span.textContent); // .textContent already includes the trailing space
+                clickedLineText = clickedLineText.trim(); // Remove last space
+            } else {
+                clickedLineText = clickedLineElement.textContent.trim();
+            }
+
+            const fullLrc = lrcInputArea.value;
+            const lines = fullLrc.split('\n');
+            for(let i = 0; i < lines.length; i++) {
+                const line = lines[i];
+                // Match timestamp and text part
+                const timeTagMatch = line.match(/\[\d{2}:\d{2}\.\d{2,3}\]/);
+                if (timeTagMatch) {
+                    const textPart = line.substring(timeTagMatch[0].length).replace(/<[^>]+>/g, '').trim();
+                    if (textPart === clickedLineText) {
+                        const startIndex = fullLrc.indexOf(line);
+                        const endIndex = startIndex + line.length;
+                        lrcInputArea.focus();
+                        lrcInputArea.setSelectionRange(startIndex, endIndex);
+                        // Scroll to selection:
+                        const textLines = lrcInputArea.value.substr(0, startIndex).split("\n").length -1;
+                        const avgLineHeight = lrcInputArea.scrollHeight / lrcInputArea.value.split("\n").length;
+                        lrcInputArea.scrollTop = textLines * avgLineHeight;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
   });
 
-  // Header Search Functionality is now in SearchManager.js
-  // const headerSearchInput = document.getElementById("header-search-input"); // Handled by SearchManager
-  // Event listener for headerSearchInput is in SearchManager.init()
-  
-  // Function to display search results on the 'search-results' page is now SearchManager.displayResults()
-  // const renderTaskQueue = UIManager.renderTaskQueue; // This is UIManager, not search
-  // const updateMainTaskQueueIcon = UIManager.updateMainTaskQueueIcon; // This is UIManager, not search
-  // function displaySearchResultsOnPage() { ... } // Moved to SearchManager.displayResults()
+  UIManager.renderTaskQueue(); 
+  UIManager.updateMainTaskQueueIcon(); 
 
+  if (!window.test) {
+    window.test = {};
+  }
 
-  // --- Local Collections & Context Menu functionality is now in CollectionManager ---
-  // const localCollectionsList = document.getElementById("local-collections-list"); // Handled by CollectionManager
-  // const contextMenu = document.getElementById("drawer-context-menu"); // Handled by CollectionManager
-  // function renderDrawerCollections() { ... } // Now in CollectionManager
-  // Event listeners for context menu and global click to hide it are in CollectionManager
-  // function deleteLocalCollection(collectionName) { ... } // Now in CollectionManager
-  // function openCreateCollectionDialog() { ... } // Now in CollectionManager
-  // function openEditCollectionDialog(collectionName) { ... } // Now in CollectionManager
-
-
-  // Initial UI setup calls after DOM is ready
-  UIManager.renderTaskQueue(); // This UIManager function remains
-  UIManager.updateMainTaskQueueIcon(); // This UIManager function remains
-  // collectionManager.init() already called, which calls renderDrawerCollections
-  // --- Expose functions for debugging/testing via window.test ---
-// Note: Functions related to collections will be updated to point to collectionManager methods
-// Note: This block is intentionally outside DOMContentLoaded to ensure all functions are defined
-// and DOM is ready before these are potentially called from the console.
-// However, functions defined within DOMContentLoaded and not globally will not be accessible here
-// unless they were already attached to window or a global object (like webSocketManager).
-
-if (!window.test) {
-  window.test = {};
-}
-
-// WebSocket command function
-// Assuming webSocketManager is a global or accessible variable.
-// If webSocketManager is defined inside DOMContentLoaded, this specific assignment will fail
-// unless webSocketManager itself is made globally accessible.
-// For now, we proceed assuming webSocketManager is defined in a scope accessible here.
-// If it was defined with 'const' or 'let' inside DOMContentLoaded, it's not global.
-// This was previously within DOMContentLoaded, so webSocketManager was in scope.
-// Moving it out requires webSocketManager to be in a higher scope or global.
-// For the purpose of this refactor, we'll assume webSocketManager might need to be
-// defined outside DOMContentLoaded or explicitly attached to window if it's to be used here.
-// Let's assume it's globally available for this example.
-if (
-  typeof webSocketManager !== "undefined" &&
-  webSocketManager &&
-  typeof webSocketManager.sendWebSocketCommand === "function"
-) {
-  window.test.sendWebSocketCommand =
-    webSocketManager.sendWebSocketCommand.bind(webSocketManager);
-} else {
-  // Fallback: if webSocketManager is not globally available, provide a stub or warning.
-  window.test.sendWebSocketCommand = () =>
-    console.warn(
-      "webSocketManager not found or sendWebSocketCommand is not a function. Ensure webSocketManager is globally accessible if defined outside DOMContentLoaded."
-    );
-  // Note: getLibrary is also exposed via webSocketManager.init() if webSocketManager is accessible
   if (
     typeof webSocketManager !== "undefined" &&
     webSocketManager &&
-    webSocketManager.testWebSocketGetLibrary
+    typeof webSocketManager.sendWebSocketCommand === "function"
   ) {
-    // getLibrary is already set up by webSocketManager.init if accessible.
+    window.test.sendWebSocketCommand =
+      webSocketManager.sendWebSocketCommand.bind(webSocketManager);
   } else {
-    window.test.getLibrary = () =>
-      console.warn("webSocketManager not found, getLibrary unavailable.");
+    window.test.sendWebSocketCommand = () =>
+      console.warn(
+        "webSocketManager not found or sendWebSocketCommand is not a function."
+      );
   }
-}
+  
+  window.test.getLocalCollections = collectionManager ? collectionManager.getCollections.bind(collectionManager) : () => console.warn("CollectionManager not available");
+  window.test.saveLocalCollections = collectionManager ? collectionManager.saveCollections.bind(collectionManager) : () => console.warn("CollectionManager not available");
+  window.test.deleteLocalCollection = collectionManager ? collectionManager.deleteCollection.bind(collectionManager) : () => console.warn("CollectionManager not available");
+  window.test.renderDrawerCollections = collectionManager ? collectionManager.renderDrawerCollections.bind(collectionManager) : () => console.warn("CollectionManager not available");
+  window.test.openAddToCollectionDialog = (songId) => collectionManager ? collectionManager.openDialog(songId, 'add_song') : console.warn("CollectionManager not available");
+  window.test.openCreateCollectionDialog = () => collectionManager ? collectionManager.openDialog(null, 'create_direct') : console.warn("CollectionManager not available");
+  window.test.openEditCollectionDialog = (collectionName) => collectionManager ? collectionManager.openDialog(null, 'edit', collectionName) : console.warn("CollectionManager not available");
+  window.test.getDownloadQueue = () => window.appState && window.appState.downloadQueue ? window.appState.downloadQueue : [];
+  window.test.renderTaskQueue = UIManager.renderTaskQueue ? UIManager.renderTaskQueue : () => console.warn("UIManager.renderTaskQueue not found.");
+  window.test.updateMainTaskQueueIcon = UIManager.updateMainTaskQueueIcon ? UIManager.updateMainTaskQueueIcon : () => console.warn("UIManager.updateMainTaskQueueIcon not found.");
+  window.test.navigateTo = navigationManager ? navigationManager.navigateTo.bind(navigationManager) : () => console.warn("NavigationManager not available");
 
-// For functions defined globally or within DOMContentLoaded but assigned to global/higher-scope vars:
-// The following assumes these functions are either global or attached to an accessible object.
-// If they are const/let inside DOMContentLoaded, they are not directly accessible here.
-// We will proceed with the assumption that these functions *were intended* to be accessible,
-// and if not, this highlights a structural dependency.
+  if (
+    typeof webSocketManager !== "undefined" &&
+    webSocketManager &&
+    typeof webSocketManager.sendWebSocketCommand === "function"
+  ) {
+    window.test.fetchLibrary = () =>
+      webSocketManager
+        .sendWebSocketCommand("get_downloaded_music", {})
+        .then((r) => r.data);
+  } else {
+    window.test.fetchLibrary = () => {
+      console.warn("webSocketManager not available.");
+      return Promise.reject("webSocketManager not available.");
+    };
+  }
 
-// Local collection management functions
-window.test.getLocalCollections = collectionManager ? collectionManager.getCollections.bind(collectionManager) : () => console.warn("CollectionManager not available for test.getLocalCollections");
-window.test.saveLocalCollections = collectionManager ? collectionManager.saveCollections.bind(collectionManager) : () => console.warn("CollectionManager not available for test.saveLocalCollections");
-window.test.deleteLocalCollection = collectionManager ? collectionManager.deleteCollection.bind(collectionManager) : () => console.warn("CollectionManager not available for test.deleteLocalCollection");
-window.test.renderDrawerCollections = collectionManager ? collectionManager.renderDrawerCollections.bind(collectionManager) : () => console.warn("CollectionManager not available for test.renderDrawerCollections");
-
-// Dialog invocation functions - now unified under openDialog in CollectionManager
-window.test.openAddToCollectionDialog = (songId) => collectionManager ? collectionManager.openDialog(songId, 'add_song') : console.warn("CollectionManager not available for test.openAddToCollectionDialog");
-window.test.openCreateCollectionDialog = () => collectionManager ? collectionManager.openDialog(null, 'create_direct') : console.warn("CollectionManager not available for test.openCreateCollectionDialog");
-window.test.openEditCollectionDialog = (collectionName) => collectionManager ? collectionManager.openDialog(null, 'edit', collectionName) : console.warn("CollectionManager not available for test.openEditCollectionDialog");
-
-// Task queue related (UIManager controlled, unchanged - ensure UIManager is referenced if these are from UIManager)
-window.test.getDownloadQueue = () =>
-  typeof window.appState !== "undefined" && window.appState.downloadQueue
-    ? window.appState.downloadQueue
-    : (console.warn("window.appState.downloadQueue not found."), []);
-// Assuming renderTaskQueue and updateMainTaskQueueIcon are from UIManager
-window.test.renderTaskQueue = UIManager.renderTaskQueue ? UIManager.renderTaskQueue : () => console.warn("UIManager.renderTaskQueue not found.");
-window.test.updateMainTaskQueueIcon = UIManager.updateMainTaskQueueIcon ? UIManager.updateMainTaskQueueIcon : () => console.warn("UIManager.updateMainTaskQueueIcon not found.");
-
-// Player related
-window.test.simulatePlayTrack =
-  typeof simulatePlayTrack !== "undefined"
-    ? simulatePlayTrack
-    : () => console.warn("simulatePlayTrack not found or removed.");
-window.test.setPlayerVisibility =
-  typeof setPlayerVisibility !== "undefined"
-    ? setPlayerVisibility
-    : () => console.warn("setPlayerVisibility not found.");
-
-// Navigation
-window.test.navigateTo = navigationManager ? navigationManager.navigateTo.bind(navigationManager) : () => console.warn("NavigationManager not available for test.navigateTo");
-
-// Library fetching
-if (
-  typeof webSocketManager !== "undefined" &&
-  webSocketManager &&
-  typeof webSocketManager.sendWebSocketCommand === "function"
-) {
-  window.test.fetchLibrary = () =>
-    webSocketManager
-      .sendWebSocketCommand("get_downloaded_music", {})
-      .then((r) => r.data);
-} else {
-  window.test.fetchLibrary = () => {
-    console.warn(
-      "webSocketManager not found or sendWebSocketCommand is not a function, cannot fetch library."
-    );
-    return Promise.reject("webSocketManager not available.");
-  };
-}
-
-console.log(
-  "Developer test functions are available under `window.test`. Note: Some functions might be unavailable if they were not defined globally or attached to window."
-);
-/*
-    Available test functions (availability depends on their original scope):
-    - window.test.sendWebSocketCommand(command, payload)
-    - window.test.getLocalCollections() // Now points to CollectionManager
-    - window.test.saveLocalCollections(collectionsArray) // Now points to CollectionManager
-    - window.test.deleteLocalCollection(collectionName) // Now points to CollectionManager
-    - window.test.renderDrawerCollections() // Now points to CollectionManager
-    - window.test.openAddToCollectionDialog(songId) // Now points to CollectionManager.openDialog
-    - window.test.openCreateCollectionDialog() // Now points to CollectionManager.openDialog
-    - window.test.openEditCollectionDialog(collectionName) // Now points to CollectionManager.openDialog
-    - window.test.getDownloadQueue() // Unchanged
-    - window.test.renderTaskQueue() // Points to UIManager
-    - window.test.updateMainTaskQueueIcon() // Points to UIManager
-    - window.test.simulatePlayTrack()
-    - window.test.setPlayerVisibility(boolean)
-    - window.test.navigateTo(pageId, title, path, skipPushState)
-    - window.test.fetchLibrary()
-    (Note: getLibrary is also available from previous WebSocket setup if webSocketManager is accessible)
-*/
-
+  console.log(
+    "Developer test functions are available under `window.test`."
+  );
 });
-

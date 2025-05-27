@@ -100,6 +100,9 @@ class NavigationManager {
             return;
         }
 
+        // Set upload page active state
+        this.appState.isUploadPageActive = (pageId === "upload-track");
+
         this.mainContent.innerHTML =
             this.pageContents[pageId] ||
             `<h2>Page Not Found</h2><p>The page "${pageId}" does not exist or has been moved.</p>`;
@@ -289,6 +292,161 @@ class NavigationManager {
                 if (noMusicMessage) noMusicMessage.style.display = "block"; // Message is set above based on context
             }
             if (collectionsLoadingMessage) collectionsLoadingMessage.style.display = "none";
+            } else if (pageId === "update-track") {
+                const musicIdToUpdate = subPageId; // subPageId is the music_id
+                const form = thiz.mainContent.querySelector("#update-track-form");
+
+                if (!form) {
+                    console.error("Update track form not found on the page.");
+                    thiz.mainContent.innerHTML = "<p>Error: Update form failed to load.</p>";
+                    return;
+                }
+
+                let trackToUpdate = null;
+                if (thiz.appState.currentSongDetail && String(thiz.appState.currentSongDetail.music_id || thiz.appState.currentSongDetail.id) === String(musicIdToUpdate)) {
+                    trackToUpdate = thiz.appState.currentSongDetail;
+                } else if (thiz.appState.library) {
+                    trackToUpdate = thiz.appState.library.find(track => String(track.music_id || track.id) === String(musicIdToUpdate));
+                }
+
+                if (trackToUpdate) {
+                    form.querySelector("#update-music-id").value = trackToUpdate.music_id || trackToUpdate.id || '';
+                    form.querySelector("#update-title").value = trackToUpdate.title || '';
+                    form.querySelector("#update-artist").value = trackToUpdate.author || trackToUpdate.artist_name || '';
+                    form.querySelector("#update-album").value = trackToUpdate.album_name || trackToUpdate.album || ''; // Assuming album_name or album
+                    form.querySelector("#update-genre").value = trackToUpdate.genre || '';
+                    form.querySelector("#update-year").value = trackToUpdate.year || trackToUpdate.release_year || ''; // Assuming year or release_year
+                    form.querySelector("#update-cover-path").value = trackToUpdate.cover_path || '';
+                    form.querySelector("#update-description").value = trackToUpdate.description || '';
+
+                    // Handle lyrics for update page
+                    const lrcInputArea = form.querySelector("#lrc-input-area");
+                    const lrcPreviewArea = thiz.mainContent.querySelector("#lrc-preview-area"); // Preview area is outside form
+                    if (lrcInputArea && lrcPreviewArea) {
+                        if (trackToUpdate.lyrics && typeof trackToUpdate.lyrics === 'string') {
+                            lrcInputArea.value = trackToUpdate.lyrics;
+                            if (typeof window.parseLRC === 'function' && typeof window.renderLyricsPreview === 'function') {
+                                const parsedLyrics = window.parseLRC(trackToUpdate.lyrics);
+                                window.renderLyricsPreview(parsedLyrics, '#lrc-preview-area');
+                            }
+                        } else {
+                            lrcInputArea.value = '';
+                            lrcPreviewArea.innerHTML = 'Lyrics preview will appear here.';
+                        }
+                    }
+
+                } else {
+                    console.error(`Track with ID ${musicIdToUpdate} not found in appState.library or currentSongDetail.`);
+                    const pageElement = thiz.mainContent.querySelector("#update-track-page");
+                    if (pageElement) {
+                        pageElement.innerHTML = `<p style="color: red; text-align: center;">Error: Could not load track details for ID ${musicIdToUpdate}. Please go back and try again.</p>`;
+                    }
+                }
+            } else if (pageId === "upload-track") {
+                const form = thiz.mainContent.querySelector("#upload-track-form");
+                const filenamePlaceholder = thiz.mainContent.querySelector("#upload-filename-placeholder");
+
+                if (filenamePlaceholder && thiz.appState.droppedFile) {
+                    filenamePlaceholder.textContent = thiz.appState.droppedFile.name;
+                    // Optionally store filename in a hidden input if needed for backend, though backend will receive the file itself
+                    const originalFilepathInput = form.querySelector("#upload-original-filepath");
+                    if (originalFilepathInput) {
+                        originalFilepathInput.value = thiz.appState.droppedFile.name; // Storing for reference
+                    }
+                } else if (filenamePlaceholder) {
+                     filenamePlaceholder.textContent = "No file selected/dropped.";
+                }
+
+
+                if (form && thiz.appState.parsedMetadata) {
+                    form.querySelector("#upload-title").value = thiz.appState.parsedMetadata.title || '';
+                    form.querySelector("#upload-artist").value = thiz.appState.parsedMetadata.artist || '';
+                    form.querySelector("#upload-album").value = thiz.appState.parsedMetadata.album || '';
+                    form.querySelector("#upload-genre").value = thiz.appState.parsedMetadata.genre || '';
+                    form.querySelector("#upload-year").value = thiz.appState.parsedMetadata.year || '';
+                    // Description is not typically in basic ID3 tags, leave for manual input or future enhancement
+                    // Cover preview handling:
+                    const coverPreview = form.querySelector("#upload-cover-preview");
+                    if (thiz.appState.parsedMetadata.picture && coverPreview) {
+                        const picture = thiz.appState.parsedMetadata.picture;
+                        let base64String = "";
+                        for (let i = 0; i < picture.data.length; i++) {
+                            base64String += String.fromCharCode(picture.data[i]);
+                        }
+                        coverPreview.src = `data:${picture.format};base64,${window.btoa(base64String)}`;
+                        coverPreview.style.display = 'block';
+                    } else if (coverPreview) {
+                        coverPreview.style.display = 'none';
+                        coverPreview.src = '#';
+                    }
+                }
+                 // Reset file input for cover to ensure change event fires even if same file is re-selected after page load
+                const coverFileInput = form.querySelector("#upload-cover-file");
+                if(coverFileInput) coverFileInput.value = "";
+
+                // Handle lyrics for upload page (from jsmediatags if available)
+                const lrcInputAreaUpload = form.querySelector("#lrc-input-area");
+                const lrcPreviewAreaUpload = thiz.mainContent.querySelector("#lrc-preview-area");
+                if (lrcInputAreaUpload && lrcPreviewAreaUpload) {
+                    if (thiz.appState.parsedMetadata && thiz.appState.parsedMetadata.lyrics && typeof thiz.appState.parsedMetadata.lyrics === 'string') {
+                        lrcInputAreaUpload.value = thiz.appState.parsedMetadata.lyrics;
+                        if (typeof window.parseLRC === 'function' && typeof window.renderLyricsPreview === 'function') {
+                            const parsedLyrics = window.parseLRC(thiz.appState.parsedMetadata.lyrics);
+                            window.renderLyricsPreview(parsedLyrics, '#lrc-preview-area');
+                        }
+                    } else {
+                        lrcInputAreaUpload.value = '';
+                        lrcPreviewAreaUpload.innerHTML = 'Lyrics preview will appear here.';
+                    }
+                }
+                
+                // Note: We don't clear droppedFile or parsedMetadata here anymore, 
+                // as the user might navigate away and back before submitting.
+                // They are cleared after successful upload or explicit cancellation.
+            } else if (pageId === "upload-track") { // This block was duplicated, ensure it's the correct one for upload-track logic
+                thiz.appState.selectedCoverBase64 = null; 
+                const form = thiz.mainContent.querySelector("#upload-track-form");
+                const filenamePlaceholder = thiz.mainContent.querySelector("#upload-filename-placeholder");
+                const coverPreview = form.querySelector("#upload-cover-preview");
+
+                if (filenamePlaceholder && thiz.appState.droppedFile) {
+                    filenamePlaceholder.textContent = thiz.appState.droppedFile.name;
+                    const originalFilepathInput = form.querySelector("#upload-original-filepath");
+                    if (originalFilepathInput) {
+                        originalFilepathInput.value = thiz.appState.droppedFile.name; 
+                    }
+                } else if (filenamePlaceholder) {
+                     filenamePlaceholder.textContent = "No file selected/dropped.";
+                }
+
+                if (form && thiz.appState.parsedMetadata) {
+                    form.querySelector("#upload-title").value = thiz.appState.parsedMetadata.title || '';
+                    form.querySelector("#upload-artist").value = thiz.appState.parsedMetadata.artist || '';
+                    form.querySelector("#upload-album").value = thiz.appState.parsedMetadata.album || '';
+                    form.querySelector("#upload-genre").value = thiz.appState.parsedMetadata.genre || '';
+                    form.querySelector("#upload-year").value = thiz.appState.parsedMetadata.year || '';
+                    
+                    if (thiz.appState.parsedMetadata.picture && coverPreview) {
+                        const picture = thiz.appState.parsedMetadata.picture;
+                        let base64String = "";
+                        for (let i = 0; i < picture.data.length; i++) {
+                            base64String += String.fromCharCode(picture.data[i]);
+                        }
+                        coverPreview.src = `data:${picture.format};base64,${window.btoa(base64String)}`;
+                        coverPreview.style.display = 'block';
+                        thiz.appState.selectedCoverBase64 = coverPreview.src; // Store the auto-loaded cover
+                    } else if (coverPreview) {
+                        coverPreview.style.display = 'none';
+                        coverPreview.src = '#';
+                    }
+                }
+                 // Reset file input for cover to ensure change event fires even if same file is re-selected after page load
+                const coverFileInput = form.querySelector("#upload-cover-file");
+                if(coverFileInput) coverFileInput.value = "";
+
+                // Note: We don't clear droppedFile or parsedMetadata here anymore, 
+                // as the user might navigate away and back before submitting.
+                // They are cleared after successful upload or explicit cancellation.
             }
         }));
     }
