@@ -84,6 +84,7 @@ class SongCardRenderer {
             <div class="song-card" data-song-id="${musicId}" data-track-info='${trackInfoJson}' data-source="${track.source || 'unknown'}">
                 <div class="card-art-container">
                     <img referrerpolicy="no-referrer" src="${imageUrl}" alt="Album Art for ${title}" class="song-card-art">
+                    ${track.lossless ? '<span class="lossless-tag">无损</span>' : ''}
                     ${context !== 'search-result' ? `
                     <button class="play-on-card-button icon-button" aria-label="Play Song" data-track-info='${trackInfoJson}'>
                         <span class="material-icons">play_arrow</span>

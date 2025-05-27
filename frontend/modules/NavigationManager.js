@@ -28,14 +28,22 @@ class NavigationManager {
         this.appState = appState;
         this.searchManager = null; // Will be set by setSearchManager
         this.favoriteManager = null; // Will be set by setFavoriteManager
+        this.navigationHistory = [];
+        this.currentPageId = null;
+        this.currentSubPageId = null;
+        this.currentPath = null;
+        this.currentTitle = null;
+
 
         // Bind methods
         this.navigateTo = this.navigateTo.bind(this);
+        this.navigateBack = this.navigateBack.bind(this); // Bind new method
         this.updateActiveDrawerLink = this.updateActiveDrawerLink.bind(this);
         this.handlePopState = this.handlePopState.bind(this);
         this.handleInitialLoad = this.handleInitialLoad.bind(this);
         this.handleMainContentClick = this.handleMainContentClick.bind(this);
         this.handleFavoriteChange = this.handleFavoriteChange.bind(this); // Bind new handler
+        this._animateColorBands = this._animateColorBands.bind(this); // Bind new method
     }
 
     init() {
@@ -100,6 +108,47 @@ class NavigationManager {
             return;
         }
 
+        // Exit animation for song-detail page if currently on it and navigating elsewhere
+        if (this.currentPageId === 'song-detail' && pageId !== 'song-detail' && !skipPushState) {
+            const songDetailPageElement = this.mainContent.querySelector('#song-detail-page');
+            if (songDetailPageElement) {
+                songDetailPageElement.classList.add('song-detail-page-exit');
+                songDetailPageElement.addEventListener('animationend', () => {
+                    // Actual navigation after animation
+                    this._performNavigateTo(pageId, title, path, skipPushState, subPageId);
+                }, { once: true });
+                return; // Prevent immediate navigation
+            }
+        }
+        // If not coming from song-detail with an exit animation, proceed directly
+        this._performNavigateTo(pageId, title, path, skipPushState, subPageId);
+    }
+
+    // Encapsulated the original navigateTo logic
+    _performNavigateTo(pageId, title, path, skipPushState = false, subPageId = null) {
+        if (!this.mainContent) { // Re-check in case it's called directly somehow
+            console.error("Main content area not found in _performNavigateTo!");
+            return;
+        }
+
+        // Animate color bands before changing content
+        this._animateColorBands();
+
+         // Manage navigation history
+        if (this.currentPageId && this.currentPageId !== 'song-detail' && !skipPushState) {
+            if (this.currentPath && this.currentPath !== path) { // Avoid pushing same page multiple times if logic allows
+                this.navigationHistory.push({
+                    pageId: this.currentPageId,
+                    subPageId: this.currentSubPageId,
+                    path: this.currentPath,
+                    title: this.currentTitle
+                });
+                if (this.navigationHistory.length > 10) {
+                    this.navigationHistory.shift(); // Keep history to a reasonable size
+                }
+            }
+        }
+
         // Set upload page active state
         this.appState.isUploadPageActive = (pageId === "upload-track");
 
@@ -116,12 +165,29 @@ class NavigationManager {
         this.updateActiveDrawerLink(pageId, subPageId);
 
         this.mainContent.style.opacity = "0";
-        const thiz = this;
+        const thiz = this; // alias for this to use in requestAnimationFrame
         requestAnimationFrame((() => {
             thiz.mainContent.style.transition = "opacity 0.3s ease-in-out";
             thiz.mainContent.style.opacity = "1";
 
             // Page-specific logic
+            // Apply enter animation for song-detail page
+            if (pageId === 'song-detail') {
+                const songDetailPageElement = thiz.mainContent.querySelector('#song-detail-page');
+                if (songDetailPageElement) {
+                    // Ensure it's initially ready for animation (opacity 0 is set in CSS)
+                    // songDetailPageElement.style.opacity = '0'; // Already set by base #song-detail-page CSS
+                    
+                    requestAnimationFrame(() => { // Next frame to ensure styles are applied
+                        songDetailPageElement.classList.add('song-detail-page-enter');
+                        songDetailPageElement.addEventListener('animationend', () => {
+                            songDetailPageElement.classList.remove('song-detail-page-enter');
+                            // Opacity is 1 due to animation-fill-mode: forwards;
+                            // No need to set style.opacity = '1' explicitly unless removing animation class also removes fill-mode effect
+                        }, { once: true });
+                    });
+                }
+            }
             if (pageId === "home") {
             const homeLoadingMessage = thiz.mainContent.querySelector("#home-loading-message");
             const songCardGrid = thiz.mainContent.querySelector("#song-card-grid");
@@ -210,13 +276,42 @@ class NavigationManager {
             const playButtonEl = thiz.mainContent.querySelector(".detail-play-button");
             const addToCollectionButtonEl = thiz.mainContent.querySelector(".detail-add-to-collection-button");
             const trackInfoJson = JSON.stringify(track).replace(/'/g, "&apos;");
-            const songId = track.music_id;
+            const songId = track.music_id || track.id; // Ensure we get the ID
 
             if (playButtonEl) playButtonEl.dataset.trackInfo = trackInfoJson;
             if (addToCollectionButtonEl) {
                 addToCollectionButtonEl.dataset.trackInfo = trackInfoJson;
                 if (songId) addToCollectionButtonEl.dataset.songId = songId;
             }
+
+            // Back button for song detail page
+            const backButton = thiz.mainContent.querySelector("#song-detail-back-button");
+            if (backButton) {
+                backButton.addEventListener('click', thiz.navigateBack);
+            }
+
+            // Lyrics and Upload Lyrics button logic
+            const lyricsDisplayArea = thiz.mainContent.querySelector("#lyrics-display-area");
+            const uploadLyricsButton = thiz.mainContent.querySelector("#upload-lyrics-button");
+
+            if (lyricsDisplayArea && uploadLyricsButton) {
+                if (track.lyrics && typeof track.lyrics === 'string' && track.lyrics.trim() !== "") {
+                    // For now, display as plain text. Future: Parse LRC if applicable.
+                    // To prevent XSS, if lyrics content is user-generated and not sanitized, 
+                    // consider using .textContent or sanitizing HTML.
+                    // For LRC, a specific rendering function would be needed.
+                    lyricsDisplayArea.innerHTML = `<pre>${track.lyrics.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`; // Basic XSS protection for preformatted text
+                    uploadLyricsButton.style.display = 'none';
+                } else {
+                    lyricsDisplayArea.innerHTML = '<p>暂无歌词</p>';
+                    uploadLyricsButton.style.display = 'block'; // Or 'inline-block', 'flex' etc. based on CSS
+                    uploadLyricsButton.onclick = () => { // Use onclick for simplicity here, or addEventListener
+                        thiz.appState.focusElementAfterLoad = '#lrc-input-area';
+                        thiz.navigateTo('update-track', `Update ${track.title || 'Track'}`, `#update-track/${songId}`, false, songId);
+                    };
+                }
+            }
+
 
             } else if (pageId === "collections" || pageId === "collection-detail") {
             const collectionsLoadingMessage = thiz.mainContent.querySelector("#collections-loading-message");
@@ -448,7 +543,86 @@ class NavigationManager {
                 // as the user might navigate away and back before submitting.
                 // They are cleared after successful upload or explicit cancellation.
             }
+
+            // Focus logic, should be after all content is loaded and visible
+            if (thiz.appState.focusElementAfterLoad) {
+                const elementToFocus = document.querySelector(thiz.appState.focusElementAfterLoad);
+                if (elementToFocus) {
+                    // Delay focus slightly to ensure the element is fully rendered and visible, especially after transitions.
+                    setTimeout(() => elementToFocus.focus(), 50); 
+                }
+                delete thiz.appState.focusElementAfterLoad;
+            }
+
         }));
+        
+        // Update current page trackers
+        this.currentPageId = pageId;
+        this.currentSubPageId = subPageId;
+        this.currentPath = path;
+        this.currentTitle = title;
+    }
+
+    navigateBack() {
+        if (this.currentPageId === 'song-detail') {
+            const songDetailPageElement = this.mainContent.querySelector('#song-detail-page');
+            if (songDetailPageElement) {
+                songDetailPageElement.classList.add('song-detail-page-exit');
+                songDetailPageElement.addEventListener('animationend', () => {
+                    // songDetailPageElement.classList.remove('song-detail-page-exit'); // Might be removed by innerHTML change
+                    this._performActualNavigateBack();
+                }, { once: true });
+                return; // Prevent immediate navigation
+            }
+        }
+        this._performActualNavigateBack();
+    }
+
+    _performActualNavigateBack() {
+        if (this.navigationHistory.length > 0) {
+            const lastPage = this.navigationHistory.pop();
+            // Use _performNavigateTo to bypass exit animation check when navigating back
+            this._performNavigateTo(lastPage.pageId, lastPage.title, lastPage.path, true, lastPage.subPageId);
+        } else {
+            // Fallback to home page if history is empty
+            this._performNavigateTo('home', 'Home', '#home', true);
+        }
+    }
+
+    _animateColorBands() {
+        const bands = document.querySelectorAll('#background-effects .color-band');
+        if (!bands || bands.length === 0) {
+            return;
+        }
+
+        const newPositions = [];
+        const overlapThreshold = 20; // Percentage difference for "too close"
+        const maxRetries = 5;
+        const positionRange = 70; // Max percentage for top/left to keep bands somewhat away from far edges
+
+        bands.forEach(band => {
+            let isTooClose;
+            let retries = 0;
+            let randomTop, randomLeft;
+
+            do {
+                isTooClose = false;
+                randomTop = Math.random() * positionRange;
+                randomLeft = Math.random() * positionRange;
+
+                for (const pos of newPositions) {
+                    if (Math.abs(pos.top - randomTop) < overlapThreshold && Math.abs(pos.left - randomLeft) < overlapThreshold) {
+                        isTooClose = true;
+                        break;
+                    }
+                }
+                retries++;
+            } while (isTooClose && retries < maxRetries);
+
+            newPositions.push({ top: randomTop, left: randomLeft });
+            band.style.top = randomTop + '%';
+            band.style.left = randomLeft + '%';
+        });
     }
     
     _attachRemoveFromCollectionListeners(songCardGridElement) {
@@ -640,6 +814,15 @@ class NavigationManager {
             const title = inlineLink.dataset.title || pageId.charAt(0).toUpperCase() + pageId.slice(1);
             const subPageId = inlineLink.dataset.subpageid || null;
             this.navigateTo(pageId, title, path, false, subPageId);
+        }
+
+        // Consolidate back button logic if it was previously in mainContent event listener
+        // For song-detail page, it's handled directly in navigateTo.
+        // If there are other back buttons, they could be handled here or in their respective page load logic.
+        const songDetailBackButton = event.target.closest("#song-detail-back-button");
+        if (songDetailBackButton && this.getCurrentPageId() === 'song-detail') {
+            // This is now redundant if added in navigateTo, but good for general case
+            // this.navigateBack(); 
         }
     }
 }

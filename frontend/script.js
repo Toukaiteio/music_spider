@@ -16,10 +16,10 @@ const lyricsToolHtml = `
     <h4>Lyrics Editor (LRC Format)</h4>
     <div id="lyrics-waveform-placeholder">Waveform Display Placeholder</div>
     <div id="lyrics-playback-controls-placeholder">
-        <button id="lyrics-simulate-play" class="dialog-button">Simulate Play</button>
-        <button id="lyrics-reset-simulation" class="dialog-button secondary">Reset</button>
-        <button disabled>Speed Up</button>
-        <button disabled>Slow Down</button>
+        <button id="lyrics-slow-down" class="icon-button" aria-label="Slow Down"><span class="material-icons">fast_rewind</span></button>
+        <button id="lyrics-simulate-play" class="icon-button" aria-label="Simulate Play"><span class="material-icons">play_arrow</span></button>
+        <button id="lyrics-reset-simulation" class="icon-button" aria-label="Reset Simulation"><span class="material-icons">replay</span></button>
+        <button id="lyrics-speed-up" class="icon-button" aria-label="Speed Up"><span class="material-icons">fast_forward</span></button>
     </div>
     <label for="lrc-input-area">LRC Content:</label>
     <textarea id="lrc-input-area" placeholder="[mm:ss.xx]Lyric line 1\n[mm:ss.xx]<00:00.xx>Word <00:00.xx>by <00:00.xx>word..." rows="10"></textarea>
@@ -306,6 +306,7 @@ document.addEventListener("DOMContentLoaded", () => {
     `,
     "song-detail": `
             <div id="song-detail-page">
+                <button id="song-detail-back-button" class="icon-button" aria-label="Go Back" style="position: absolute; top: 20px; left: 20px; z-index: 10;"><span class="material-icons">arrow_back</span></button>
                 <div class="song-detail-left">
                     <img src="placeholder_album_art.png" alt="Album Art" id="detail-cover-art">
                     <h2 id="detail-title">Track Title</h2>
@@ -318,7 +319,13 @@ document.addEventListener("DOMContentLoaded", () => {
                     </div>
                 </div>
                 <div class="song-detail-right">
-                    <p>暂无歌词</p> <!-- Lyrics not available yet -->
+                    <h4>Lyrics</h4>
+                    <div id="lyrics-display-area">
+                        <p>暂无歌词</p>
+                    </div>
+                    <button id="upload-lyrics-button" class="dialog-button primary" style="display: none; margin-top: 15px;">
+                        <span class="material-icons" style="margin-right: 8px;">upload_file</span>Upload Lyrics
+                    </button>
                 </div>
             </div>
         `,
@@ -344,38 +351,42 @@ document.addEventListener("DOMContentLoaded", () => {
             <div id="update-track-page">
                 <h2>Update Track Information</h2>
                 <form id="update-track-form">
-                    <input type="hidden" id="update-music-id" name="music_id">
-                    <div>
-                        <label for="update-title">Title:</label>
-                        <input type="text" id="update-title" name="title" required>
-                    </div>
-                    <div>
-                        <label for="update-artist">Artist:</label>
-                        <input type="text" id="update-artist" name="artist" required>
-                    </div>
-                    <div>
-                        <label for="update-album">Album:</label>
-                        <input type="text" id="update-album" name="album">
-                    </div>
-                    <div>
-                        <label for="update-genre">Genre:</label>
-                        <input type="text" id="update-genre" name="genre">
-                    </div>
-                    <div>
-                        <label for="update-year">Year:</label>
-                        <input type="text" id="update-year" name="year">
-                    </div>
-                    <div>
-                        <label for="update-cover-path">Cover Path:</label>
-                        <input type="text" id="update-cover-path" name="cover_path">
-                    </div>
-                    <div>
-                        <label for="update-description">Description:</label>
-                        <textarea id="update-description" name="description" rows="3"></textarea>
+                    <div class="track-details-form-column">
+                        <input type="hidden" id="update-music-id" name="music_id">
+                        <div>
+                            <label for="update-title">Title:</label>
+                            <input type="text" id="update-title" name="title" required>
+                        </div>
+                        <div>
+                            <label for="update-artist">Artist:</label>
+                            <input type="text" id="update-artist" name="artist" required>
+                        </div>
+                        <div>
+                            <label for="update-album">Album:</label>
+                            <input type="text" id="update-album" name="album">
+                        </div>
+                        <div>
+                            <label for="update-genre">Genre:</label>
+                            <input type="text" id="update-genre" name="genre">
+                        </div>
+                        <div>
+                            <label for="update-year">Year:</label>
+                            <input type="text" id="update-year" name="year">
+                        </div>
+                        <div>
+                            <label for="update-cover-path">Cover Path:</label>
+                            <input type="text" id="update-cover-path" name="cover_path">
+                        </div>
+                        <div>
+                            <label for="update-description">Description:</label>
+                            <textarea id="update-description" name="description" rows="3"></textarea>
+                        </div>
                     </div>
                     ${lyricsToolHtml} 
-                    <button type="submit" id="save-track-update-button" class="dialog-button primary">Save Changes</button>
-                    <button type="button" id="cancel-track-update-button" class="dialog-button secondary">Cancel</button>
+                    <div class="form-actions">
+                        <button type="submit" id="save-track-update-button" class="dialog-button primary">Save Changes</button>
+                        <button type="button" id="cancel-track-update-button" class="dialog-button secondary">Cancel</button>
+                    </div>
                 </form>
             </div>
         `,
@@ -386,39 +397,43 @@ document.addEventListener("DOMContentLoaded", () => {
                     Audio file: <span id="upload-filename-placeholder">No file selected</span>
                 </div>
                 <form id="upload-track-form">
-                    <input type="hidden" id="upload-original-filepath" name="original_filepath">
-                    <div>
-                        <label for="upload-title">Title:</label>
-                        <input type="text" id="upload-title" name="title" required>
-                    </div>
-                    <div>
-                        <label for="upload-artist">Artist:</label>
-                        <input type="text" id="upload-artist" name="artist" required>
-                    </div>
-                    <div>
-                        <label for="upload-album">Album:</label>
-                        <input type="text" id="upload-album" name="album">
-                    </div>
-                    <div>
-                        <label for="upload-genre">Genre:</label>
-                        <input type="text" id="upload-genre" name="genre">
-                    </div>
-                    <div>
-                        <label for="upload-year">Year:</label>
-                        <input type="text" id="upload-year" name="year">
-                    </div>
-                    <div>
-                        <label for="upload-cover-file">Cover Image (Optional):</label>
-                        <input type="file" id="upload-cover-file" name="cover_file" accept="image/*">
-                        <img id="upload-cover-preview" src="#" alt="Cover Preview" style="max-width: 100px; max-height: 100px; display: none; margin-top: 10px;">
-                    </div>
-                    <div>
-                        <label for="upload-description">Description:</label>
-                        <textarea id="upload-description" name="description" rows="3"></textarea>
+                    <div class="track-details-form-column">
+                        <input type="hidden" id="upload-original-filepath" name="original_filepath">
+                        <div>
+                            <label for="upload-title">Title:</label>
+                            <input type="text" id="upload-title" name="title" required>
+                        </div>
+                        <div>
+                            <label for="upload-artist">Artist:</label>
+                            <input type="text" id="upload-artist" name="artist" required>
+                        </div>
+                        <div>
+                            <label for="upload-album">Album:</label>
+                            <input type="text" id="upload-album" name="album">
+                        </div>
+                        <div>
+                            <label for="upload-genre">Genre:</label>
+                            <input type="text" id="upload-genre" name="genre">
+                        </div>
+                        <div>
+                            <label for="upload-year">Year:</label>
+                            <input type="text" id="upload-year" name="year">
+                        </div>
+                        <div>
+                            <label for="upload-cover-file">Cover Image (Optional):</label>
+                            <input type="file" id="upload-cover-file" name="cover_file" accept="image/*">
+                            <img id="upload-cover-preview" src="#" alt="Cover Preview" style="max-width: 100px; max-height: 100px; display: none; margin-top: 10px;">
+                        </div>
+                        <div>
+                            <label for="upload-description">Description:</label>
+                            <textarea id="upload-description" name="description" rows="3"></textarea>
+                        </div>
                     </div>
                     ${lyricsToolHtml}
-                    <button type="submit" id="submit-upload-button" class="dialog-button primary">Upload Track</button>
-                    <button type="button" id="cancel-upload-button" class="dialog-button secondary">Cancel</button>
+                    <div class="form-actions">
+                        <button type="submit" id="submit-upload-button" class="dialog-button primary">Upload Track</button>
+                        <button type="button" id="cancel-upload-button" class="dialog-button secondary">Cancel</button>
+                    </div>
                 </form>
             </div>
         `,

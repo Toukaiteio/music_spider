@@ -160,18 +160,34 @@ body {
     color: var(--text-color-secondary);
     border-radius: 4px;
 }
-#lyrics-playback-controls-placeholder button {
-    padding: 8px 12px; /* Consistent with other small buttons */
-    margin: 0 5px;
-    background-color: var(--secondary-bg-color); /* Match theme */
-    color: var(--text-color-primary);
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
+
+/* Remove old text-button specific styles for lyrics controls */
+/* #lyrics-playback-controls-placeholder button { ... } */
+
+/* Style for icon buttons within the lyrics playback controls */
+#lyrics-playback-controls-placeholder .icon-button {
+    background: transparent;
+    border: none;
+    color: var(--icon-color); /* Use theme's icon color */
+    padding: 8px; /* Standard padding for icon buttons */
+    border-radius: 50%; /* Circular buttons */
+    margin: 0 8px; /* Spacing between buttons */
     cursor: pointer;
+    display: inline-flex; /* Align icon properly */
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
 }
-#lyrics-playback-controls-placeholder button:hover {
-    background-color: var(--primary-bg-color);
+
+#lyrics-playback-controls-placeholder .icon-button:hover {
+    background-color: var(--shadow-color); /* Subtle hover effect */
 }
+
+#lyrics-playback-controls-placeholder .icon-button .material-icons {
+    font-size: 24px; /* Standard icon size */
+    color: inherit; /* Inherit color from button (var(--icon-color)) */
+}
+
 #lrc-input-area {
     width: 100%;
     min-height: 150px;
@@ -333,7 +349,49 @@ body {
     height: 100%;
     padding: 20px;
     gap: 20px;
+    /* Base styles for animation */
+    animation-duration: 0.5s; /* Duration of the animation */
+    animation-timing-function: ease-out; /* Smoother start */
+    animation-fill-mode: forwards; /* Element retains style from the last keyframe */
+    opacity: 0; /* Start transparent, will be made visible by animation */
+    position: relative; /* Ensure it's a positioned element for transforms if needed, though translateY works on non-positioned too */
 }
+
+/* Keyframes for slide-up and fade-in */
+@keyframes slide-up-fade-in {
+    from {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0%);
+        opacity: 1;
+    }
+}
+
+/* Keyframes for slide-down and fade-out */
+@keyframes slide-down-fade-out {
+    from {
+        transform: translateY(0%);
+        opacity: 1;
+    }
+    to {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+}
+
+/* Classes to trigger animations */
+.song-detail-page-enter {
+    animation-name: slide-up-fade-in;
+    opacity: 1; /* Ensure it's visible after animation starts */
+}
+
+.song-detail-page-exit {
+    animation-name: slide-down-fade-out;
+    /* Opacity will be handled by the animation keyframes */
+}
+
 .song-detail-left {
     /* flex: 2; Takes 2/3 of the space */
     display: flex;
@@ -617,6 +675,20 @@ body {
     color: white; /* Icon color explicitly white */
 }
 
+.lossless-tag {
+    position: absolute;
+    bottom: 8px; /* Adjusted for better spacing from edge */
+    left: 8px;  /* Adjusted for better spacing from edge */
+    background-color: rgba(0, 0, 0, 0.75); /* Dark semi-transparent background */
+    color: white;
+    padding: 3px 7px;
+    font-size: 0.65em; /* Small and discreet */
+    font-weight: bold;
+    border-radius: 4px;
+    z-index: 1;
+    /* text-transform: uppercase; */ /* "无损" doesn't need uppercase */
+    /* letter-spacing: 0.5px; */ /* Not ideal for CJK characters */
+}
 
 .song-card-info {
     text-align: left; /* Ensure text is aligned left */
@@ -1833,9 +1905,9 @@ button:hover {
     opacity: 0.3; /* Initial opacity, can be adjusted */
     filter: blur(100px); /* Heavy blur for a soft, diffused look (毛玻璃 - maoboli effect part) */
     border-radius: 50%; /* Makes them somewhat circular/oval for diffusion */
-    /* transition: background .5s ease-in-out; */
-    /* animation: floatBand 22s ease-in-out infinite alternate; */
-    will-change: transform;
+    transition: top 0.8s ease-in-out, left 0.8s ease-in-out, background 0.5s ease-in-out, opacity 0.5s ease-in-out;
+    /* animation: floatBand 22s ease-in-out infinite alternate; */ /* Keep animation commented if not used by JS position changes */
+    will-change: transform, top, left, background, opacity; /* Include all transitioned properties */
 }
 
 @keyframes floatBand {
@@ -1966,19 +2038,66 @@ button:hover {
     border-color: var(--accent-color);
     box-shadow: 0 0 0 2px rgba(var(--accent-color-rgb), 0.2);
 }
-#update-track-form button { 
-    margin-top: 20px; 
-    margin-right: 10px; 
-    padding: 10px 20px; /* More substantial buttons */
+
+/* Responsive Form Layout for Update and Upload Pages */
+#update-track-form,
+#upload-track-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px; /* Space between columns and items */
 }
-#update-track-form button#cancel-track-update-button {
+
+.track-details-form-column,
+#update-track-form .lyrics-tool-container, /* Target specifically within forms */
+#upload-track-form .lyrics-tool-container {
+    flex-basis: 100%; /* Default to full width (single column) */
+    min-width: 0; /* Allow shrinking below default min-content size */
+}
+
+.form-actions {
+    flex-basis: 100%;
+    display: flex;
+    justify-content: flex-end; /* Align buttons to the right */
+    gap: 10px; /* Space between buttons */
+    margin-top: 10px; /* Add some space above the buttons */
+}
+
+/* Two-column layout for wider screens */
+@media (min-width: 900px) {
+    #update-track-form .track-details-form-column,
+    #upload-track-form .track-details-form-column {
+        flex: 2; /* Takes roughly 2/3 of the space */
+        min-width: 300px; /* Minimum width before wrapping or shrinking too much */
+    }
+
+    #update-track-form .lyrics-tool-container,
+    #upload-track-form .lyrics-tool-container {
+        flex: 1; /* Takes roughly 1/3 of the space */
+        min-width: 300px; /* Minimum width */
+        margin-top: 0; /* Reset margin-top from general .lyrics-tool-container style if needed */
+    }
+}
+
+#update-track-form button, /* General button styling within these forms */
+#upload-track-form button { 
+    margin-top: 0; /* Reset individual button margin-top as .form-actions handles spacing */
+    margin-right: 0; /* Reset individual button margin-right */
+    /* padding will be inherited from .dialog-button or general button styles */
+}
+
+/* Ensure cancel button is specifically targeted if its margin was different */
+#update-track-form button#cancel-track-update-button,
+#upload-track-form button#cancel-upload-button {
     background-color: var(--secondary-bg-color); /* Different bg for cancel */
     color: var(--text-color-primary);
     border: 1px solid var(--border-color);
 }
-#update-track-form button#cancel-track-update-button:hover {
+#update-track-form button#cancel-track-update-button:hover,
+#upload-track-form button#cancel-upload-button:hover {
     background-color: var(--primary-bg-color);
 }
+
+/* This placeholder is not used, lyricsToolHtml is used directly. Keeping for completeness if it was intended elsewhere. */
 #lyrics-tool-placeholder { 
     margin-top: 25px; /* Increased margin */
     margin-bottom: 25px; /* Added margin bottom */
