@@ -135,12 +135,18 @@ async def handle_download_track(websocket, cmd_id: str, payload: dict):
         )
         
         # Call the download_track method from the selected downloader_module
-        music_item_result = await loop.run_in_executor(
-            None,  # Uses the default ThreadPoolExecutor
-            downloader_module.download_track, # Use selected module
+        # music_item_result = await loop.run_in_executor(
+        #     None,  # Uses the default ThreadPoolExecutor
+        #     downloader_module.download_track, # Use selected module
+        #     track_data,
+        #     "./downloads",  # base_download_path
+        #     partial_progress_callback # Pass the new partial callback
+        # )
+
+        music_item_result = await downloader_module.download_track(
             track_data,
-            "./downloads",  # base_download_path
-            partial_progress_callback # Pass the new partial callback
+            "./downloads",
+            partial_progress_callback
         )
 
         if music_item_result and isinstance(music_item_result, MusicItem):

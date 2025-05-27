@@ -16,6 +16,7 @@ import urllib.parse
 from utils.data_type import MusicItem
 from html import unescape
 import re
+import asyncio
 bili_account = {
     "web_location":"333.1007",
 }
@@ -713,9 +714,9 @@ def _download_audio_bili(
         return None, False
 
 
-def download_track(track_info: dict, base_download_path: str = "./downloads", progress_callback: callable = None) -> MusicItem | None:
+async def download_track(track_info: dict, base_download_path: str = "./downloads", progress_callback: callable = None) -> MusicItem | None:
     """
-    Downloads a Bilibili track (video's audio and cover) based on track_info from search_tracks.
+    Asynchronously downloads a Bilibili track (video's audio and cover) based on track_info from search_tracks.
     base_download_path is handled by MusicItem's work_path logic.
     """
     bvid = track_info.get("bvid")
@@ -723,12 +724,13 @@ def download_track(track_info: dict, base_download_path: str = "./downloads", pr
 
     if not bvid and not aid:
         print("Error: track_info must contain 'bvid' or 'aid'.")
-        if progress_callback: # Generic error as no track_id available
+        if progress_callback:
             progress_callback(track_id="unknown_bili_track", current_size=0, total_size=0, file_type="track", status="error", error_message="Missing bvid/aid in track_info")
         return None
 
     # 1. Get detailed video information (includes full description, cid, etc.)
-    video_details, cid = _get_video_details_bili(bvid=bvid, aid=aid)
+    loop = asyncio.get_event_loop()
+    video_details, cid = await loop.run_in_executor(None, _get_video_details_bili, bvid, aid)
     if not video_details or not cid:
         print(f"Failed to get video details for Bilibili track: {bvid or aid}")
         if progress_callback:
@@ -736,82 +738,71 @@ def download_track(track_info: dict, base_download_path: str = "./downloads", pr
         return None
 
     # 2. Create MusicItem
-    # Use bvid as primary music_id if available
     music_id_str = bvid if bvid else str(aid)
-    
-    # Extract lyrics from description (basic attempt, can be improved)
-    # Bilibili descriptions can be noisy. A more sophisticated lyric extraction might be needed.
     full_description = strip_html_tags(video_details.get("desc", ""))
-    lyrics_content = "" # Placeholder for actual lyrics extraction logic if any
-    # Example: search for common lyric markers if available in Bili descriptions.
-    # For now, we can assign the full description if it's short, or a part of it.
-    # Or leave it empty if no clear way to get only lyrics.
-    # For this task, let's assume lyrics are not easily separable unless explicitly marked.
+    lyrics_content = ""
 
     music_item = MusicItem(
         music_id=music_id_str,
         title=strip_html_tags(video_details.get("title", track_info.get("title", "Unknown Title"))),
         author=video_details.get("owner", {}).get("name", track_info.get("author", "Unknown Artist")),
-        description=full_description, # Full description from view API
-        album=video_details.get("tname", ""), # Use video category/type name as album
-        tags=video_details.get("extracted_tags", []), # Use 'tags' from view API or tname
-        duration=video_details.get("duration", track_info.get("duration", 0)), # Duration in seconds
-        genre=video_details.get("tname", ""), # Video category/type name as genre
-        cover=video_details.get("pic", track_info.get("cover_url")), # Cover URL from view API or search
-        lossless=False, # Default to False, will be updated after audio download
-        lyrics=lyrics_content 
+        description=full_description,
+        album=video_details.get("tname", ""),
+        tags=video_details.get("extracted_tags", []),
+        duration=video_details.get("duration", track_info.get("duration", 0)),
+        genre=video_details.get("tname", ""),
+        cover=video_details.get("pic", track_info.get("cover_url")),
+        lossless=False,
+        lyrics=lyrics_content
     )
-    # MusicItem constructor creates the work_path: os.path.join(base_download_path, music_id_str)
 
     # 3. Download Cover
-    downloaded_cover_path = _download_cover_bili(
-        cover_url=music_item.preview_cover, # Using the URL set in MusicItem
-        music_item=music_item,
-        progress_callback=progress_callback
+    downloaded_cover_path = await loop.run_in_executor(
+        None,
+        _download_cover_bili,
+        music_item.preview_cover,
+        music_item,
+        progress_callback
     )
     if downloaded_cover_path:
         music_item.set_cover(downloaded_cover_path)
-    # else: _download_cover_bili handles error callback
 
     # 4. Get Audio Options and Download Audio
-    audio_options = _get_audio_options_bili(bvid=music_id_str, cid=cid) # Use music_id_str which is bvid
-    
-    downloaded_audio_path, is_lossless = _download_audio_bili(
-        audio_options=audio_options,
-        music_item=music_item,
-        progress_callback=progress_callback
+    audio_options = await loop.run_in_executor(None, _get_audio_options_bili, music_id_str, cid)
+    downloaded_audio_path, is_lossless = await loop.run_in_executor(
+        None,
+        _download_audio_bili,
+        audio_options,
+        music_item,
+        progress_callback
     )
 
     if downloaded_audio_path:
         music_item.set_audio(downloaded_audio_path)
-        music_item.lossless = is_lossless # Update lossless status
-    # else: _download_audio_bili handles error callback
+        music_item.lossless = is_lossless
 
     # 5. Save metadata
-    music_item.dump_self()
+    await loop.run_in_executor(None, music_item.dump_self)
     print(f"Bilibili metadata for {music_item.music_id} saved to {os.path.join(music_item.work_path, 'music.json')}")
 
     if progress_callback:
-        # Determine overall status for the track
         final_status = "completed_track"
         if not downloaded_audio_path and not downloaded_cover_path:
-            final_status = "error" # If both failed, consider track download an error
+            final_status = "error"
         elif not downloaded_audio_path:
-            final_status = "completed_with_warnings" # Or some other status indicating partial success
-        
+            final_status = "completed_with_warnings"
         progress_callback(
             track_id=music_item.music_id,
-            current_size=1, total_size=1, # Placeholder for overall track status
+            current_size=1, total_size=1,
             file_type="track",
             status=final_status,
             error_message="Audio or cover download failed." if final_status != "completed_track" else None
         )
-    
-    # Return None if essential parts (like audio) failed
+
     if not downloaded_audio_path:
         print(f"Failed to download essential audio for Bilibili track {music_item.music_id}. Reporting as failure.")
         return None
-        
+
     return music_item
 
 
