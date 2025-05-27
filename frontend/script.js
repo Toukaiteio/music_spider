@@ -16,10 +16,10 @@ const lyricsToolHtml = `
     <h4>Lyrics Editor (LRC Format)</h4>
     <div id="lyrics-waveform-placeholder">Waveform Display Placeholder</div>
     <div id="lyrics-playback-controls-placeholder">
-        <button id="lyrics-simulate-play" class="dialog-button">Simulate Play</button>
-        <button id="lyrics-reset-simulation" class="dialog-button secondary">Reset</button>
-        <button disabled>Speed Up</button>
-        <button disabled>Slow Down</button>
+        <button id="lyrics-slow-down" class="icon-button" aria-label="Slow Down"><span class="material-icons">fast_rewind</span></button>
+        <button id="lyrics-simulate-play" class="icon-button" aria-label="Simulate Play"><span class="material-icons">play_arrow</span></button>
+        <button id="lyrics-reset-simulation" class="icon-button" aria-label="Reset Simulation"><span class="material-icons">replay</span></button>
+        <button id="lyrics-speed-up" class="icon-button" aria-label="Speed Up"><span class="material-icons">fast_forward</span></button>
     </div>
     <label for="lrc-input-area">LRC Content:</label>
     <textarea id="lrc-input-area" placeholder="[mm:ss.xx]Lyric line 1\n[mm:ss.xx]<00:00.xx>Word <00:00.xx>by <00:00.xx>word..." rows="10"></textarea>
@@ -306,19 +306,25 @@ document.addEventListener("DOMContentLoaded", () => {
     `,
     "song-detail": `
             <div id="song-detail-page">
+                <button id="song-detail-back-button" class="icon-button" aria-label="Go Back" style="position: absolute; top: 0px; left: 0px; z-index: 10;"><span class="material-icons">arrow_back</span></button>
                 <div class="song-detail-left">
                     <img src="placeholder_album_art.png" alt="Album Art" id="detail-cover-art">
                     <h2 id="detail-title">Track Title</h2>
                     <p id="detail-artist">Artist Name</p>
                     <p id="detail-description">Full song description here...</p>
                     <div id="detail-action-buttons">
-                        <button class="detail-play-button"><span class="material-icons">play_arrow</span></button>
-                        <button class="detail-add-to-collection-button"><span class="material-icons">playlist_add</span></button>
+                        <button class="detail-play-button icon-button"><span class="material-icons">play_arrow</span></button>
+                        <button class="detail-add-to-collection-button icon-button"><span class="material-icons">playlist_add</span></button>
                         <button class="detail-update-button icon-button" aria-label="Update Track Info"><span class="material-icons">edit</span></button>
                     </div>
                 </div>
                 <div class="song-detail-right">
-                    <p>暂无歌词</p> <!-- Lyrics not available yet -->
+                    <div id="lyrics-display-area">
+                        <p>暂无歌词</p>
+                    </div>
+                    <button id="upload-lyrics-button" class="icon-button" style="display: none;">
+                        <span class="material-icons">upload_file</span>
+                    </button>
                 </div>
             </div>
         `,
@@ -344,38 +350,42 @@ document.addEventListener("DOMContentLoaded", () => {
             <div id="update-track-page">
                 <h2>Update Track Information</h2>
                 <form id="update-track-form">
-                    <input type="hidden" id="update-music-id" name="music_id">
-                    <div>
-                        <label for="update-title">Title:</label>
-                        <input type="text" id="update-title" name="title" required>
-                    </div>
-                    <div>
-                        <label for="update-artist">Artist:</label>
-                        <input type="text" id="update-artist" name="artist" required>
-                    </div>
-                    <div>
-                        <label for="update-album">Album:</label>
-                        <input type="text" id="update-album" name="album">
-                    </div>
-                    <div>
-                        <label for="update-genre">Genre:</label>
-                        <input type="text" id="update-genre" name="genre">
-                    </div>
-                    <div>
-                        <label for="update-year">Year:</label>
-                        <input type="text" id="update-year" name="year">
-                    </div>
-                    <div>
-                        <label for="update-cover-path">Cover Path:</label>
-                        <input type="text" id="update-cover-path" name="cover_path">
-                    </div>
-                    <div>
-                        <label for="update-description">Description:</label>
-                        <textarea id="update-description" name="description" rows="3"></textarea>
+                    <div class="track-details-form-column">
+                        <input type="hidden" id="update-music-id" name="music_id">
+                        <div>
+                            <label for="update-title">Title:</label>
+                            <input type="text" id="update-title" name="title" required>
+                        </div>
+                        <div>
+                            <label for="update-artist">Artist:</label>
+                            <input type="text" id="update-artist" name="artist" required>
+                        </div>
+                        <div>
+                            <label for="update-album">Album:</label>
+                            <input type="text" id="update-album" name="album">
+                        </div>
+                        <div>
+                            <label for="update-genre">Genre:</label>
+                            <input type="text" id="update-genre" name="genre">
+                        </div>
+                        <div>
+                            <label for="update-year">Year:</label>
+                            <input type="text" id="update-year" name="year">
+                        </div>
+                        <div>
+                            <label for="update-cover-path">Cover Path:</label>
+                            <input type="text" id="update-cover-path" name="cover_path">
+                        </div>
+                        <div>
+                            <label for="update-description">Description:</label>
+                            <textarea id="update-description" name="description" rows="3"></textarea>
+                        </div>
                     </div>
                     ${lyricsToolHtml} 
-                    <button type="submit" id="save-track-update-button" class="dialog-button primary">Save Changes</button>
-                    <button type="button" id="cancel-track-update-button" class="dialog-button secondary">Cancel</button>
+                    <div class="form-actions">
+                        <button type="submit" id="save-track-update-button" class="dialog-button primary">Save Changes</button>
+                        <button type="button" id="cancel-track-update-button" class="dialog-button secondary">Cancel</button>
+                    </div>
                 </form>
             </div>
         `,
@@ -386,39 +396,43 @@ document.addEventListener("DOMContentLoaded", () => {
                     Audio file: <span id="upload-filename-placeholder">No file selected</span>
                 </div>
                 <form id="upload-track-form">
-                    <input type="hidden" id="upload-original-filepath" name="original_filepath">
-                    <div>
-                        <label for="upload-title">Title:</label>
-                        <input type="text" id="upload-title" name="title" required>
-                    </div>
-                    <div>
-                        <label for="upload-artist">Artist:</label>
-                        <input type="text" id="upload-artist" name="artist" required>
-                    </div>
-                    <div>
-                        <label for="upload-album">Album:</label>
-                        <input type="text" id="upload-album" name="album">
-                    </div>
-                    <div>
-                        <label for="upload-genre">Genre:</label>
-                        <input type="text" id="upload-genre" name="genre">
-                    </div>
-                    <div>
-                        <label for="upload-year">Year:</label>
-                        <input type="text" id="upload-year" name="year">
-                    </div>
-                    <div>
-                        <label for="upload-cover-file">Cover Image (Optional):</label>
-                        <input type="file" id="upload-cover-file" name="cover_file" accept="image/*">
-                        <img id="upload-cover-preview" src="#" alt="Cover Preview" style="max-width: 100px; max-height: 100px; display: none; margin-top: 10px;">
-                    </div>
-                    <div>
-                        <label for="upload-description">Description:</label>
-                        <textarea id="upload-description" name="description" rows="3"></textarea>
+                    <div class="track-details-form-column">
+                        <input type="hidden" id="upload-original-filepath" name="original_filepath">
+                        <div>
+                            <label for="upload-title">Title:</label>
+                            <input type="text" id="upload-title" name="title" required>
+                        </div>
+                        <div>
+                            <label for="upload-artist">Artist:</label>
+                            <input type="text" id="upload-artist" name="artist" required>
+                        </div>
+                        <div>
+                            <label for="upload-album">Album:</label>
+                            <input type="text" id="upload-album" name="album">
+                        </div>
+                        <div>
+                            <label for="upload-genre">Genre:</label>
+                            <input type="text" id="upload-genre" name="genre">
+                        </div>
+                        <div>
+                            <label for="upload-year">Year:</label>
+                            <input type="text" id="upload-year" name="year">
+                        </div>
+                        <div>
+                            <label for="upload-cover-file">Cover Image (Optional):</label>
+                            <input type="file" id="upload-cover-file" name="cover_file" accept="image/*">
+                            <img id="upload-cover-preview" src="#" alt="Cover Preview" style="max-width: 100px; max-height: 100px; display: none; margin-top: 10px;">
+                        </div>
+                        <div>
+                            <label for="upload-description">Description:</label>
+                            <textarea id="upload-description" name="description" rows="3"></textarea>
+                        </div>
                     </div>
                     ${lyricsToolHtml}
-                    <button type="submit" id="submit-upload-button" class="dialog-button primary">Upload Track</button>
-                    <button type="button" id="cancel-upload-button" class="dialog-button secondary">Cancel</button>
+                    <div class="form-actions">
+                        <button type="submit" id="submit-upload-button" class="dialog-button primary">Upload Track</button>
+                        <button type="button" id="cancel-upload-button" class="dialog-button secondary">Cancel</button>
+                    </div>
                 </form>
             </div>
         `,
@@ -456,7 +470,44 @@ document.addEventListener("DOMContentLoaded", () => {
   
   navigationManager.init(); 
   searchManager.init(); 
-
+  // if (
+  //   searchSourceButton &&
+  //   webSocketManager &&
+  //   typeof webSocketManager.sendWebSocketCommand === "function"
+  // ) {
+  //   webSocketManager
+  //     .sendWebSocketCommand("get_available_sources", {})
+  //     .then((response) => {
+  //       const sources = Array.isArray(response.data) ? response.data : [];
+  //       let currentSourceIndex = 0;
+  //       if (sources.length > 0) {
+  //         // Set initial icon and source
+  //         const img = searchSourceButton.querySelector("img");
+  //         if (img) {
+  //           img.src = `source_icon/${sources[0]}.ico`;
+  //         }
+  //         if (typeof searchManager?.switchSource === "function") {
+  //           searchManager.switchSource(sources[0]);
+  //         }
+  //       }
+  //       searchSourceButton.addEventListener("click", () => {
+  //         if (sources.length > 0) {
+  //           currentSourceIndex = (currentSourceIndex + 1) % sources.length;
+  //           const source = sources[currentSourceIndex];
+  //           const img = searchSourceButton.querySelector("img");
+  //           if (img && source) {
+  //             img.src = `source_icon/${source}.ico`;
+  //           }
+  //           if (typeof searchManager?.switchSource === "function") {
+  //             searchManager.switchSource(source);
+  //           }
+  //         }
+  //       });
+  //     })
+  //     .catch((err) => {
+  //       console.warn("Failed to fetch available sources:", err);
+  //     });
+  // }
   // Global Drag and Drop
   const dragOverlay = document.getElementById('drag-overlay');
 
@@ -947,6 +998,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
   });
 
+  const playerCoverArea = document.getElementById("player-cover-area");
+  if (playerCoverArea) {
+    playerCoverArea.addEventListener("click", () => {
+      const currentTrack = playerManager.getCurrentTrack?.();
+      // console.log(currentTrack);
+      window.appState.currentSongDetail = currentTrack;
+      const musicId = currentTrack?.bvid  || currentTrack?.music_id || currentTrack?.id;
+      if (musicId) {
+        navigationManager.navigateTo("song-detail", currentTrack.title || "Track Detail", "#song-detail/" + musicId, false, musicId);
+      }
+    });
+  }
   UIManager.renderTaskQueue(); 
   UIManager.updateMainTaskQueueIcon(); 
 

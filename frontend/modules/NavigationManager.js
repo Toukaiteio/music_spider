@@ -28,14 +28,22 @@ class NavigationManager {
         this.appState = appState;
         this.searchManager = null; // Will be set by setSearchManager
         this.favoriteManager = null; // Will be set by setFavoriteManager
+        this.navigationHistory = [];
+        this.currentPageId = null;
+        this.currentSubPageId = null;
+        this.currentPath = null;
+        this.currentTitle = null;
+
 
         // Bind methods
         this.navigateTo = this.navigateTo.bind(this);
+        this.navigateBack = this.navigateBack.bind(this); // Bind new method
         this.updateActiveDrawerLink = this.updateActiveDrawerLink.bind(this);
         this.handlePopState = this.handlePopState.bind(this);
         this.handleInitialLoad = this.handleInitialLoad.bind(this);
         this.handleMainContentClick = this.handleMainContentClick.bind(this);
         this.handleFavoriteChange = this.handleFavoriteChange.bind(this); // Bind new handler
+        this._animateColorBands = this._animateColorBands.bind(this); // Bind new method
     }
 
     init() {
@@ -100,6 +108,47 @@ class NavigationManager {
             return;
         }
 
+        // Exit animation for song-detail page if currently on it and navigating elsewhere
+        if (this.currentPageId === 'song-detail' && pageId !== 'song-detail' && !skipPushState) {
+            const songDetailPageElement = this.mainContent.querySelector('#song-detail-page');
+            if (songDetailPageElement) {
+                songDetailPageElement.classList.add('song-detail-page-exit');
+                songDetailPageElement.addEventListener('animationend', () => {
+                    // Actual navigation after animation
+                    this._performNavigateTo(pageId, title, path, skipPushState, subPageId);
+                }, { once: true });
+                return; // Prevent immediate navigation
+            }
+        }
+        // If not coming from song-detail with an exit animation, proceed directly
+        this._performNavigateTo(pageId, title, path, skipPushState, subPageId);
+    }
+
+    // Encapsulated the original navigateTo logic
+    _performNavigateTo(pageId, title, path, skipPushState = false, subPageId = null) {
+        if (!this.mainContent) { // Re-check in case it's called directly somehow
+            console.error("Main content area not found in _performNavigateTo!");
+            return;
+        }
+
+        // Animate color bands before changing content
+        this._animateColorBands();
+
+         // Manage navigation history
+        if (this.currentPageId && this.currentPageId !== 'song-detail' && !skipPushState) {
+            if (this.currentPath && this.currentPath !== path) { // Avoid pushing same page multiple times if logic allows
+                this.navigationHistory.push({
+                    pageId: this.currentPageId,
+                    subPageId: this.currentSubPageId,
+                    path: this.currentPath,
+                    title: this.currentTitle
+                });
+                if (this.navigationHistory.length > 10) {
+                    this.navigationHistory.shift(); // Keep history to a reasonable size
+                }
+            }
+        }
+
         // Set upload page active state
         this.appState.isUploadPageActive = (pageId === "upload-track");
 
@@ -116,27 +165,42 @@ class NavigationManager {
         this.updateActiveDrawerLink(pageId, subPageId);
 
         this.mainContent.style.opacity = "0";
-        const thiz = this;
         requestAnimationFrame((() => {
-            thiz.mainContent.style.transition = "opacity 0.3s ease-in-out";
-            thiz.mainContent.style.opacity = "1";
+            this.mainContent.style.transition = "opacity 0.3s ease-in-out";
+            this.mainContent.style.opacity = "1";
 
             // Page-specific logic
+            // Apply enter animation for song-detail page
+            if (pageId === 'song-detail') {
+                const songDetailPageElement = this.mainContent.querySelector('#song-detail-page');
+                if (songDetailPageElement) {
+                    // Ensure it's initially ready for animation (opacity 0 is set in CSS)
+                    // songDetailPageElement.style.opacity = '0'; // Already set by base #song-detail-page CSS
+                    
+                    requestAnimationFrame(() => { // Next frame to ensure styles are applied
+                        songDetailPageElement.classList.add('song-detail-page-enter');
+                        songDetailPageElement.addEventListener('animationend', () => {
+                            songDetailPageElement.style.opacity = '1'; // Ensure it's visible after animation
+                            songDetailPageElement.classList.remove('song-detail-page-enter');
+                        }, { once: true });
+                    });
+                }
+            }
             if (pageId === "home") {
-            const homeLoadingMessage = thiz.mainContent.querySelector("#home-loading-message");
-            const songCardGrid = thiz.mainContent.querySelector("#song-card-grid");
-            const noSongsMessage = thiz.mainContent.querySelector("#no-songs-message");
+            const homeLoadingMessage = this.mainContent.querySelector("#home-loading-message");
+            const songCardGrid = this.mainContent.querySelector("#song-card-grid");
+            const noSongsMessage = this.mainContent.querySelector("#no-songs-message");
 
             if (homeLoadingMessage) homeLoadingMessage.style.display = "block";
             if (songCardGrid) songCardGrid.style.display = "none";
             if (noSongsMessage) noSongsMessage.style.display = "none";
 
-            thiz.webSocketManager.sendWebSocketCommand("get_downloaded_music", {})
+            this.webSocketManager.sendWebSocketCommand("get_downloaded_music", {})
                 .then((response) => {
                 if (homeLoadingMessage) homeLoadingMessage.style.display = "none";
                 const libraryData = response.data && response.data.library ? response.data.library : [];
-                thiz.appState.library = libraryData;
-                thiz.playerManager.setPlayList(libraryData);
+                this.appState.library = libraryData;
+                this.playerManager.setPlayList(libraryData);
                 if (libraryData && libraryData.length > 0) {
                     if (songCardGrid) {
                     songCardGrid.innerHTML = ""; // Clear previous content
@@ -147,7 +211,7 @@ class NavigationManager {
                         imageUrl = track.preview_cover;
                         }
                         const trackTitle = track.title || "Unknown Title";
-                        const isFavorite = thiz.favoriteManager ? thiz.favoriteManager.isFavorite(track.music_id) : false;
+                        const isFavorite = this.favoriteManager ? this.favoriteManager.isFavorite(track.music_id) : false;
                         songCardGrid.innerHTML += SongCardRenderer.render(track, 'library', { isFavorite });
                     });
                     songCardGrid.style.display = "grid";
@@ -171,18 +235,18 @@ class NavigationManager {
             // Content is set by mainContent.innerHTML.
             // SearchManager will be responsible for populating it.
             // NavigationManager ensures the page is visible, then SearchManager fills it.
-            if (thiz.searchManager) {
+            if (this.searchManager) {
                 // Ensure DOM is updated before displayResults tries to access elements
-                setTimeout(() => thiz.searchManager.displayResults(), 0);
+                setTimeout(() => this.searchManager.displayResults(), 0);
             } else {
                 console.warn("NavigationManager: SearchManager not set, cannot display search results.");
                 // Optionally display a message in the mainContent area
-                thiz.mainContent.innerHTML += '<p style="color:red;text-align:center;">Error: Search functionality is currently unavailable.</p>';
+                this.mainContent.innerHTML += '<p style="color:red;text-align:center;">Error: Search functionality is currently unavailable.</p>';
             }
             } else if (pageId === "song-detail") {
-            const track = thiz.appState.currentSongDetail;
+            const track = this.appState.currentSongDetail;
             if (!track) {
-                thiz.mainContent.innerHTML = '<p style="color:red; text-align:center; padding:20px;">Error: Song details not found. Please go back and try again.</p>';
+                this.mainContent.innerHTML = '<p style="color:red; text-align:center; padding:20px;">Error: Song details not found. Please go back and try again.</p>';
                 return;
             }
             const coverArtEl = document.getElementById("detail-cover-art");
@@ -207,10 +271,10 @@ class NavigationManager {
             if (descriptionEl) descriptionEl.textContent = track.description || "No description available.";
             
             // Add track info to buttons for script.js listener
-            const playButtonEl = thiz.mainContent.querySelector(".detail-play-button");
-            const addToCollectionButtonEl = thiz.mainContent.querySelector(".detail-add-to-collection-button");
+            const playButtonEl = this.mainContent.querySelector(".detail-play-button");
+            const addToCollectionButtonEl = this.mainContent.querySelector(".detail-add-to-collection-button");
             const trackInfoJson = JSON.stringify(track).replace(/'/g, "&apos;");
-            const songId = track.music_id;
+            const songId = track.music_id || track.id; // Ensure we get the ID
 
             if (playButtonEl) playButtonEl.dataset.trackInfo = trackInfoJson;
             if (addToCollectionButtonEl) {
@@ -218,11 +282,40 @@ class NavigationManager {
                 if (songId) addToCollectionButtonEl.dataset.songId = songId;
             }
 
+            // Back button for song detail page
+            const backButton = this.mainContent.querySelector("#song-detail-back-button");
+            if (backButton) {
+                backButton.addEventListener('click', this.navigateBack);
+            }
+
+            // Lyrics and Upload Lyrics button logic
+            const lyricsDisplayArea = this.mainContent.querySelector("#lyrics-display-area");
+            const uploadLyricsButton = this.mainContent.querySelector("#upload-lyrics-button");
+
+            if (lyricsDisplayArea && uploadLyricsButton) {
+                if (track.lyrics && typeof track.lyrics === 'string' && track.lyrics.trim() !== "") {
+                    // For now, display as plain text. Future: Parse LRC if applicable.
+                    // To prevent XSS, if lyrics content is user-generated and not sanitized, 
+                    // consider using .textContent or sanitizing HTML.
+                    // For LRC, a specific rendering function would be needed.
+                    lyricsDisplayArea.innerHTML = `<pre>${track.lyrics.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`; // Basic XSS protection for preformatted text
+                    uploadLyricsButton.style.display = 'none';
+                } else {
+                    lyricsDisplayArea.innerHTML = '<p>暂无歌词</p>';
+                    uploadLyricsButton.style.display = 'block'; // Or 'inline-block', 'flex' etc. based on CSS
+                    uploadLyricsButton.onclick = () => { // Use onclick for simplicity here, or addEventListener
+                        this.appState.focusElementAfterLoad = '#lrc-input-area';
+                        this.navigateTo('update-track', `Update ${track.title || 'Track'}`, `#update-track/${songId}`, false, songId);
+                    };
+                }
+            }
+
+
             } else if (pageId === "collections" || pageId === "collection-detail") {
-            const collectionsLoadingMessage = thiz.mainContent.querySelector("#collections-loading-message");
-            const songCardGrid = thiz.mainContent.querySelector("#song-card-grid");
-            const noMusicMessage = thiz.mainContent.querySelector("#collections-no-music-message");
-            const collectionNameElement = thiz.mainContent.querySelector("#collection-name");
+            const collectionsLoadingMessage = this.mainContent.querySelector("#collections-loading-message");
+            const songCardGrid = this.mainContent.querySelector("#song-card-grid");
+            const noMusicMessage = this.mainContent.querySelector("#collections-no-music-message");
+            const collectionNameElement = this.mainContent.querySelector("#collection-name");
 
 
             if (collectionsLoadingMessage) collectionsLoadingMessage.style.display = "block";
@@ -231,22 +324,22 @@ class NavigationManager {
             
             let collectionTracks = [];
             let currentCollectionName = "";
-            thiz.currentOpenCollectionName = null; // Reset current open collection
+            this.currentOpenCollectionName = null; // Reset current open collection
 
             if (pageId === "collection-detail" && subPageId) {
                 currentCollectionName = subPageId;
-                thiz.currentOpenCollectionName = subPageId; // Store for the event handler
+                this.currentOpenCollectionName = subPageId; // Store for the event handler
                 if(collectionNameElement) collectionNameElement.textContent = currentCollectionName;
 
-                const collections = thiz.getCollections(); 
+                const collections = this.getCollections(); 
                 const collection = collections.find(c => c.name === subPageId);
                 if (collection && collection.songs) {
-                const allLibraryTracks = thiz.appState.library || [];
+                const allLibraryTracks = this.appState.library || [];
                 collectionTracks = collection.songs.map(musicId => 
                     allLibraryTracks.find(track => String(track.music_id) === String(musicId))
                 ).filter(Boolean);
                 } else if (!collection) {
-                 thiz.navigateTo("collections", "Collections", "#collections", true); // Redirect if collection not found
+                 this.navigateTo("collections", "Collections", "#collections", true); // Redirect if collection not found
                  return;
                 }
                  // Update the message for empty collections specifically
@@ -258,9 +351,9 @@ class NavigationManager {
                 currentCollectionName = "My Favorites";
                  if(collectionNameElement) collectionNameElement.textContent = currentCollectionName;
                 
-                if (thiz.favoriteManager) {
-                const favoriteIds = thiz.favoriteManager.getFavoriteSongIds();
-                const allLibraryTracks = thiz.appState.library || [];
+                if (this.favoriteManager) {
+                const favoriteIds = this.favoriteManager.getFavoriteSongIds();
+                const allLibraryTracks = this.appState.library || [];
                 collectionTracks = allLibraryTracks.filter(track => favoriteIds.includes(String(track.music_id)));
                 } else {
                 collectionTracks = [];
@@ -276,14 +369,14 @@ class NavigationManager {
                 songCardGrid.innerHTML = ""; // Clear previous content
                 collectionTracks.forEach((track) => {
                     // For 'favorites-view', isFavorite is always true. For 'collection-detail', it's dynamic.
-                    const isFavorite = (pageId === 'collections' && !subPageId) || (thiz.favoriteManager ? thiz.favoriteManager.isFavorite(track.music_id) : false);
+                    const isFavorite = (pageId === 'collections' && !subPageId) || (this.favoriteManager ? this.favoriteManager.isFavorite(track.music_id) : false);
                     const cardContext = (pageId === 'collections' && !subPageId) ? 'favorites-view' : 'collection-view';
                     songCardGrid.innerHTML += SongCardRenderer.render(track, cardContext, { isFavorite });
                 });
                 songCardGrid.style.display = "grid";
                 // Attach listener for remove buttons if this is a specific collection view
                 if (pageId === 'collection-detail' && subPageId) {
-                    thiz._attachRemoveFromCollectionListeners(songCardGrid);
+                    this._attachRemoveFromCollectionListeners(songCardGrid);
                 }
                 }
                 if (noMusicMessage && collectionTracks.length > 0) noMusicMessage.style.display = "none";
@@ -294,19 +387,19 @@ class NavigationManager {
             if (collectionsLoadingMessage) collectionsLoadingMessage.style.display = "none";
             } else if (pageId === "update-track") {
                 const musicIdToUpdate = subPageId; // subPageId is the music_id
-                const form = thiz.mainContent.querySelector("#update-track-form");
+                const form = this.mainContent.querySelector("#update-track-form");
 
                 if (!form) {
                     console.error("Update track form not found on the page.");
-                    thiz.mainContent.innerHTML = "<p>Error: Update form failed to load.</p>";
+                    this.mainContent.innerHTML = "<p>Error: Update form failed to load.</p>";
                     return;
                 }
 
                 let trackToUpdate = null;
-                if (thiz.appState.currentSongDetail && String(thiz.appState.currentSongDetail.music_id || thiz.appState.currentSongDetail.id) === String(musicIdToUpdate)) {
-                    trackToUpdate = thiz.appState.currentSongDetail;
-                } else if (thiz.appState.library) {
-                    trackToUpdate = thiz.appState.library.find(track => String(track.music_id || track.id) === String(musicIdToUpdate));
+                if (this.appState.currentSongDetail && String(this.appState.currentSongDetail.music_id || this.appState.currentSongDetail.id) === String(musicIdToUpdate)) {
+                    trackToUpdate = this.appState.currentSongDetail;
+                } else if (this.appState.library) {
+                    trackToUpdate = this.appState.library.find(track => String(track.music_id || track.id) === String(musicIdToUpdate));
                 }
 
                 if (trackToUpdate) {
@@ -321,7 +414,7 @@ class NavigationManager {
 
                     // Handle lyrics for update page
                     const lrcInputArea = form.querySelector("#lrc-input-area");
-                    const lrcPreviewArea = thiz.mainContent.querySelector("#lrc-preview-area"); // Preview area is outside form
+                    const lrcPreviewArea = this.mainContent.querySelector("#lrc-preview-area"); // Preview area is outside form
                     if (lrcInputArea && lrcPreviewArea) {
                         if (trackToUpdate.lyrics && typeof trackToUpdate.lyrics === 'string') {
                             lrcInputArea.value = trackToUpdate.lyrics;
@@ -337,38 +430,38 @@ class NavigationManager {
 
                 } else {
                     console.error(`Track with ID ${musicIdToUpdate} not found in appState.library or currentSongDetail.`);
-                    const pageElement = thiz.mainContent.querySelector("#update-track-page");
+                    const pageElement = this.mainContent.querySelector("#update-track-page");
                     if (pageElement) {
                         pageElement.innerHTML = `<p style="color: red; text-align: center;">Error: Could not load track details for ID ${musicIdToUpdate}. Please go back and try again.</p>`;
                     }
                 }
             } else if (pageId === "upload-track") {
-                const form = thiz.mainContent.querySelector("#upload-track-form");
-                const filenamePlaceholder = thiz.mainContent.querySelector("#upload-filename-placeholder");
+                const form = this.mainContent.querySelector("#upload-track-form");
+                const filenamePlaceholder = this.mainContent.querySelector("#upload-filename-placeholder");
 
-                if (filenamePlaceholder && thiz.appState.droppedFile) {
-                    filenamePlaceholder.textContent = thiz.appState.droppedFile.name;
+                if (filenamePlaceholder && this.appState.droppedFile) {
+                    filenamePlaceholder.textContent = this.appState.droppedFile.name;
                     // Optionally store filename in a hidden input if needed for backend, though backend will receive the file itself
                     const originalFilepathInput = form.querySelector("#upload-original-filepath");
                     if (originalFilepathInput) {
-                        originalFilepathInput.value = thiz.appState.droppedFile.name; // Storing for reference
+                        originalFilepathInput.value = this.appState.droppedFile.name; // Storing for reference
                     }
                 } else if (filenamePlaceholder) {
                      filenamePlaceholder.textContent = "No file selected/dropped.";
                 }
 
 
-                if (form && thiz.appState.parsedMetadata) {
-                    form.querySelector("#upload-title").value = thiz.appState.parsedMetadata.title || '';
-                    form.querySelector("#upload-artist").value = thiz.appState.parsedMetadata.artist || '';
-                    form.querySelector("#upload-album").value = thiz.appState.parsedMetadata.album || '';
-                    form.querySelector("#upload-genre").value = thiz.appState.parsedMetadata.genre || '';
-                    form.querySelector("#upload-year").value = thiz.appState.parsedMetadata.year || '';
+                if (form && this.appState.parsedMetadata) {
+                    form.querySelector("#upload-title").value = this.appState.parsedMetadata.title || '';
+                    form.querySelector("#upload-artist").value = this.appState.parsedMetadata.artist || '';
+                    form.querySelector("#upload-album").value = this.appState.parsedMetadata.album || '';
+                    form.querySelector("#upload-genre").value = this.appState.parsedMetadata.genre || '';
+                    form.querySelector("#upload-year").value = this.appState.parsedMetadata.year || '';
                     // Description is not typically in basic ID3 tags, leave for manual input or future enhancement
                     // Cover preview handling:
                     const coverPreview = form.querySelector("#upload-cover-preview");
-                    if (thiz.appState.parsedMetadata.picture && coverPreview) {
-                        const picture = thiz.appState.parsedMetadata.picture;
+                    if (this.appState.parsedMetadata.picture && coverPreview) {
+                        const picture = this.appState.parsedMetadata.picture;
                         let base64String = "";
                         for (let i = 0; i < picture.data.length; i++) {
                             base64String += String.fromCharCode(picture.data[i]);
@@ -386,12 +479,12 @@ class NavigationManager {
 
                 // Handle lyrics for upload page (from jsmediatags if available)
                 const lrcInputAreaUpload = form.querySelector("#lrc-input-area");
-                const lrcPreviewAreaUpload = thiz.mainContent.querySelector("#lrc-preview-area");
+                const lrcPreviewAreaUpload = this.mainContent.querySelector("#lrc-preview-area");
                 if (lrcInputAreaUpload && lrcPreviewAreaUpload) {
-                    if (thiz.appState.parsedMetadata && thiz.appState.parsedMetadata.lyrics && typeof thiz.appState.parsedMetadata.lyrics === 'string') {
-                        lrcInputAreaUpload.value = thiz.appState.parsedMetadata.lyrics;
+                    if (this.appState.parsedMetadata && this.appState.parsedMetadata.lyrics && typeof this.appState.parsedMetadata.lyrics === 'string') {
+                        lrcInputAreaUpload.value = this.appState.parsedMetadata.lyrics;
                         if (typeof window.parseLRC === 'function' && typeof window.renderLyricsPreview === 'function') {
-                            const parsedLyrics = window.parseLRC(thiz.appState.parsedMetadata.lyrics);
+                            const parsedLyrics = window.parseLRC(this.appState.parsedMetadata.lyrics);
                             window.renderLyricsPreview(parsedLyrics, '#lrc-preview-area');
                         }
                     } else {
@@ -404,37 +497,37 @@ class NavigationManager {
                 // as the user might navigate away and back before submitting.
                 // They are cleared after successful upload or explicit cancellation.
             } else if (pageId === "upload-track") { // This block was duplicated, ensure it's the correct one for upload-track logic
-                thiz.appState.selectedCoverBase64 = null; 
-                const form = thiz.mainContent.querySelector("#upload-track-form");
-                const filenamePlaceholder = thiz.mainContent.querySelector("#upload-filename-placeholder");
+                this.appState.selectedCoverBase64 = null; 
+                const form = this.mainContent.querySelector("#upload-track-form");
+                const filenamePlaceholder = this.mainContent.querySelector("#upload-filename-placeholder");
                 const coverPreview = form.querySelector("#upload-cover-preview");
 
-                if (filenamePlaceholder && thiz.appState.droppedFile) {
-                    filenamePlaceholder.textContent = thiz.appState.droppedFile.name;
+                if (filenamePlaceholder && this.appState.droppedFile) {
+                    filenamePlaceholder.textContent = this.appState.droppedFile.name;
                     const originalFilepathInput = form.querySelector("#upload-original-filepath");
                     if (originalFilepathInput) {
-                        originalFilepathInput.value = thiz.appState.droppedFile.name; 
+                        originalFilepathInput.value = this.appState.droppedFile.name; 
                     }
                 } else if (filenamePlaceholder) {
                      filenamePlaceholder.textContent = "No file selected/dropped.";
                 }
 
-                if (form && thiz.appState.parsedMetadata) {
-                    form.querySelector("#upload-title").value = thiz.appState.parsedMetadata.title || '';
-                    form.querySelector("#upload-artist").value = thiz.appState.parsedMetadata.artist || '';
-                    form.querySelector("#upload-album").value = thiz.appState.parsedMetadata.album || '';
-                    form.querySelector("#upload-genre").value = thiz.appState.parsedMetadata.genre || '';
-                    form.querySelector("#upload-year").value = thiz.appState.parsedMetadata.year || '';
+                if (form && this.appState.parsedMetadata) {
+                    form.querySelector("#upload-title").value = this.appState.parsedMetadata.title || '';
+                    form.querySelector("#upload-artist").value = this.appState.parsedMetadata.artist || '';
+                    form.querySelector("#upload-album").value = this.appState.parsedMetadata.album || '';
+                    form.querySelector("#upload-genre").value = this.appState.parsedMetadata.genre || '';
+                    form.querySelector("#upload-year").value = this.appState.parsedMetadata.year || '';
                     
-                    if (thiz.appState.parsedMetadata.picture && coverPreview) {
-                        const picture = thiz.appState.parsedMetadata.picture;
+                    if (this.appState.parsedMetadata.picture && coverPreview) {
+                        const picture = this.appState.parsedMetadata.picture;
                         let base64String = "";
                         for (let i = 0; i < picture.data.length; i++) {
                             base64String += String.fromCharCode(picture.data[i]);
                         }
                         coverPreview.src = `data:${picture.format};base64,${window.btoa(base64String)}`;
                         coverPreview.style.display = 'block';
-                        thiz.appState.selectedCoverBase64 = coverPreview.src; // Store the auto-loaded cover
+                        this.appState.selectedCoverBase64 = coverPreview.src; // Store the auto-loaded cover
                     } else if (coverPreview) {
                         coverPreview.style.display = 'none';
                         coverPreview.src = '#';
@@ -448,7 +541,87 @@ class NavigationManager {
                 // as the user might navigate away and back before submitting.
                 // They are cleared after successful upload or explicit cancellation.
             }
+
+            // Focus logic, should be after all content is loaded and visible
+            if (this.appState.focusElementAfterLoad) {
+                const elementToFocus = document.querySelector(this.appState.focusElementAfterLoad);
+                if (elementToFocus) {
+                    // Delay focus slightly to ensure the element is fully rendered and visible, especially after transitions.
+                    setTimeout(() => elementToFocus.focus(), 50); 
+                }
+                delete this.appState.focusElementAfterLoad;
+            }
+
         }));
+        
+        // Update current page trackers
+        this.currentPageId = pageId;
+        this.currentSubPageId = subPageId;
+        this.currentPath = path;
+        this.currentTitle = title;
+    }
+
+    navigateBack() {
+        if (this.currentPageId === 'song-detail') {
+            const songDetailPageElement = this.mainContent.querySelector('#song-detail-page');
+            if (songDetailPageElement) {
+                songDetailPageElement.classList.add('song-detail-page-exit');
+                songDetailPageElement.addEventListener('animationend', () => {
+                    // songDetailPageElement.classList.remove('song-detail-page-exit'); // Might be removed by innerHTML change
+                    this._performActualNavigateBack();
+                }, { once: true });
+                return; // Prevent immediate navigation
+            }
+        }
+        this._performActualNavigateBack();
+    }
+
+    _performActualNavigateBack() {
+        if (this.navigationHistory.length > 0) {
+            const lastPage = this.navigationHistory.pop();
+            // Use _performNavigateTo to bypass exit animation check when navigating back
+            this._performNavigateTo(lastPage.pageId, lastPage.title, lastPage.path, true, lastPage.subPageId);
+        } else {
+            // Fallback to home page if history is empty
+            this._performNavigateTo('home', 'Home', '#home', true);
+        }
+    }
+
+    _animateColorBands() {
+        // if(this.playerManager.isPlaying) return;
+        const bands = document.querySelectorAll('#background-effects .color-band');
+        if (!bands || bands.length === 0) {
+            return;
+        }
+
+        const newPositions = [];
+        const overlapThreshold = 20; // Percentage difference for "too close"
+        const maxRetries = 5;
+        const positionRange = 70; // Max percentage for top/left to keep bands somewhat away from far edges
+
+        bands.forEach(band => {
+            let isTooClose;
+            let retries = 0;
+            let randomTop, randomLeft;
+
+            do {
+                isTooClose = false;
+                randomTop = Math.random() * positionRange;
+                randomLeft = Math.random() * positionRange;
+
+                for (const pos of newPositions) {
+                    if (Math.abs(pos.top - randomTop) < overlapThreshold && Math.abs(pos.left - randomLeft) < overlapThreshold) {
+                        isTooClose = true;
+                        break;
+                    }
+                }
+                retries++;
+            } while (isTooClose && retries < maxRetries);
+
+            newPositions.push({ top: randomTop, left: randomLeft });
+            band.style.top = randomTop + '%';
+            band.style.left = randomLeft + '%';
+        });
     }
     
     _attachRemoveFromCollectionListeners(songCardGridElement) {
@@ -640,6 +813,15 @@ class NavigationManager {
             const title = inlineLink.dataset.title || pageId.charAt(0).toUpperCase() + pageId.slice(1);
             const subPageId = inlineLink.dataset.subpageid || null;
             this.navigateTo(pageId, title, path, false, subPageId);
+        }
+
+        // Consolidate back button logic if it was previously in mainContent event listener
+        // For song-detail page, it's handled directly in navigateTo.
+        // If there are other back buttons, they could be handled here or in their respective page load logic.
+        const songDetailBackButton = event.target.closest("#song-detail-back-button");
+        if (songDetailBackButton && this.getCurrentPageId() === 'song-detail') {
+            // This is now redundant if added in navigateTo, but good for general case
+            // this.navigateBack(); 
         }
     }
 }

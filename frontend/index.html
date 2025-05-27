@@ -29,6 +29,9 @@
             placeholder="Search for music..."
             autocomplete="off"
           />
+          <button id="search-source-button" class="icon-button" aria-label="Change Search Source" style="margin-left: 8px;">
+            <img id="search-source-icon" src="source_icon/soundcloud.ico" alt="Current Search Source" style="width: 24px; height: 24px; border-radius: 4px;">
+          </button>
           <!-- <span class="search-source-indicator" style="margin-left: 8px; font-size: 0.9em; color: var(--text-color-secondary);">Source: SoundCloud</span> -->
         </div>
         <div class="header-actions-right">
@@ -137,7 +140,7 @@
       <footer id="main-player">
         <div id="player-content" class="hidden">
           <!-- Start hidden -->
-          <div class="player-left">
+          <div class="player-left" id="player-cover-area">
             <img
               src="placeholder_album_art.png"
               alt="Album Art"
@@ -225,7 +228,7 @@
       </footer>
     </div>
     
-    <div id="drag-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); color: white; display: flex; align-items: center; justify-content: center; font-size: 2em; z-index: 9999;">
+    <div id="drag-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); color: white; align-items: center; justify-content: center; font-size: 2em; z-index: 9999;">
         Drop audio file to upload
     </div>
 
