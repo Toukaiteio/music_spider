@@ -11,6 +11,7 @@ import subprocess
 import shlex
 import tempfile
 import glob
+import asyncio
 import concurrent.futures
 # Global variables from main.py
 user_id = "77130-7014-3319-567702"
@@ -565,14 +566,10 @@ def search_tracks(query: str, limit: int = 20) -> list[dict]:
     return data.get("collection", [])
 
 
-def download_track(track_info: dict, base_download_path: str = "./downloads", progress_callback: callable = None) -> MusicItem | None:
+async def download_track(track_info: dict, base_download_path: str = "./downloads", progress_callback: callable = None) -> MusicItem | None:
     if not track_info:
         print("Error: track_info is empty or None.")
         if progress_callback:
-            # Need a track_id here, but it's not available if track_info is None.
-            # This case should ideally be caught before calling download_track or
-            # a dummy track_id used for error reporting if structure demands it.
-            # For now, just print, as the caller (main.py) will handle response.
             pass 
         return None
 
@@ -611,49 +608,43 @@ def download_track(track_info: dict, base_download_path: str = "./downloads", pr
         cover=preview_cover_url # This is preview_cover for MusicItemData
     )
 
-    # Ensure the work_path (download directory for this item) exists
-    # MusicItem constructor already creates ./downloads/{music_id}
-    # os.makedirs(music_item.work_path, exist_ok=True) # Already done by MusicItem
-
     # Download Cover
-    if preview_cover_url: # Use the same URL for download, or a higher quality one if available
+    if preview_cover_url:
         cover_ext = fetch_ext_from_url(preview_cover_url)
-        # music_item.work_path is ./downloads/{music_id}/
         cover_filename = f"cover{cover_ext}"
         full_cover_path = os.path.join(music_item.work_path, cover_filename)
-        
-        downloaded_cover_path = download_cover_internal(
-            cover_url=preview_cover_url, 
-            save_path_full=full_cover_path,
-            track_id=music_item.music_id, # Pass track_id
-            progress_callback=progress_callback # Pass callback
+        # Run sync function in thread to avoid blocking
+        downloaded_cover_path = await asyncio.to_thread(
+            download_cover_internal,
+            preview_cover_url,
+            full_cover_path,
+            music_item.music_id,
+            progress_callback
         )
         if downloaded_cover_path:
             music_item.set_cover(downloaded_cover_path)
             print(f"Cover downloaded to: {downloaded_cover_path}")
         else:
             print(f"Failed to download cover for {music_id}")
-            # Callback for cover download failure is handled within download_cover_internal
     else:
         print(f"No artwork_url found for {music_id}")
         if progress_callback:
             progress_callback(track_id=music_id, current_size=0,total_size=0,file_type="cover",status="error", error_message="No artwork_url")
-
 
     # Download Audio
     track_authorization = track_info.get("track_authorization")
     transcodings = track_info.get("media", {}).get("transcodings", [])
     
     if track_authorization and transcodings:
-        downloaded_audio_file_path = download_audio_internal(
-            track_authorization=track_authorization,
-            transcodings=transcodings,
-            save_path_dir=music_item.work_path,
-            track_id=music_item.music_id, # Pass track_id
-            progress_callback=progress_callback # Pass callback
+        downloaded_audio_file_path = await asyncio.to_thread(
+            download_audio_internal,
+            track_authorization,
+            transcodings,
+            music_item.work_path,
+            music_item.music_id,
+            progress_callback
         )
         if downloaded_audio_file_path:
-            # If the downloaded file is an m3u8, replace with the corresponding mp3 file
             base, ext = os.path.splitext(downloaded_audio_file_path)
             if ext.lower() == ".m3u8":
                 mp3_file_path = base + ".mp3"
@@ -668,24 +659,20 @@ def download_track(track_info: dict, base_download_path: str = "./downloads", pr
                 print(f"Audio downloaded to: {downloaded_audio_file_path}")
         else:
             print(f"Failed to download audio for {music_id}")
-            # Callback for audio download failure is handled within download_audio_internal
     else:
         print(f"No track_authorization or transcodings found for {music_id}. Cannot download audio.")
         if progress_callback:
             progress_callback(track_id=music_id, current_size=0,total_size=0,file_type="audio",status="error", error_message="No track_authorization or transcodings")
 
-    music_item.dump_self() # Save music.json
+    await asyncio.to_thread(music_item.dump_self)
     print(f"Metadata for {music_id} saved to {os.path.join(music_item.work_path, 'music.json')}")
     
-    # Final callback for the whole track download process
     if progress_callback:
         progress_callback(
             track_id=music_id,
-            # current_size and total_size might be tricky here unless we sum them up
-            # For now, send a generic "completed_track" status
-            current_size=1, # Placeholder
-            total_size=1, # Placeholder
-            file_type="track", # Special type for overall track
+            current_size=1,
+            total_size=1,
+            file_type="track",
             status="completed_track"
         )
     
