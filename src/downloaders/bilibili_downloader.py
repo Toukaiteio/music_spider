@@ -299,148 +299,543 @@ def get_buvid3():
         else:
             bili_account["cookie"] = "; ".join(cookie_items)
     return bili_account["buvid3"]
-def search_tracks(query: str, limit: int = 20) -> list[dict]:
-    api = "https://api.bilibili.com/x/web-interface/wbi/search/type"
-    if (not bili_account.get("img_url") or not bili_account.get("sub_url")):
-        refresh_wbi()
-    if (not bili_account.get("buvid3")):
-        get_buvid3()
-    param = {
-        "search_type": "video",
-        "keyword": query,
-    }
-    param = encWbi(param, bili_account["img_url"], bili_account["sub_url"])
-    res = requests.get(api, headers=get_headers(), params=param)
-    if  res.status_code == 200:
-        result =res.json()["data"]["result"]
-        # print(result)
-        return result
-    else:
-        return []
-search_result = search_tracks("returns popin party")
 
-def strip_html_tags(text):
+def fetch_ext_from_url(url: str) -> str:
+    """Extracts file extension from a URL, handling query parameters."""
+    path = urllib.parse.urlparse(url).path
+    ext = os.path.splitext(path)[1]
+    return ext.lower() if ext else ".bin" # Default to .bin if no extension
+
+def strip_html_tags(text: str) -> str:
+    """Removes HTML tags from a string and unescapes HTML entities."""
+    if not text:
+        return ""
     clean = re.compile('<.*?>')
-    return unescape(re.sub(clean, '', text or ""))
-def parse_duration(duration_str):
-    """Convert 'm:ss' or 'h:mm:ss' to seconds as int."""
-    parts = duration_str.split(':')
-    parts = [int(p) for p in parts]
-    if len(parts) == 3:
-        h, m, s = parts
-        return h * 3600 + m * 60 + s
-    elif len(parts) == 2:
-        m, s = parts
-        return m * 60 + s
-    elif len(parts) == 1:
+    return unescape(re.sub(clean, '', text))
+
+def parse_duration(duration_str: str) -> int:
+    """Converts 'm:ss' or 'h:mm:ss' or 'mm:ss' from Bilibili to seconds as int."""
+    if not duration_str:
+        return 0
+    parts = list(map(int, duration_str.split(':')))
+    if len(parts) == 3: # h:mm:ss
+        return parts[0] * 3600 + parts[1] * 60 + parts[2]
+    elif len(parts) == 2: # mm:ss
+        return parts[0] * 60 + parts[1]
+    elif len(parts) == 1: # ss (unlikely for Bilibili music context but good to handle)
         return parts[0]
     return 0
 
+def search_tracks(query: str, limit: int = 20) -> list[dict]:
+    """
+    Searches for tracks (videos) on Bilibili.
+    Returns a list of dictionaries, each containing track metadata.
+    """
+    api_url = "https://api.bilibili.com/x/web-interface/wbi/search/type"
+    
+    # Ensure WBI keys and buvid3 are available
+    if not bili_account.get("img_url") or not bili_account.get("sub_url"):
+        refresh_wbi()
+    if not bili_account.get("buvid3"):
+        get_buvid3()
 
+    # Check again after attempting refresh, critical for WBI signing
+    if not bili_account.get("img_url") or not bili_account.get("sub_url"):
+        print("Error: Missing WBI keys even after refresh attempt. Cannot proceed with search.")
+        return []
 
-def get_video_info(aid:str = None,bvid:str = None, tags:list = []):
-    api = "https://api.bilibili.com/x/web-interface/wbi/view"
-    if(aid):
-        params = {aid : aid}
-    if(bvid):
-        params = {"bvid": bvid}
-    params = encWbi(params, bili_account["img_url"], bili_account["sub_url"])
-    res = requests.get(api, headers=get_headers(), params=params)
-    if  res.status_code == 200:
-        data = res.json()
-        if(data["code"] == 0):
-            track = data["data"]
-            if track:
-                music_item = MusicItem(
-                    music_id = str(track.get("bvid")) if track.get("bvid") else str(track.get("aid")),
-                    title = track.get("title", ""),
-                    author = track.get("owner",{}).get("name", ""),
-                    description = track.get("desc", ""),
-                    album = track.get("typename", ""),
-                    tags = tags,
-                    duration = track.get("duration", 0),
-                    genre=track.get("typename", ""),
-                    cover = track.get("pic", "")
-                )
-                cid = track.get("cid",0)
-                # print(res.text)
-                return music_item,cid
-            else:
-                print("No video data found.")
-                return None
-
-results = []
-for track in search_result:
-    # print(f"Title: {track['title']}, BVID: {track['bvid']}, Author: {track['author']}")
-    results.append(track['bvid'])
-
-def get_audio_link(bvid:str,cid:str):
-    api = "https://api.bilibili.com/x/player/wbi/playurl"
     params = {
-        # "bvid": bvid,
-        "bvid":"BV1agzJYLEP6",
-        # "cid": cid,
-        "cid": "27104051642",
-        "qn": 112,
-        "fnval": "272",
+        "search_type": "video", # Bilibili search type for videos
+        "keyword": query,
+        "page": 1, # Assuming we only fetch the first page for `limit`
+        # Bilibili API for search typically returns a fixed number of results per page (e.g., 20 for video).
+        # The `limit` parameter here is conceptual for how many results we process from the API response.
     }
-    params = encWbi(params, bili_account["img_url"], bili_account["sub_url"])
-    res = requests.get(api, headers=get_headers(), params=params)
-    data = res.json()
-    if data["code"] == 0:
-        audio_links = [data["data"]["dash"].get("flac",{}).get("audio",{})] if data["data"]["dash"].get("flac",{}) else data["data"]["dash"].get("audio", [])
-        print(f"Audio URL: {audio_links}")
-        return audio_links
-    else:
-        print(f"Failed to get audio link: {data['message']}")
+    
+    signed_params = encWbi(params, bili_account["img_url"], bili_account["sub_url"])
+
+    try:
+        res = requests.get(api_url, headers=get_headers(), params=signed_params)
+        res.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
+        data = res.json()
+
+        if data.get("code") != 0:
+            print(f"Bilibili API error in search_tracks: {data.get('message', 'Unknown error')}")
+            return []
+
+        search_results = data.get("data", {}).get("result", [])
+        if not isinstance(search_results, list): # Ensure result is a list
+            print(f"Unexpected search result format: {search_results}")
+            return []
+            
+        processed_tracks = []
+        for item in search_results:
+            if item.get('type') != 'video': # Process only video results
+                continue
+            
+            # Ensure essential fields are present
+            bvid = item.get("bvid")
+            title = strip_html_tags(item.get("title", "Unknown Title"))
+            author = item.get("author", "Unknown Artist")
+            cover_url = item.get("pic") 
+            if cover_url and not cover_url.startswith("http"):
+                cover_url = "https:" + cover_url # Ensure full URL
+            
+            duration_str = item.get("duration", "0:0") # Duration like "1:23" or "12:34"
+            duration_sec = parse_duration(duration_str)
+
+            if not bvid or not title: # Skip if essential info is missing
+                continue
+
+            processed_tracks.append({
+                "bvid": bvid,
+                "aid": str(item.get("aid", "")), # Keep aid as well, might be useful
+                "title": title,
+                "author": author,
+                "cover_url": cover_url,
+                "duration": duration_sec, # Duration in seconds
+                "description": strip_html_tags(item.get("description", "")), # Short description from search results
+                "play_count": item.get("play", 0), # Play count
+                "danmaku_count": item.get("danmaku", 0), # Danmaku count
+                # Add any other relevant fields that might be useful for display or download
+                # For example, item.get("pubdate") for publication date (timestamp)
+            })
+            if len(processed_tracks) >= limit:
+                break
+        
+        return processed_tracks
+
+    except requests.exceptions.RequestException as e:
+        print(f"Request failed during Bilibili search: {e}")
+        return []
+    except json.JSONDecodeError:
+        print("Failed to decode JSON response from Bilibili search.")
+        return []
+    except Exception as e: # Catch any other unexpected errors
+        print(f"An unexpected error occurred during Bilibili search: {e}")
+        return []
+
+
+def _save_file_with_progress_bili(
+    file_url: str, 
+    filename: str, 
+    track_id: str, 
+    progress_callback: callable, 
+    file_type: str,
+    stream: bool = True # Bilibili usually allows direct download, streaming is good practice
+):
+    """
+    Downloads a file from file_url to filename for Bilibili, reporting progress.
+    This is a simplified version for direct file downloads, not m3u8.
+    """
+    try:
+        # Use Bilibili specific headers, especially Referer
+        download_headers = {
+            "User-Agent": general_headers["User-Agent"],
+            "Referer": f"https://www.bilibili.com/video/{track_id}" if track_id else general_headers["Referer"], 
+            # More specific Referer if track_id (bvid) is known
+            "Origin": general_headers["Origin"],
+        }
+        resp = requests.get(file_url, stream=stream, headers=download_headers, timeout=30) # Added timeout
+        resp.raise_for_status()
+
+        total_size = int(resp.headers.get('content-length', 0))
+        current_size = 0
+        
+        # Ensure directory for filename exists
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+
+        with open(filename, "wb") as f:
+            if stream:
+                for chunk in resp.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+                        current_size += len(chunk)
+                        if progress_callback:
+                            progress_callback(
+                                track_id=track_id,
+                                current_size=current_size,
+                                total_size=total_size,
+                                file_type=file_type,
+                                status="downloading"
+                            )
+            else:  # Non-streaming download (fallback, less common for Bili direct links)
+                f.write(resp.content)
+                current_size = total_size
+
+        if progress_callback:
+            progress_callback(
+                track_id=track_id,
+                current_size=current_size,
+                total_size=total_size,
+                file_type=file_type,
+                status="completed_file"
+            )
+        print(f"Bilibili file {filename} downloaded successfully.")
+        return True
+
+    except requests.exceptions.Timeout:
+        print(f"Timeout error downloading {file_type} {file_url} to {filename}")
+        if progress_callback:
+            progress_callback(track_id=track_id, current_size=0, total_size=0, file_type=file_type, status="error", error_message="Download timed out")
+        return False
+    except requests.exceptions.RequestException as e:
+        print(f"Request error downloading {file_type} {file_url} to {filename}: {e}")
+        if progress_callback:
+            progress_callback(track_id=track_id, current_size=0, total_size=0, file_type=file_type, status="error", error_message=str(e))
+        return False
+    except IOError as e: # Catch file system errors
+        print(f"File error saving {file_type} to {filename}: {e}")
+        if progress_callback:
+            progress_callback(track_id=track_id, current_size=0, total_size=0, file_type=file_type, status="error", error_message=f"File system error: {e.strerror}")
+        return False
+    except Exception as e: # Catch any other unexpected errors
+        print(f"Unexpected error downloading {file_type} {file_url} to {filename}: {e}")
+        if progress_callback:
+            progress_callback(track_id=track_id, current_size=0, total_size=0, file_type=file_type, status="error", error_message=f"Unexpected error: {type(e).__name__}")
+        return False
+
+
+def _get_video_details_bili(bvid: str = None, aid: str = None) -> tuple[dict | None, int | None]:
+    """
+    Fetches detailed video information from Bilibili using bvid or aid.
+    Returns a tuple: (video_data_dict, cid).
+    video_data_dict contains fields like title, desc, owner, pic, duration, tags (from 'tag' key or 'tname').
+    cid is the video's unique identifier for streams.
+    """
+    if not bvid and not aid:
+        print("Error: Either bvid or aid must be provided to get video details.")
+        return None, None
+
+    api_url = "https://api.bilibili.com/x/web-interface/wbi/view"
+    params = {}
+    if bvid:
+        params["bvid"] = bvid
+    elif aid: # aid can be used as fallback, though bvid is preferred
+        params["aid"] = aid
+    
+    # Ensure WBI keys are available
+    if not bili_account.get("img_url") or not bili_account.get("sub_url"):
+        refresh_wbi()
+    if not bili_account.get("buvid3"): # buvid might also be needed by some view details aspects
+        get_buvid3()
+    
+    if not bili_account.get("img_url") or not bili_account.get("sub_url"):
+        print("Error: Missing WBI keys for _get_video_details_bili.")
+        return None, None
+
+    signed_params = encWbi(params, bili_account["img_url"], bili_account["sub_url"])
+
+    try:
+        res = requests.get(api_url, headers=get_headers(), params=signed_params)
+        res.raise_for_status()
+        data = res.json()
+
+        if data.get("code") == 0:
+            video_data = data.get("data")
+            if video_data:
+                cid = video_data.get("cid")
+                # Extract tags: Bilibili has 'tags' list and 'tname' (type name/category)
+                tags_list = video_data.get("tags", []) # Detailed tags if available
+                if not tags_list and video_data.get("tname"): # Fallback to tname if no explicit tags
+                    tags_list = [video_data.get("tname")]
+                
+                # Add more fields to video_data if needed for MusicItem
+                video_data["extracted_tags"] = tags_list 
+                return video_data, cid
+            else:
+                print(f"No video data found in API response for bvid/aid: {bvid or aid}")
+                return None, None
+        else:
+            print(f"Bilibili API error in _get_video_details_bili: {data.get('message', 'Unknown error')}")
+            return None, None
+    except requests.exceptions.RequestException as e:
+        print(f"Request failed during Bilibili video details fetch: {e}")
+        return None, None
+    except json.JSONDecodeError:
+        print("Failed to decode JSON response from Bilibili video details.")
+        return None, None
+    return None, None
+
+
+def _get_audio_options_bili(bvid: str, cid: int) -> list[dict]:
+    """
+    Fetches available audio stream options for a Bilibili video.
+    Returns a list of dictionaries, each representing an audio option with URL, quality, codecs, and lossless status.
+    """
+    api_url = "https://api.bilibili.com/x/player/wbi/playurl"
+    # Quality numbers: 30280 for FLAC (if available), 30232 for 192K, 30216 for 132K.
+    # fnval: 4048 for FLAC/Hi-Res, 16 for DASH generally.
+    # We'll try to get highest quality, including FLAC.
+    params = {
+        "bvid": bvid,
+        "cid": cid,
+        "qn": 0, # Request all qualities; server decides what's available. Max is 30280 for FLAC.
+        "fnval": 4048, # Request DASH format, try to include FLAC and other high quality options
+        "fourk": 1, # Typically for video, but doesn't hurt
+    }
+
+    if not bili_account.get("img_url") or not bili_account.get("sub_url"): refresh_wbi()
+    if not bili_account.get("buvid3"): get_buvid3()
+    if not bili_account.get("img_url") or not bili_account.get("sub_url"):
+        print("Error: Missing WBI keys for _get_audio_options_bili.")
+        return []
+
+    signed_params = encWbi(params, bili_account["img_url"], bili_account["sub_url"])
+    
+    try:
+        res = requests.get(api_url, headers=get_headers(), params=signed_params)
+        res.raise_for_status()
+        data = res.json()
+
+        if data.get("code") == 0:
+            playurl_data = data.get("data", {})
+            audio_options = []
+
+            # Check for FLAC stream
+            flac_info = playurl_data.get("dash", {}).get("flac")
+            if flac_info and flac_info.get("audio") and flac_info["audio"].get("baseUrl"):
+                audio_options.append({
+                    "url": flac_info["audio"]["baseUrl"],
+                    "backup_urls": flac_info["audio"].get("backupUrl", []),
+                    "quality_str": "FLAC",
+                    "codecs": flac_info["audio"].get("codecs", "fLaC"), # Often 'fLaC'
+                    "size": flac_info["audio"].get("size", 0),
+                    "is_lossless": True,
+                    "id": flac_info["audio"].get("id", 30280) # FLAC quality ID
+                })
+
+            # Check for other DASH audio streams (usually AAC)
+            dash_audio_streams = playurl_data.get("dash", {}).get("audio", [])
+            for stream in dash_audio_streams:
+                # Avoid adding FLAC again if it was already processed via 'flac' field
+                if stream.get("id") == 30280 and any(opt["id"] == 30280 for opt in audio_options):
+                    continue 
+                
+                audio_options.append({
+                    "url": stream["baseUrl"],
+                    "backup_urls": stream.get("backupUrl", []),
+                    "quality_str": f"Audio ID {stream['id']}", # e.g., 30232 (192k), 30216 (132k)
+                    "codecs": stream.get("codecs"), # e.g., 'mp4a.40.2'
+                    "size": stream.get("size", 0),
+                    "is_lossless": False, # DASH AAC streams are not lossless
+                    "id": stream.get("id")
+                })
+            
+            # Sort by quality (higher ID is generally better, FLAC is best)
+            audio_options.sort(key=lambda x: (x["is_lossless"], x.get("id", 0)), reverse=True)
+            return audio_options
+        else:
+            print(f"Bilibili API error in _get_audio_options_bili: {data.get('message', 'Unknown error')}")
+            return []
+    except requests.exceptions.RequestException as e:
+        print(f"Request failed during Bilibili audio options fetch: {e}")
+        return []
+    except json.JSONDecodeError:
+        print("Failed to decode JSON response from Bilibili audio options.")
+        return []
+    return []
+
+def _download_cover_bili(
+    cover_url: str, 
+    music_item: MusicItem, 
+    progress_callback: callable = None
+) -> str | None:
+    """Downloads the cover image for a Bilibili item."""
+    if not cover_url:
+        print(f"No cover URL for Bilibili track: {music_item.music_id}")
+        if progress_callback:
+            progress_callback(track_id=music_item.music_id, current_size=0, total_size=0, file_type="cover", status="error", error_message="No cover URL")
         return None
 
-music_item,video_cid = get_video_info(bvid=results[0])
-# print(video_cid)
-audio_links = get_audio_link(results[0],video_cid)
-def try_download_audio(audio_links):
-    for audio in audio_links:
-        base_url = audio.get("baseUrl", "")
-        backup_url = audio.get("backupUrl", [])
-        file_type = "flac" if audio.get("codecs","") == "fLaC" else "mp4"
-        if base_url:
-            print(f"Downloading from base URL: {base_url}")
-            response = requests.get(base_url, headers=get_headers())
-            if response.status_code == 200:
-                with open(f"{music_item.music_id}.{file_type}", "wb") as f:
-                    f.write(response.content)
-                print("Download successful!")
-                return True
-            else:
-                print(f"Failed to download from base URL: {response.status_code}")
-        if backup_url:
-            for url in backup_url:
-                print(f"Downloading from backup URL: {url}")
-                response = requests.get(url, headers=get_headers())
-                if response.status_code == 200:
-                    with open(f"{music_item.music_id}.{file_type}", "wb") as f:
-                        f.write(response.content)
-                    print("Download successful!")
-                    return True
-                else:
-                    print(f"Failed to download from backup URL: {response.status_code}")
-def fetch_ext_from_url(url):
-    path = url.split("?", 1)[0]
-    ext = os.path.splitext(path)[1]
-    if ext:
-        return ext.lower()
-    else:
-        return ".bin"
+    cover_ext = fetch_ext_from_url(cover_url)
+    # MusicItem constructor creates ./downloads/{music_id}, so work_path is .../{music_id}/
+    # No need for os.path.join(base_download_path, music_item.music_id) here.
+    cover_filename = os.path.join(music_item.work_path, f"cover{cover_ext}")
 
-def try_download_cover(cover_url:str):
-    if cover_url:
-        response = requests.get(cover_url, headers=get_headers())
-        if response.status_code == 200:
-            with open(f"{music_item.music_id}_cover.{fetch_ext_from_url(cover_url)}", "wb") as f:
-                f.write(response.content)
-            print("Cover download successful!")
-            return True
-        else:
-            print(f"Failed to download cover: {response.status_code}")
-    return False
-try_download_cover(music_item.data.preview_cover)
+    if _save_file_with_progress_bili(
+        file_url=cover_url,
+        filename=cover_filename,
+        track_id=music_item.music_id,
+        progress_callback=progress_callback,
+        file_type="cover"
+    ):
+        return cover_filename
+    else:
+        # _save_file_with_progress_bili handles its own error callback
+        print(f"Failed to download cover for Bilibili track: {music_item.music_id}")
+        return None
+
+def _download_audio_bili(
+    audio_options: list[dict], 
+    music_item: MusicItem,
+    progress_callback: callable = None
+) -> tuple[str | None, bool]:
+    """
+    Downloads the best available audio for a Bilibili item.
+    Returns (filepath, is_lossless) or (None, False) on failure.
+    """
+    if not audio_options:
+        print(f"No audio options for Bilibili track: {music_item.music_id}")
+        if progress_callback:
+            progress_callback(track_id=music_item.music_id, current_size=0, total_size=0, file_type="audio", status="error", error_message="No audio options available")
+        return None, False
+
+    # audio_options are already sorted by preference (_get_audio_options_bili)
+    chosen_option = audio_options[0] 
+    
+    file_ext = ".flac" if chosen_option["is_lossless"] else ".m4a" # Standardize to .m4a for AAC from Bili DASH
+    audio_filename = os.path.join(music_item.work_path, f"audio{file_ext}")
+
+    urls_to_try = [chosen_option["url"]] + chosen_option.get("backup_urls", [])
+    download_successful = False
+
+    for i, url_to_try in enumerate(urls_to_try):
+        print(f"Attempting Bilibili audio download ({'base' if i==0 else 'backup'}): {url_to_try[:100]}...") # Log only part of URL
+        if _save_file_with_progress_bili(
+            file_url=url_to_try,
+            filename=audio_filename,
+            track_id=music_item.music_id,
+            progress_callback=progress_callback,
+            file_type="audio"
+        ):
+            download_successful = True
+            break # Success
+        # If download failed, _save_file_with_progress_bili already called callback with error
+    
+    if download_successful:
+        return audio_filename, chosen_option["is_lossless"]
+    else:
+        print(f"All Bilibili audio download attempts failed for track: {music_item.music_id}")
+        # Error callback for overall audio download failure if not already covered by specific attempt
+        if progress_callback and not chosen_option.get("backup_urls"): # Only if no backups were tried or if it's the last one
+             progress_callback(track_id=music_item.music_id, current_size=0, total_size=0, file_type="audio", status="error", error_message="All audio download attempts failed")
+        return None, False
+
+
+def download_track(track_info: dict, base_download_path: str = "./downloads", progress_callback: callable = None) -> MusicItem | None:
+    """
+    Downloads a Bilibili track (video's audio and cover) based on track_info from search_tracks.
+    base_download_path is handled by MusicItem's work_path logic.
+    """
+    bvid = track_info.get("bvid")
+    aid = track_info.get("aid") # Fallback if bvid somehow missing
+
+    if not bvid and not aid:
+        print("Error: track_info must contain 'bvid' or 'aid'.")
+        if progress_callback: # Generic error as no track_id available
+            progress_callback(track_id="unknown_bili_track", current_size=0, total_size=0, file_type="track", status="error", error_message="Missing bvid/aid in track_info")
+        return None
+
+    # 1. Get detailed video information (includes full description, cid, etc.)
+    video_details, cid = _get_video_details_bili(bvid=bvid, aid=aid)
+    if not video_details or not cid:
+        print(f"Failed to get video details for Bilibili track: {bvid or aid}")
+        if progress_callback:
+            progress_callback(track_id=bvid or aid, current_size=0, total_size=0, file_type="track", status="error", error_message="Failed to get video details")
+        return None
+
+    # 2. Create MusicItem
+    # Use bvid as primary music_id if available
+    music_id_str = bvid if bvid else str(aid)
+    
+    # Extract lyrics from description (basic attempt, can be improved)
+    # Bilibili descriptions can be noisy. A more sophisticated lyric extraction might be needed.
+    full_description = strip_html_tags(video_details.get("desc", ""))
+    lyrics_content = "" # Placeholder for actual lyrics extraction logic if any
+    # Example: search for common lyric markers if available in Bili descriptions.
+    # For now, we can assign the full description if it's short, or a part of it.
+    # Or leave it empty if no clear way to get only lyrics.
+    # For this task, let's assume lyrics are not easily separable unless explicitly marked.
+
+    music_item = MusicItem(
+        music_id=music_id_str,
+        title=strip_html_tags(video_details.get("title", track_info.get("title", "Unknown Title"))),
+        author=video_details.get("owner", {}).get("name", track_info.get("author", "Unknown Artist")),
+        description=full_description, # Full description from view API
+        album=video_details.get("tname", ""), # Use video category/type name as album
+        tags=video_details.get("extracted_tags", []), # Use 'tags' from view API or tname
+        duration=video_details.get("duration", track_info.get("duration", 0)), # Duration in seconds
+        genre=video_details.get("tname", ""), # Video category/type name as genre
+        cover=video_details.get("pic", track_info.get("cover_url")), # Cover URL from view API or search
+        lossless=False, # Default to False, will be updated after audio download
+        lyrics=lyrics_content 
+    )
+    # MusicItem constructor creates the work_path: os.path.join(base_download_path, music_id_str)
+
+    # 3. Download Cover
+    downloaded_cover_path = _download_cover_bili(
+        cover_url=music_item.preview_cover, # Using the URL set in MusicItem
+        music_item=music_item,
+        progress_callback=progress_callback
+    )
+    if downloaded_cover_path:
+        music_item.set_cover(downloaded_cover_path)
+    # else: _download_cover_bili handles error callback
+
+    # 4. Get Audio Options and Download Audio
+    audio_options = _get_audio_options_bili(bvid=music_id_str, cid=cid) # Use music_id_str which is bvid
+    
+    downloaded_audio_path, is_lossless = _download_audio_bili(
+        audio_options=audio_options,
+        music_item=music_item,
+        progress_callback=progress_callback
+    )
+
+    if downloaded_audio_path:
+        music_item.set_audio(downloaded_audio_path)
+        music_item.lossless = is_lossless # Update lossless status
+    # else: _download_audio_bili handles error callback
+
+    # 5. Save metadata
+    music_item.dump_self()
+    print(f"Bilibili metadata for {music_item.music_id} saved to {os.path.join(music_item.work_path, 'music.json')}")
+
+    if progress_callback:
+        # Determine overall status for the track
+        final_status = "completed_track"
+        if not downloaded_audio_path and not downloaded_cover_path:
+            final_status = "error" # If both failed, consider track download an error
+        elif not downloaded_audio_path:
+            final_status = "completed_with_warnings" # Or some other status indicating partial success
+        
+        progress_callback(
+            track_id=music_item.music_id,
+            current_size=1, total_size=1, # Placeholder for overall track status
+            file_type="track",
+            status=final_status,
+            error_message="Audio or cover download failed." if final_status != "completed_track" else None
+        )
+    
+    # Return None if essential parts (like audio) failed
+    if not downloaded_audio_path:
+        print(f"Failed to download essential audio for Bilibili track {music_item.music_id}. Reporting as failure.")
+        return None
+        
+    return music_item
+
+
+# --- Cleanup of old test/example code ---
+# search_result = search_tracks("returns popin party") # Example call, remove later
+# results = []
+# if search_result: 
+#    for track in search_result:
+#        results.append(track['bvid'])
+
+# music_item_placeholder, video_cid_placeholder = (None, None)
+# if results: 
+#     # Old get_video_info logic is now in _get_video_details_bili
+#     pass 
+
+# audio_links_placeholder = []
+# if video_cid_placeholder and results: # Ensure results is not empty for bvid
+#     # Old get_audio_link logic is now in _get_audio_options_bili
+#     pass
+
+# Example calls for old download logic - remove/comment out
+# if music_item_placeholder and audio_links_placeholder:
+#     work_dir = os.path.join("./downloads", str(music_item_placeholder.get('bvid',''))) # Use .get for safety
+#     # Old try_download_audio logic is now in _download_audio_bili
+# if music_item_placeholder and music_item_placeholder.get('pic'):
+#     work_dir = os.path.join("./downloads", str(music_item_placeholder.get('bvid','')))
+#     # Old try_download_cover logic is now in _download_cover_bili

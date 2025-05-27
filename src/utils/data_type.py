@@ -31,7 +31,7 @@ class ResultBase(Generic[T]):
         return {"code": self.code, "data": self.data}
 
 class MusicItemData(DictSerializable):
-    def __init__(self, music_id: str, title: str, author: str = "", description: str = "", quality: str = "", album: str = "", tags: list = [], duration: int = 0, genre: str = "",preview_cover = ""):
+    def __init__(self, music_id: str, title: str, author: str = "", description: str = "", quality: str = "", album: str = "", tags: list = [], duration: int = 0, genre: str = "",preview_cover = "", lossless: bool = False, lyrics: str = ""):
         self.music_id = music_id
         self.title = title
         self.author = author
@@ -42,6 +42,8 @@ class MusicItemData(DictSerializable):
         self.duration = duration
         self.genre = genre
         self.preview_cover = preview_cover
+        self.lossless = lossless
+        self.lyrics = lyrics
         self.cover_path = None
         self.audio_path = None
 
@@ -58,7 +60,9 @@ class MusicItem:
         duration = 0,
         genre="",
         cover=None, # This will be treated as preview_cover URL for MusicItemData
-        audio=None  # This parameter is not directly used for an initial path in this refactoring.
+        audio=None,  # This parameter is not directly used for an initial path in this refactoring.
+        lossless: bool = False,
+        lyrics: str = ""
     ):
         self.work_path = os.path.join("./downloads", str(music_id))
         os.makedirs(self.work_path, exist_ok=True)
@@ -73,7 +77,9 @@ class MusicItem:
             tags=tags or [], # Ensure tags is a list
             duration=duration,
             genre=genre,
-            preview_cover=cover if cover else "" # Ensure preview_cover is string
+            preview_cover=cover if cover else "", # Ensure preview_cover is string
+            lossless=lossless,
+            lyrics=lyrics
         )
         
         self._cover_path = "" # Path to the actual cover file
@@ -155,6 +161,22 @@ class MusicItem:
     def preview_cover(self, value):
         self.data.preview_cover = value
 
+    @property
+    def lossless(self):
+        return self.data.lossless
+
+    @lossless.setter
+    def lossless(self, value: bool):
+        self.data.lossless = value
+
+    @property
+    def lyrics(self):
+        return self.data.lyrics
+
+    @lyrics.setter
+    def lyrics(self, value: str):
+        self.data.lyrics = value
+
     # Properties for actual file paths managed by MusicItem
     @property
     def cover(self): # Corresponds to self._cover_path
@@ -199,7 +221,9 @@ class MusicItem:
                 tags=data_dict.get("tags", []),
                 duration=data_dict.get("duration", 0),
                 genre=data_dict.get("genre", ""),
-                cover=data_dict.get("preview_cover", "") # preview_cover URL
+                cover=data_dict.get("preview_cover", ""), # preview_cover URL
+                lossless=data_dict.get("lossless", False),
+                lyrics=data_dict.get("lyrics", "")
             )
             # Set actual file paths if they exist in JSON
             if data_dict.get("cover_path"):
