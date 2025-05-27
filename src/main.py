@@ -436,7 +436,7 @@ async def handle_upload_track(websocket, cmd_id: str, payload: dict):
 async def handle_get_available_sources(websocket, cmd_id: str, payload: dict):
     """Returns a list of available music sources."""
     print(f"Handling get_available_sources command with cmd_id: {cmd_id}")
-    await send_response(websocket, cmd_id, code=0, data={"sources": DOWNLOADER_MODULES.keys()})
+    await send_response(websocket, cmd_id, code=0, data={"sources": list(DOWNLOADER_MODULES.keys())})
 
 COMMAND_HANDLERS = {
     "search": handle_search,

@@ -66,8 +66,7 @@ class PlayerManager {
         this.togglePlay();
       });
 
-      const icon =
-        this.playerPlayPauseButton.querySelector(".material-icons");
+      const icon = this.playerPlayPauseButton.querySelector(".material-icons");
 
       // 根据 audio 事件更新播放按钮图标
       const updatePlayPauseIcon = () => {
@@ -168,8 +167,8 @@ class PlayerManager {
     this.audio.addEventListener("timeupdate", () => {
       if (this.playerProgressBar && this.audio.duration) {
         // 设置进度条最大值为音乐总时长
-        this.playerProgressBar.max = this.audio.duration;
-        this.playerProgressBar.value = this.audio.currentTime;
+        this.playerProgressBar.max = this.audio.duration * 100;
+        this.playerProgressBar.value = this.audio.currentTime * 100;
       }
       if (this.playerCurrentTime) {
         const min = Math.floor(this.audio.currentTime / 60);
@@ -190,7 +189,7 @@ class PlayerManager {
         this.playerDuration.textContent = `${min}:${sec}`;
       }
       if (this.playerProgressBar) {
-        this.playerProgressBar.max = this.audio.duration;
+        this.playerProgressBar.max = this.audio.duration * 100;
         this.playerProgressBar.value = 0;
       }
     });
@@ -224,6 +223,46 @@ class PlayerManager {
     this.setupThemeListener();
     this.loadTrack(this.currentIndex);
     this.audio.addEventListener("ended", () => this.handleTrackEnd());
+    // Register as a global function if it doesn't exist
+    if (!window.requestVisualizationFrame) {
+      const visualizerCallbacks = new Map();
+      let visualizerActive = false;
+      let lastVisualizerHandle = 0;
+
+      window.requestVisualizationFrame = (callback) => {
+        const handle = ++lastVisualizerHandle;
+
+        if (visualizerActive) {
+          // If visualizer is active, queue to visualizer RAF
+          visualizerCallbacks.set(handle, callback);
+          return handle;
+        } else {
+          // Fallback to standard RAF
+          return requestAnimationFrame(callback);
+        }
+      };
+
+      window.cancelVisualizationFrame = (handle) => {
+        if (visualizerActive) {
+          visualizerCallbacks.delete(handle);
+        } else {
+          cancelAnimationFrame(handle);
+        }
+      };
+
+      // This will be called from PlayerManager's visualizer RAF
+      window._processVisualizerCallbacks = (timestamp) => {
+        for (const [_, callback] of visualizerCallbacks) {
+          callback(timestamp);
+        }
+        visualizerCallbacks.clear();
+      };
+
+      // Called when visualizer starts/stops
+      window._setVisualizerActive = (active) => {
+        visualizerActive = active;
+      };
+    }
   }
   setPlayList(playlist) {
     this.playlist = playlist;
@@ -353,7 +392,9 @@ class PlayerManager {
       this.next();
     }
   }
-
+  getCurrentTrack() {
+    return this.playlist[this.currentIndex] || null;
+  }
   extractCoverColor() {
     if (!this.coverImgElement.complete) return;
     const colorThief = new ColorThief();
@@ -385,7 +426,6 @@ class PlayerManager {
     if (!this.backgroundElement) return;
     const bands = this.backgroundElement.querySelectorAll(".color-band");
     bands.forEach((band, i) => {
-      band.style.transition = "opacity 0.3s ease";
       band.style.opacity = 0;
       const factor = 1 - i * 0.15;
       const [r, g, b] = color.map((c) =>
@@ -405,16 +445,13 @@ class PlayerManager {
       band.style.background = `linear-gradient(45deg, rgb(${r},${g},${b}), ${nextColor})`;
       setTimeout(() => {
         band.style.opacity = 1;
-        setTimeout(() => {
-          band.style.transition = "none";
-        }, 300);
       }, 300);
     });
   }
 
   startVisualizer() {
     if (this.animationFrame) return;
-
+    window._setVisualizerActive(true);
     const bands = this.backgroundElement
       ? this.backgroundElement.querySelectorAll(".color-band")
       : [];
@@ -475,6 +512,8 @@ class PlayerManager {
         band.style.transform = `scale(${scale.toFixed(3)})`;
       });
 
+      window._processVisualizerCallbacks(now);
+
       this.animationFrame = requestAnimationFrame(animate);
     };
 
@@ -485,6 +524,7 @@ class PlayerManager {
     if (this.animationFrame) {
       cancelAnimationFrame(this.animationFrame);
       this.animationFrame = null;
+      window._setVisualizerActive(false);
     }
     // 恢复band动画
     if (this.backgroundElement) {

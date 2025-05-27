@@ -306,25 +306,24 @@ document.addEventListener("DOMContentLoaded", () => {
     `,
     "song-detail": `
             <div id="song-detail-page">
-                <button id="song-detail-back-button" class="icon-button" aria-label="Go Back" style="position: absolute; top: 20px; left: 20px; z-index: 10;"><span class="material-icons">arrow_back</span></button>
+                <button id="song-detail-back-button" class="icon-button" aria-label="Go Back" style="position: absolute; top: 0px; left: 0px; z-index: 10;"><span class="material-icons">arrow_back</span></button>
                 <div class="song-detail-left">
                     <img src="placeholder_album_art.png" alt="Album Art" id="detail-cover-art">
                     <h2 id="detail-title">Track Title</h2>
                     <p id="detail-artist">Artist Name</p>
                     <p id="detail-description">Full song description here...</p>
                     <div id="detail-action-buttons">
-                        <button class="detail-play-button"><span class="material-icons">play_arrow</span></button>
-                        <button class="detail-add-to-collection-button"><span class="material-icons">playlist_add</span></button>
+                        <button class="detail-play-button icon-button"><span class="material-icons">play_arrow</span></button>
+                        <button class="detail-add-to-collection-button icon-button"><span class="material-icons">playlist_add</span></button>
                         <button class="detail-update-button icon-button" aria-label="Update Track Info"><span class="material-icons">edit</span></button>
                     </div>
                 </div>
                 <div class="song-detail-right">
-                    <h4>Lyrics</h4>
                     <div id="lyrics-display-area">
                         <p>暂无歌词</p>
                     </div>
-                    <button id="upload-lyrics-button" class="dialog-button primary" style="display: none; margin-top: 15px;">
-                        <span class="material-icons" style="margin-right: 8px;">upload_file</span>Upload Lyrics
+                    <button id="upload-lyrics-button" class="icon-button" style="display: none;">
+                        <span class="material-icons">upload_file</span>
                     </button>
                 </div>
             </div>
@@ -471,7 +470,44 @@ document.addEventListener("DOMContentLoaded", () => {
   
   navigationManager.init(); 
   searchManager.init(); 
-
+  // if (
+  //   searchSourceButton &&
+  //   webSocketManager &&
+  //   typeof webSocketManager.sendWebSocketCommand === "function"
+  // ) {
+  //   webSocketManager
+  //     .sendWebSocketCommand("get_available_sources", {})
+  //     .then((response) => {
+  //       const sources = Array.isArray(response.data) ? response.data : [];
+  //       let currentSourceIndex = 0;
+  //       if (sources.length > 0) {
+  //         // Set initial icon and source
+  //         const img = searchSourceButton.querySelector("img");
+  //         if (img) {
+  //           img.src = `source_icon/${sources[0]}.ico`;
+  //         }
+  //         if (typeof searchManager?.switchSource === "function") {
+  //           searchManager.switchSource(sources[0]);
+  //         }
+  //       }
+  //       searchSourceButton.addEventListener("click", () => {
+  //         if (sources.length > 0) {
+  //           currentSourceIndex = (currentSourceIndex + 1) % sources.length;
+  //           const source = sources[currentSourceIndex];
+  //           const img = searchSourceButton.querySelector("img");
+  //           if (img && source) {
+  //             img.src = `source_icon/${source}.ico`;
+  //           }
+  //           if (typeof searchManager?.switchSource === "function") {
+  //             searchManager.switchSource(source);
+  //           }
+  //         }
+  //       });
+  //     })
+  //     .catch((err) => {
+  //       console.warn("Failed to fetch available sources:", err);
+  //     });
+  // }
   // Global Drag and Drop
   const dragOverlay = document.getElementById('drag-overlay');
 
@@ -962,6 +998,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
   });
 
+  const playerCoverArea = document.getElementById("player-cover-area");
+  if (playerCoverArea) {
+    playerCoverArea.addEventListener("click", () => {
+      const currentTrack = playerManager.getCurrentTrack?.();
+      // console.log(currentTrack);
+      window.appState.currentSongDetail = currentTrack;
+      const musicId = currentTrack?.bvid  || currentTrack?.music_id || currentTrack?.id;
+      if (musicId) {
+        navigationManager.navigateTo("song-detail", currentTrack.title || "Track Detail", "#song-detail/" + musicId, false, musicId);
+      }
+    });
+  }
   UIManager.renderTaskQueue(); 
   UIManager.updateMainTaskQueueIcon(); 
 

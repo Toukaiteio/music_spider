@@ -39,6 +39,7 @@ class SearchManager {
         this.handleSearchSourceButtonClick = this.handleSearchSourceButtonClick.bind(this);
         this._attachDownloadButtonListeners = this._attachDownloadButtonListeners.bind(this);
         this.handleDownloadButtonClick = this.handleDownloadButtonClick.bind(this);
+        this.handleSearchInput = this.handleSearchInput.bind(this);
     }
 
     async init() {
@@ -87,11 +88,12 @@ class SearchManager {
             return;
         }
         const source = this.availableSources[this.currentSourceIndex];
-        if (source && source.icon_filename && source.name) {
-            this.searchSourceIcon.src = `source_icon/${source.icon_filename}`;
-            this.searchSourceIcon.alt = `Search source: ${source.name}`;
+        // if (source && source.icon_filename && source.name) {
+        if (source) {
+            this.searchSourceIcon.src = `source_icon/${source}.ico`;
+            this.searchSourceIcon.alt = `Search source: ${source}`;
             if (this.searchSourceButton) {
-                 this.searchSourceButton.setAttribute('aria-label', `Change search source (current: ${source.name})`);
+                 this.searchSourceButton.setAttribute('aria-label', `Change search source (current: ${source})`);
             }
         } else {
             console.warn("SearchManager: Current source data is invalid for display.", source);
@@ -147,7 +149,7 @@ class SearchManager {
             return;
         }
         const currentSource = this.availableSources[this.currentSourceIndex];
-        console.log(`SearchManager: Searching for: ${query} (Source: ${currentSource.name})`);
+        console.log(`SearchManager: Searching for: ${query} (Source: ${currentSource})`);
 
         // Navigate to results page. If already on search-results, this will just ensure content area is set up.
         // The displayResults method will be called by NavigationManager's navigateTo logic for 'search-results' page.
@@ -172,7 +174,7 @@ class SearchManager {
             const searchResponse = await this.webSocketManager.sendWebSocketCommand(
                 "search",
                 // { query: query, source: SEARCH_SOURCE } // Assuming SoundCloud for now
-                { query: query, source: currentSource.id } // Use dynamic source ID
+                { query: query, source: currentSource } // Use dynamic source ID
             );
             console.log("SearchManager: Results received:", searchResponse);
             this.appState.searchResults = searchResponse.data ? (searchResponse.data.results || []) : [];
@@ -297,7 +299,7 @@ class SearchManager {
 
                 this.webSocketManager.sendWebSocketCommand("download_track", {
                     // source: trackObject.source || SEARCH_SOURCE, // Ensure source is passed
-                    source: trackObject.source || (this.availableSources.length > 0 ? this.availableSources[this.currentSourceIndex].id : "default_fallback_source_id"),
+                    source: trackObject.source || (this.availableSources.length > 0 ? this.availableSources[this.currentSourceIndex] : "soundcloud"),
                     track_data: trackObject,
                 })
                 .then((response) => {

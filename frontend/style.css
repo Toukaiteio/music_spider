@@ -31,7 +31,7 @@ body.dark-theme { /* Or html.dark-theme */
     --accent-color: #007bff; /* Deep Blue */
     --accent-color-darker: #0056b3;
     --border-color: #3a3a3a;
-    --shadow-color: rgba(0, 0, 0, 0.3);
+    --shadow-color: rgba(55, 55, 55, 0.3);
     --glass-bg-color: rgba(30, 30, 30, 0.6); /* Darker glass */
     --glass-border-color: rgba(255, 255, 255, 0.1);
     --scrollbar-thumb-color: #555;
@@ -275,7 +275,6 @@ body {
 /* Upload Track Page Styles - similar to update-track */
 #upload-track-page { 
     padding: 20px; 
-    max-width: 700px;
     margin: 0 auto;
 }
 #upload-track-page h2 {
@@ -397,6 +396,7 @@ body {
     display: flex;
     flex-direction: column;
     max-width: 400px;
+    padding-top: 50px;
 }
 .song-detail-left #detail-cover-art {
     width: 100%;
@@ -437,6 +437,7 @@ body {
     align-items: center; /* Vertically center placeholder text */
     justify-content: center; /* Horizontally center placeholder text */
     min-height: 300px; /* Ensure it has some height */
+    flex-direction: column;
 }
 .song-detail-right p {
     font-size: 1.1em;
@@ -723,6 +724,25 @@ body {
     margin-top: auto; /* Push actions to the bottom if card height varies */
 }
 
+
+.remove-from-collection-button{
+    color:rgb(239, 83, 80);
+}
+.delete-track-button {
+    color: rgb(239, 83, 80); /* Material Design Red 500 for delete actions */
+}
+.icon-button {
+    background: transparent;
+    border: none;
+    color: white; /* Assuming white icon color is desired for all detail action buttons */
+    padding: 6px;
+    border-radius: 50%;
+    height: 50px;
+    width: 50px;
+}
+#search-source-button {
+    aspect-ratio: 1 / 1;
+}
 .remove-from-collection-button,.favorite-button,.search-result-download-button,.add-to-collection-button, .delete-track-button {
     background: transparent;
     border: none;
@@ -732,34 +752,11 @@ body {
     height: 36px;
     width: 36px;
 }
-.remove-from-collection-button{
-    color:rgb(251, 119, 119);
-}
-.delete-track-button {
-    color: rgb(239, 83, 80); /* Material Design Red 500 for delete actions */
-}
-.detail-play-button,.detail-add-to-collection-button, .detail-update-button {
-    background: transparent;
-    border: none;
-    color: white; /* Assuming white icon color is desired for all detail action buttons */
-    padding: 6px;
-    border-radius: 50%;
-    height: 50px;
-    width: 50px;
-}
-.remove-from-collection-button:hover,.favorite-button:hover,.detail-play-button:hover,.detail-add-to-collection-button:hover,.search-result-download-button:hover,.add-to-collection-button:hover, .delete-track-button:hover {
+.icon-button:hover,.remove-from-collection-button:hover,.favorite-button:hover,.detail-play-button:hover,.detail-add-to-collection-button:hover,.search-result-download-button:hover,.add-to-collection-button:hover, .delete-track-button:hover {
     background-color: var(--shadow-color);
     /* The general color: var(--accent-color) is removed from here to allow specific hover colors. */
 }
 
-/* Specific hover colors for buttons */
-.favorite-button:hover, 
-.add-to-collection-button:hover,
-.search-result-download-button:hover,
-.detail-play-button:hover, /* Assuming detail buttons should also use accent color on hover */
-.detail-add-to-collection-button:hover {
-    color: var(--accent-color);
-}
 
 .remove-from-collection-button:hover {
     color: rgb(229, 57, 53); /* Darker red for remove from collection hover */
@@ -771,10 +768,6 @@ body {
 
 .search-result-download-button,.add-to-collection-button .material-icons, .delete-track-button .material-icons, .detail-update-button .material-icons {
     font-size: 22px; /* Consistent icon sizing, can be overridden if .detail-update-button needs larger icon */
-}
-/* Ensure the icon color for detail-update-button is white, if not covered by the above general rule for detail buttons */
-.detail-update-button .material-icons {
-    color: white;
 }
 
 
@@ -1659,6 +1652,7 @@ body {
     flex: 1; /* Takes up available space, adjust flex basis if needed */
     min-width: 200px; /* Ensure some space for track info */
     overflow: hidden;
+    cursor: pointer;
 }
 
 #player-album-art {
@@ -2005,7 +1999,6 @@ button:hover {
 /* Update Track Page Styles */
 #update-track-page { 
     padding: 20px; 
-    max-width: 700px; /* Limit width for better readability on wider screens */
     margin: 0 auto; /* Center the form area */
 }
 #update-track-page h2 {
