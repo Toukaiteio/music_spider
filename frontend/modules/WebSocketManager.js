@@ -76,7 +76,7 @@ class WebSocketManager {
           } = progressData;
 
           const queueItem = window.appState.downloadQueue.find(
-            (item) => item.music_id === track_id
+            (item) => item.bvid ? item.bvid === track_id : item.music_id === track_id
           );
 
           if (queueItem) {

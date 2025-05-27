@@ -80,7 +80,7 @@ class SongCardRenderer {
         return `
             <div class="song-card" data-song-id="${musicId}" data-track-info='${trackInfoJson}' data-source="${track.source || 'unknown'}">
                 <div class="card-art-container">
-                    <img src="${imageUrl}" alt="Album Art for ${title}" class="song-card-art">
+                    <img referrerpolicy="no-referrer" src="${imageUrl}" alt="Album Art for ${title}" class="song-card-art">
                     <button class="play-on-card-button icon-button" aria-label="Play Song" data-track-info='${trackInfoJson}'>
                         <span class="material-icons">play_arrow</span>
                     </button>

@@ -358,5 +358,241 @@ class TestWebSocketHandlers(unittest.IsolatedAsyncioTestCase):
         }).get_json()
         mock_ws.send.assert_called_once_with(json.dumps(expected_response))
 
+
+class TestHandleDeleteTrack(unittest.IsolatedAsyncioTestCase):
+    async def test_delete_track_success(self):
+        mock_ws = AsyncMock()
+        music_id_to_delete = "existing_track_id"
+        payload = {"music_id": music_id_to_delete}
+        
+        with patch('src.main.os.path.exists', return_value=True) as mock_exists, \
+             patch('src.main.os.path.isdir', return_value=True) as mock_isdir, \
+             patch('src.main.shutil.rmtree') as mock_rmtree, \
+             patch('src.main.send_response') as mock_send_response:
+            
+            await handle_delete_track(mock_ws, "cmd_delete_1", payload)
+
+            mock_exists.assert_called_once_with(os.path.join("./downloads", music_id_to_delete))
+            mock_isdir.assert_called_once_with(os.path.join("./downloads", music_id_to_delete))
+            mock_rmtree.assert_called_once_with(os.path.join("./downloads", music_id_to_delete))
+            mock_send_response.assert_called_once_with(
+                mock_ws, "cmd_delete_1", code=0, 
+                data={"message": f"Track {music_id_to_delete} deleted successfully."}
+            )
+
+    async def test_delete_track_not_found(self):
+        mock_ws = AsyncMock()
+        music_id_to_delete = "non_existing_track_id"
+        payload = {"music_id": music_id_to_delete}
+
+        with patch('src.main.os.path.exists', return_value=False) as mock_exists, \
+             patch('src.main.shutil.rmtree') as mock_rmtree, \
+             patch('src.main.send_response') as mock_send_response:
+
+            await handle_delete_track(mock_ws, "cmd_delete_2", payload)
+
+            mock_exists.assert_called_once_with(os.path.join("./downloads", music_id_to_delete))
+            mock_rmtree.assert_not_called()
+            mock_send_response.assert_called_once_with(
+                mock_ws, "cmd_delete_2", code=0,
+                data={"message": f"Track {music_id_to_delete} not found, assumed already deleted."}
+            )
+
+    async def test_delete_track_os_error(self):
+        mock_ws = AsyncMock()
+        music_id_to_delete = "error_track_id"
+        payload = {"music_id": music_id_to_delete}
+        error_message = "Permission denied"
+
+        with patch('src.main.os.path.exists', return_value=True) as mock_exists, \
+             patch('src.main.os.path.isdir', return_value=True) as mock_isdir, \
+             patch('src.main.shutil.rmtree', side_effect=OSError(error_message)) as mock_rmtree, \
+             patch('src.main.send_response') as mock_send_response:
+
+            await handle_delete_track(mock_ws, "cmd_delete_3", payload)
+            
+            mock_rmtree.assert_called_once()
+            mock_send_response.assert_called_once_with(
+                mock_ws, "cmd_delete_3", code=1,
+                error=f"Failed to delete track {music_id_to_delete}: {error_message}"
+            )
+            
+    async def test_delete_track_missing_music_id(self):
+        mock_ws = AsyncMock()
+        with patch('src.main.send_response') as mock_send_response:
+            await handle_delete_track(mock_ws, "cmd_delete_4", {}) # Empty payload
+            mock_send_response.assert_called_once_with(
+                mock_ws, "cmd_delete_4", code=1, error="Missing or invalid music_id."
+            )
+
+
+class TestHandleUpdateTrackInfo(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.mock_ws = AsyncMock()
+        self.music_id = "track_to_update"
+        self.mock_music_item_instance = MagicMock(spec=MusicItem)
+        self.mock_music_item_instance.music_id = self.music_id
+        self.mock_music_item_instance.title = "Old Title"
+        self.mock_music_item_instance.author = "Old Author"
+        # Add other attributes as needed by MusicItem.data.to_dict()
+        self.mock_music_item_instance.data = MagicMock(spec=MusicItemData)
+        self.mock_music_item_instance.data.to_dict.return_value = {"music_id": self.music_id, "title": "New Title", "author": "New Author"}
+
+
+    @patch('src.main.MusicItem.load_from_json')
+    @patch('src.main.send_response')
+    async def test_update_metadata_success(self, mock_send_response, mock_load_from_json):
+        mock_load_from_json.return_value = self.mock_music_item_instance
+        
+        update_payload = {
+            "music_id": self.music_id,
+            "track_data": {
+                "title": "New Title",
+                "author": "New Author",
+                "album": "New Album",
+                "lyrics": "New Lyrics",
+                "lossless": True # Also test lossless update here
+            }
+        }
+        await handle_update_track_info(self.mock_ws, "cmd_update_1", update_payload)
+
+        mock_load_from_json.assert_called_once_with(self.music_id)
+        self.assertEqual(self.mock_music_item_instance.title, "New Title")
+        self.assertEqual(self.mock_music_item_instance.author, "New Author")
+        self.assertEqual(self.mock_music_item_instance.album, "New Album")
+        self.assertEqual(self.mock_music_item_instance.lyrics, "New Lyrics")
+        self.assertTrue(self.mock_music_item_instance.lossless)
+        self.mock_music_item_instance.dump_self.assert_called_once()
+        
+        # Update the mock to_dict to reflect changes for the response check
+        self.mock_music_item_instance.data.to_dict.return_value = {
+            "music_id": self.music_id, "title": "New Title", "author": "New Author", 
+            "album": "New Album", "lyrics": "New Lyrics", "lossless": True
+        }
+        mock_send_response.assert_called_once_with(
+            self.mock_ws, "cmd_update_1", code=0,
+            data={"message": "Track updated successfully.", "track_data": self.mock_music_item_instance.data.to_dict()}
+        )
+
+    @patch('src.main.MusicItem.load_from_json')
+    @patch('src.main.send_response')
+    async def test_update_conceptual_file_paths(self, mock_send_response, mock_load_from_json):
+        mock_load_from_json.return_value = self.mock_music_item_instance
+        new_cover_path = f"downloads/{self.music_id}/new_cover.jpg"
+        new_audio_path = f"downloads/{self.music_id}/new_audio.mp3"
+
+        update_payload = {
+            "music_id": self.music_id,
+            "track_data": {
+                "cover_filename": new_cover_path, # This is the final relative path
+                "audio_filename": new_audio_path, # This is the final relative path
+                "lossless": False
+            }
+        }
+        await handle_update_track_info(self.mock_ws, "cmd_update_2", update_payload)
+
+        self.mock_music_item_instance.set_cover.assert_called_once_with(new_cover_path)
+        self.mock_music_item_instance.set_audio.assert_called_once_with(new_audio_path)
+        self.assertFalse(self.mock_music_item_instance.lossless)
+        self.mock_music_item_instance.dump_self.assert_called_once()
+        mock_send_response.assert_called_once() # Basic check for response
+
+    @patch('src.main.MusicItem.load_from_json')
+    @patch('src.main.send_response')
+    async def test_update_track_not_found(self, mock_send_response, mock_load_from_json):
+        mock_load_from_json.return_value = None # Simulate track not found
+        
+        await handle_update_track_info(self.mock_ws, "cmd_update_3", {"music_id": "unknown_id", "track_data": {}})
+        mock_send_response.assert_called_once_with(
+            self.mock_ws, "cmd_update_3", code=1, error="Track unknown_id not found."
+        )
+
+class TestHandleUploadTrack(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.mock_ws = AsyncMock()
+        self.test_uuid = "fixed-uuid-for-testing"
+        self.mock_music_item_instance = MagicMock(spec=MusicItem)
+        # Mock the data object that to_dict() will be called on
+        self.mock_music_item_instance.data = MagicMock(spec=MusicItemData) 
+        self.mock_music_item_instance.data.to_dict.return_value = {"music_id": self.test_uuid, "title": "Uploaded Song"}
+
+    @patch('src.main.uuid.uuid4')
+    @patch('src.main.MusicItem') # Patch the class
+    @patch('src.main.send_response')
+    async def test_upload_track_success(self, mock_send_response, MockMusicItemClass, mock_uuid4):
+        mock_uuid4.return_value = self.test_uuid
+        MockMusicItemClass.return_value = self.mock_music_item_instance # Make constructor return our mock instance
+
+        payload = {
+            "track_data": {
+                "title": "Uploaded Song", "author": "Uploader", "album": "Upload Album",
+                "description": "Desc", "genre": "Electronic", "tags": ["upload"],
+                "lyrics": "Uploaded lyrics", "lossless": True, "duration": 180
+            },
+            "cover_filename": f"downloads/{self.test_uuid}/cover.png", # Final relative path
+            "audio_filename": f"downloads/{self.test_uuid}/audio.flac"  # Final relative path
+        }
+        await handle_upload_track(self.mock_ws, "cmd_upload_1", payload)
+
+        MockMusicItemClass.assert_called_once_with(
+            music_id=self.test_uuid,
+            title="Uploaded Song", author="Uploader", album="Upload Album",
+            description="Desc", genre="Electronic", tags=["upload"],
+            lyrics="Uploaded lyrics", lossless=True, duration=180
+        )
+        self.mock_music_item_instance.set_cover.assert_called_once_with(payload["cover_filename"])
+        self.mock_music_item_instance.set_audio.assert_called_once_with(payload["audio_filename"])
+        self.mock_music_item_instance.dump_self.assert_called_once()
+        
+        mock_send_response.assert_called_once_with(
+            self.mock_ws, "cmd_upload_1", code=0,
+            data={
+                "message": "Track uploaded successfully.",
+                "music_id": self.test_uuid,
+                "track_data": {"music_id": self.test_uuid, "title": "Uploaded Song"}
+            }
+        )
+
+    @patch('src.main.send_response')
+    async def test_upload_track_missing_required_metadata(self, mock_send_response):
+        payload = { # Missing author
+            "track_data": {"title": "Incomplete Song"},
+            "cover_filename": "downloads/some_id/cover.jpg",
+            "audio_filename": "downloads/some_id/audio.mp3"
+        }
+        await handle_upload_track(self.mock_ws, "cmd_upload_2", payload)
+        mock_send_response.assert_called_once_with(
+            self.mock_ws, "cmd_upload_2", code=1,
+            error="Missing required field in track_data: author."
+        )
+
+    @patch('src.main.MusicItem') # To prevent actual MusicItem instantiation and dir creation
+    @patch('src.main.uuid.uuid4')
+    @patch('src.main.send_response')
+    @patch('src.main.shutil.rmtree') # To check cleanup on error
+    async def test_upload_track_exception_during_processing(self, mock_rmtree, mock_send_response, mock_uuid4, MockMusicItemClass):
+        mock_uuid4.return_value = self.test_uuid
+        # Simulate an error during music_item.dump_self() for example
+        mock_instance = MagicMock(spec=MusicItem)
+        mock_instance.dump_self.side_effect = Exception("Disk full")
+        mock_instance.work_path = os.path.join("./downloads", self.test_uuid) # Important for cleanup check
+        MockMusicItemClass.return_value = mock_instance
+        
+        # Assume work_path would have been created, so mock os.path.exists for cleanup
+        with patch('src.main.os.path.exists', return_value=True) as mock_path_exists_cleanup:
+            payload = {
+                "track_data": {"title": "Error Song", "author": "Error Author"},
+                "cover_filename": "downloads/fixed-uuid-for-testing/cover.jpg",
+                "audio_filename": "downloads/fixed-uuid-for-testing/audio.mp3"
+            }
+            await handle_upload_track(self.mock_ws, "cmd_upload_3", payload)
+
+            mock_path_exists_cleanup.assert_called_with(mock_instance.work_path)
+            mock_rmtree.assert_called_once_with(mock_instance.work_path)
+            mock_send_response.assert_called_once_with(
+                self.mock_ws, "cmd_upload_3", code=1,
+                error="Failed to process uploaded track: Disk full"
+            )
+
 if __name__ == '__main__':
     unittest.main()

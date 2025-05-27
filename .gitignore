@@ -4,3 +4,5 @@
 *.txt
 test.py
 *.json
+/.venv
+/.vscode

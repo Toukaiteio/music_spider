@@ -5,14 +5,15 @@ import websockets
 import uuid # For generating cmd_id if needed, or client sends it
 import time # For throttling progress updates
 import os # For file system operations
+import shutil # For file system operations like rmtree and move
 
 # Relative imports for project modules
 from utils.data_type import ResultBase, MusicItemData, MusicItem
-from downloaders import soundcloud_downloader
-# Placeholder for future: from .downloaders import other_downloader
+from downloaders import soundcloud_downloader, bilibili_downloader # Added bilibili_downloader
 
 DOWNLOADER_MODULES = {
     "soundcloud": soundcloud_downloader,
+    "bilibili": bilibili_downloader, # Added Bilibili module
     # "other_source": other_downloader, # Example for future downloaders
 }
 
@@ -24,57 +25,64 @@ async def handle_search(websocket, cmd_id: str, payload: dict):
     source = payload.get("source", "soundcloud") # Default to soundcloud
 
     if not search_query:
-        error_response = ResultBase(code=1, data={"original_cmd_id": cmd_id, "error": "Search query is missing."})
-        await websocket.send(json.dumps(error_response.get_json()))
+        await send_response(websocket, cmd_id, code=1, error="Search query is missing.")
         return
 
     downloader_module = DOWNLOADER_MODULES.get(source)
     if not downloader_module:
-        error_response = ResultBase(code=1, data={"original_cmd_id": cmd_id, "error": f"Unsupported source: {source}"})
-        await websocket.send(json.dumps(error_response.get_json()))
+        await send_response(websocket, cmd_id, code=1, error=f"Unsupported source: {source}")
         return
     
     try:
-        # Assuming search_tracks is synchronous for now for all modules
-        # If any module has async search_tracks, this needs adjustment or a wrapper
-        # For now, soundcloud_downloader.search_tracks only takes query.
-        search_results = downloader_module.search_tracks(query=search_query) 
+        # Pass limit to search_tracks if the module supports it.
+        # Get the 'limit' from payload, default to a reasonable number if not provided by client.
+        limit = payload.get("limit", 20) # Default search limit to 20
         
-        print(f"Search for '{search_query}' from source '{source}' yielded {len(search_results)} results.")
+        import inspect
+        sig = inspect.signature(downloader_module.search_tracks)
+        if 'limit' in sig.parameters:
+            search_results = downloader_module.search_tracks(query=search_query, limit=limit)
+        else:
+            search_results = downloader_module.search_tracks(query=search_query)
+        
+        print(f"Search for '{search_query}' from source '{source}' (limit: {limit}) yielded {len(search_results)} results.")
         response_data = {"original_cmd_id": cmd_id, "source": source, "results": search_results}
-        success_response = ResultBase(code=0, data=response_data)
-        await websocket.send(json.dumps(success_response.get_json()))
+        await send_response(websocket, cmd_id, code=0, data=response_data)
 
     except Exception as e:
         print(f"Error during search for query '{search_query}': {e}")
-        # Consider logging the full traceback for debugging
-        # import traceback
-        # traceback.print_exc()
-        error_response = ResultBase(code=1, data={"original_cmd_id": cmd_id, "error": f"Search failed: {str(e)}"})
-        await websocket.send(json.dumps(error_response.get_json()))
+        # import traceback; traceback.print_exc() # For debugging
+        await send_response(websocket, cmd_id, code=1, error=f"Search failed: {str(e)}")
 
 async def handle_download_track(websocket, cmd_id: str, payload: dict):
-    source = payload.get("source", "soundcloud") # Default to soundcloud
+    source = payload.get("source", "soundcloud") 
     track_data = payload.get("track_data")
 
     downloader_module = DOWNLOADER_MODULES.get(source)
     if not downloader_module:
-        error_response = ResultBase(code=1, data={"original_cmd_id": cmd_id, "error": f"Unsupported source for download: {source}"})
-        await websocket.send(json.dumps(error_response.get_json()))
+        await send_response(websocket, cmd_id, code=1, error=f"Unsupported source for download: {source}")
         return
 
     if not track_data or not isinstance(track_data, dict):
-        error_response = ResultBase(code=1, data={"original_cmd_id": cmd_id, "error": "Missing or invalid track_data."})
-        await websocket.send(json.dumps(error_response.get_json()))
+        await send_response(websocket, cmd_id, code=1, error="Missing or invalid track_data.")
         return
 
     # Ensure track_id is available for progress reporting.
-    # Source specific track ID extraction might be needed if structure varies.
-    # For SoundCloud, 'id' is the primary field.
-    track_id_for_progress = str(track_data.get("id", track_data.get("music_id", "unknown_track")))
-    if track_id_for_progress == "unknown_track" and not track_data.get("title"):
-        error_response = ResultBase(code=1, data={"original_cmd_id": cmd_id, "error": "Track ID or identifiable information missing in track_data."})
-        await websocket.send(json.dumps(error_response.get_json()))
+    # Source specific track ID extraction is needed.
+    track_id_for_progress = "unknown_track"
+    if source == "soundcloud":
+        track_id_for_progress = str(track_data.get("id", "unknown_track"))
+    elif source == "bilibili":
+        # Bilibili search results use 'bvid'. MusicItem uses 'music_id' (which is bvid after download).
+        track_id_for_progress = str(track_data.get("bvid", track_data.get("music_id", "unknown_track")))
+    
+    # Fallback if specific ID not found, or if track_data might already be a MusicItem.data dict (e.g. from local library)
+    if track_id_for_progress == "unknown_track": # Check if still unknown after source-specific attempts
+        track_id_for_progress = str(track_data.get("music_id", "unknown_track"))
+
+
+    if track_id_for_progress == "unknown_track" and not track_data.get("title"): # Final check
+        await send_response(websocket, cmd_id, code=1, error="Track ID or identifiable information missing in track_data.")
         return
     
     # Throttling state for progress updates
@@ -111,10 +119,10 @@ async def handle_download_track(websocket, cmd_id: str, payload: dict):
         json_message = json.dumps(ResultBase(code=0, data=progress_update_payload).get_json())
 
         # Schedule the send operation on the main event loop
-        if not current_websocket.closed: # Use the bound current_websocket
-            asyncio.run_coroutine_threadsafe(current_websocket.send(json_message), main_loop) # Use the bound main_loop
-        else:
-            print(f"WebSocket connection closed for cmd_id {original_cmd_id}, cannot send progress for track {track_id}.")
+        try:
+            asyncio.run_coroutine_threadsafe(current_websocket.send(json_message), main_loop)
+        except Exception as e:
+            print(f"Failed to send progress for cmd_id {original_cmd_id}, track {track_id}: {e}")
 
     try:
         print(f"Starting download for track: {track_data.get('title', track_id_for_progress)} (cmd_id: {cmd_id})")
@@ -145,24 +153,20 @@ async def handle_download_track(websocket, cmd_id: str, payload: dict):
                 "message": f"Track '{music_item_result.data.title}' downloaded successfully.",
                 "track_details": music_item_result.data.to_dict()
             }
-            if not websocket.closed:
-                 await websocket.send(json.dumps(ResultBase(code=0, data=final_response_data).get_json()))
+            await send_response(websocket, cmd_id, code=0, data=final_response_data)
         else:
             # This branch is hit if download_track explicitly returns None or something not a MusicItem.
             # Most specific errors (file download, etc.) should be reported by progress_callback_ws with status="error".
             print(f"Download process for cmd_id {cmd_id} (track: {track_data.get('title', track_id_for_progress)}) did not return a valid MusicItem or failed.")
             # A specific error message should have been sent by the progress callback.
             # This is a fallback/final status if the websocket is still open.
-            if not websocket.closed:
-                error_response = ResultBase(code=1, data={"original_cmd_id": cmd_id, "error": "Download failed. Check progress updates for specific errors."})
-                await websocket.send(json.dumps(error_response.get_json()))
+            # Ensure a response is sent if no other error message was.
+            await send_response(websocket, cmd_id, code=1, error="Download failed. Check progress updates for specific errors.")
 
     except Exception as e:
         print(f"Exception during download process for cmd_id {cmd_id} (track: {track_data.get('title', track_id_for_progress)}): {e}")
-        import traceback # For debugging
-        traceback.print_exc() # For debugging
-        if not websocket.closed:
-            await websocket.send(json.dumps(ResultBase(code=1, data={"original_cmd_id": cmd_id, "error": f"Server error during download: {str(e)}"}).get_json()))
+        # import traceback; traceback.print_exc() # For debugging
+        await send_response(websocket, cmd_id, code=1, error=f"Server error during download: {str(e)}")
 
 
 async def handle_get_downloaded_music(websocket, cmd_id: str, payload: dict):
@@ -173,8 +177,7 @@ async def handle_get_downloaded_music(websocket, cmd_id: str, payload: dict):
     try:
         if not os.path.exists(DOWNLOADS_DIR) or not os.path.isdir(DOWNLOADS_DIR):
             print("Downloads directory does not exist.")
-            response_data = {"original_cmd_id": cmd_id, "library": []}
-            await websocket.send(json.dumps(ResultBase(code=0, data=response_data).get_json()))
+            await send_response(websocket, cmd_id, code=0, data={"library": []}) # Use helper
             return
 
         for item_name in os.listdir(DOWNLOADS_DIR):
@@ -197,26 +200,21 @@ async def handle_get_downloaded_music(websocket, cmd_id: str, payload: dict):
                 except Exception as e:
                     print(f"Error loading MusicItem for music_id {music_id} from {item_path}: {e}")
                     # import traceback # For debugging
-                    # traceback.print_exc() # For debugging
+                    # import traceback; traceback.print_exc() # For debugging
         
-        response_data = {"original_cmd_id": cmd_id, "library": downloaded_music_list}
-        success_response = ResultBase(code=0, data=response_data)
-        await websocket.send(json.dumps(success_response.get_json()))
+        await send_response(websocket, cmd_id, code=0, data={"library": downloaded_music_list}) # Use helper
 
     except Exception as e:
         print(f"Error retrieving downloaded music library: {e}")
-        # import traceback # For debugging
-        # traceback.print_exc() # For debugging
-        error_response = ResultBase(code=1, data={"original_cmd_id": cmd_id, "error": f"Failed to retrieve library: {str(e)}"})
-        await websocket.send(json.dumps(error_response.get_json()))
+        # import traceback; traceback.print_exc() # For debugging
+        await send_response(websocket, cmd_id, code=1, error=f"Failed to retrieve library: {str(e)}") # Use helper
 
 async def handle_search_downloaded_music(websocket, cmd_id: str, payload: dict):
     print(f"Handling search_downloaded_music command with cmd_id: {cmd_id}, payload: {payload}")
     query = payload.get("query")
 
     if not query:
-        error_response = ResultBase(code=1, data={"original_cmd_id": cmd_id, "error": "Search query is missing."})
-        await websocket.send(json.dumps(error_response.get_json()))
+        await send_response(websocket, cmd_id, code=1, error="Search query is missing.") # Use helper
         return
 
     DOWNLOADS_DIR = "./downloads"
@@ -226,8 +224,7 @@ async def handle_search_downloaded_music(websocket, cmd_id: str, payload: dict):
     try:
         if not os.path.exists(DOWNLOADS_DIR) or not os.path.isdir(DOWNLOADS_DIR):
             print("Downloads directory does not exist for search.")
-            response_data = {"original_cmd_id": cmd_id, "results": []}
-            await websocket.send(json.dumps(ResultBase(code=0, data=response_data).get_json()))
+            await send_response(websocket, cmd_id, code=0, data={"results": []}) # Use helper
             return
 
         for item_name in os.listdir(DOWNLOADS_DIR):
@@ -269,23 +266,205 @@ async def handle_search_downloaded_music(websocket, cmd_id: str, payload: dict):
                 except Exception as e:
                     print(f"Error loading MusicItem for music_id {music_id} from {item_path} during search: {e}")
         
-        response_data = {"original_cmd_id": cmd_id, "results": matching_music_list}
-        success_response = ResultBase(code=0, data=response_data)
-        await websocket.send(json.dumps(success_response.get_json()))
+        await send_response(websocket, cmd_id, code=0, data={"results": matching_music_list}) # Use helper
 
     except Exception as e:
         print(f"Error searching downloaded music library: {e}")
-        error_response = ResultBase(code=1, data={"original_cmd_id": cmd_id, "error": f"Failed to search library: {str(e)}"})
-        await websocket.send(json.dumps(error_response.get_json()))
+        await send_response(websocket, cmd_id, code=1, error=f"Failed to search library: {str(e)}") # Use helper
+
+async def handle_delete_track(websocket, cmd_id: str, payload: dict):
+    print(f"Handling delete_track command with cmd_id: {cmd_id}, payload: {payload}")
+    music_id = payload.get("music_id")
+
+    if not music_id or not isinstance(music_id, str): # Basic validation
+        await send_response(websocket, cmd_id, code=1, error="Missing or invalid music_id.")
+        return
+
+    track_dir_path = os.path.join("./downloads", music_id)
+
+    if not os.path.exists(track_dir_path) or not os.path.isdir(track_dir_path):
+        # Consider it a success if the directory is already gone or never existed
+        print(f"Track directory {track_dir_path} not found. Assuming already deleted.")
+        await send_response(websocket, cmd_id, code=0, data={"message": f"Track {music_id} not found, assumed already deleted."})
+        return
+    
+    try:
+        shutil.rmtree(track_dir_path)
+        print(f"Successfully deleted track directory: {track_dir_path}")
+        await send_response(websocket, cmd_id, code=0, data={"message": f"Track {music_id} deleted successfully."})
+    except OSError as e:
+        print(f"Error deleting track directory {track_dir_path}: {e}")
+        await send_response(websocket, cmd_id, code=1, error=f"Failed to delete track {music_id}: {str(e)}")
+
+
+async def handle_update_track_info(websocket, cmd_id: str, payload: dict):
+    print(f"Handling update_track_info command with cmd_id: {cmd_id}")
+    music_id = payload.get("music_id")
+    track_data_update = payload.get("track_data", {})
+
+    if not music_id or not isinstance(music_id, str):
+        await send_response(websocket, cmd_id, code=1, error="Missing or invalid music_id.")
+        return
+
+    try:
+        music_item = MusicItem.load_from_json(music_id)
+        if not music_item:
+            await send_response(websocket, cmd_id, code=1, error=f"Track {music_id} not found.")
+            return
+
+        # Update metadata attributes
+        allowed_metadata_fields = ["title", "author", "album", "description", "genre", "tags", "lyrics"]
+        for field in allowed_metadata_fields:
+            if field in track_data_update:
+                setattr(music_item, field, track_data_update[field]) # Uses setters if available in MusicItem
+
+        # Conceptual file handling for cover:
+        # 'cover_filename' from payload is the new final relative path.
+        new_cover_final_relative_path = track_data_update.get("cover_filename")
+        if new_cover_final_relative_path and isinstance(new_cover_final_relative_path, str):
+            # For conceptual update, we directly set this path.
+            # No actual file move or deletion of old file in this handler.
+            music_item.set_cover(new_cover_final_relative_path)
+            print(f"Updated cover path for {music_id} to conceptual path: {new_cover_final_relative_path}")
+
+        # Conceptual file handling for audio:
+        # 'audio_filename' from payload is the new final relative path.
+        new_audio_final_relative_path = track_data_update.get("audio_filename")
+        if new_audio_final_relative_path and isinstance(new_audio_final_relative_path, str):
+            music_item.set_audio(new_audio_final_relative_path)
+            print(f"Updated audio path for {music_id} to conceptual path: {new_audio_final_relative_path}")
+            
+            # Update lossless status if 'lossless' is explicitly provided in the update.
+            if 'lossless' in track_data_update:
+                music_item.lossless = bool(track_data_update['lossless'])
+        
+        music_item.dump_self()
+        print(f"Track {music_id} updated successfully.")
+        await send_response(websocket, cmd_id, code=0, data={"message": "Track updated successfully.", "track_data": music_item.data.to_dict()})
+
+    except Exception as e:
+        print(f"Error updating track {music_id}: {e}")
+        # import traceback; traceback.print_exc() # For debugging
+        await send_response(websocket, cmd_id, code=1, error=f"Failed to update track: {str(e)}")
+
+
+async def handle_upload_track(websocket, cmd_id: str, payload: dict):
+    print(f"Handling upload_track command with cmd_id: {cmd_id}")
+    track_data = payload.get("track_data", {})
+    # These are final relative paths, e.g., "downloads/new_id/cover.jpg"
+    # The server is assumed to have already placed the files here if they are provided.
+    cover_final_relative_path = payload.get("cover_filename") 
+    audio_final_relative_path = payload.get("audio_filename")
+
+    # Fix: define required_fields
+    required_fields = ["title", "author"]
+    for field in required_fields:
+        if field not in track_data:
+            await send_response(websocket, cmd_id, code=1, error=f"Missing required field in track_data: {field}.")
+            return
+
+    # Fix: define cover_temp_path and audio_temp_path (for conceptual validation, just use the final paths)
+    cover_temp_path = cover_final_relative_path
+    audio_temp_path = audio_final_relative_path
+
+    # Validate required file paths (conceptually)
+    if not cover_temp_path or not isinstance(cover_temp_path, str):
+        await send_response(websocket, cmd_id, code=1, error="Missing or invalid cover_filename.")
+        return
+    if not audio_temp_path or not isinstance(audio_temp_path, str):
+        await send_response(websocket, cmd_id, code=1, error="Missing or invalid audio_filename.")
+        return
+
+    # For this conceptual handler, we don't check os.path.exists for cover_final_relative_path
+    # or audio_final_relative_path because the files are *conceptually* already in their 
+    # final place by an external process if these paths are provided.
+    # We just trust the provided paths if they are not None/empty.
+    # Client/server is responsible for ensuring these files exist at these paths before calling.
+
+    new_music_id = str(uuid.uuid4())
+    
+    try:
+        # MusicItem constructor creates the work_path directory
+        music_item = MusicItem(
+            music_id=new_music_id,
+            title=track_data.get("title"),
+            author=track_data.get("author"),
+            album=track_data.get("album", ""),
+            description=track_data.get("description", ""),
+            genre=track_data.get("genre", ""),
+            tags=track_data.get("tags", []),
+            lyrics=track_data.get("lyrics", ""),
+            lossless=bool(track_data.get("lossless", False)),
+            # Duration would ideally come from the audio file itself after processing,
+            # but for this conceptual upload, we might take it from track_data if provided, or set to 0.
+            duration=int(track_data.get("duration", 0)), 
+            # cover and audio paths will be set below using the provided final relative paths
+        )
+
+        # Set cover and audio paths using the provided final relative paths
+        # These paths are relative to the project root, e.g., "downloads/new_music_id/cover.jpg"
+        if cover_final_relative_path and isinstance(cover_final_relative_path, str):
+            # Conceptual: We assume cover_final_relative_path IS the correct final path.
+            music_item.set_cover(cover_final_relative_path)
+            print(f"Set cover for {new_music_id} to conceptual path: {cover_final_relative_path}")
+        
+        if audio_final_relative_path and isinstance(audio_final_relative_path, str):
+            music_item.set_audio(audio_final_relative_path)
+            print(f"Set audio for {new_music_id} to conceptual path: {audio_final_relative_path}")
+
+        music_item.dump_self() # Creates music.json in ./downloads/{new_music_id}/
+        print(f"Track {new_music_id} uploaded and metadata saved successfully.")
+        await send_response(websocket, cmd_id, code=0, data={
+            "message": "Track uploaded successfully.",
+            "music_id": new_music_id,
+            "track_data": music_item.data.to_dict()
+        })
+
+    except Exception as e:
+        print(f"Error uploading track: {e}")
+        # import traceback; traceback.print_exc() # For debugging
+        # Attempt to clean up created directory if upload fails mid-way
+        if 'music_item' in locals() and os.path.exists(music_item.work_path):
+            try:
+                shutil.rmtree(music_item.work_path)
+                print(f"Cleaned up directory {music_item.work_path} after upload failure.")
+            except OSError as cleanup_e:
+                print(f"Error cleaning up directory {music_item.work_path}: {cleanup_e}")
+        
+        await send_response(websocket, cmd_id, code=1, error=f"Failed to upload track: {str(e)}")
+
+async def handle_get_available_sources(websocket, cmd_id: str, payload: dict):
+    """Returns a list of available music sources."""
+    print(f"Handling get_available_sources command with cmd_id: {cmd_id}")
+    await send_response(websocket, cmd_id, code=0, data={"sources": DOWNLOADER_MODULES.keys()})
 
 COMMAND_HANDLERS = {
     "search": handle_search,
     "download_track": handle_download_track,
     "get_downloaded_music": handle_get_downloaded_music,
     "search_downloaded_music": handle_search_downloaded_music,
+    "delete_track": handle_delete_track,
+    "update_track_info": handle_update_track_info,
+    "upload_track": handle_upload_track,
+    "get_available_sources":  handle_get_available_sources,
 }
 
-async def handler(websocket, path): # path is not used yet, but part of websockets.serve signature
+async def send_response(websocket, cmd_id: str, code: int, data: dict = None, error: str = None):
+    """Helper function to send a consistent response structure."""
+    response_payload = {"original_cmd_id": cmd_id}
+    if error:
+        response_payload["error"] = error
+    if data:
+        response_payload.update(data) # Merge additional data
+    
+    response = ResultBase(code=code, data=response_payload)
+    try:
+        await websocket.send(json.dumps(response.get_json()))
+    except Exception as e:  # Catch any send errors
+        print(f"Failed to send response for cmd_id {cmd_id}: {e}")
+
+
+async def handler(websocket, path = None): # path is not used yet, but part of websockets.serve signature
     print(f"Client connected from {websocket.remote_address}")
     CONNECTED_CLIENTS.add(websocket)
     try:
@@ -301,39 +480,25 @@ async def handler(websocket, path): # path is not used yet, but part of websocke
                 if not cmd_id or not command:
                     # If cmd_id is missing, we can't include it in the response data directly as original_cmd_id
                     error_data = {"error": "Missing cmd_id or command"}
-                    if cmd_id: # if only command is missing
-                        error_data["original_cmd_id"] = cmd_id
-                    error_response = ResultBase(code=1, data=error_data).get_json()
-                    await websocket.send(json.dumps(error_response))
+                    # error_data already includes original_cmd_id if cmd_id was present
+                    await send_response(websocket, cmd_id, code=1, error="Missing cmd_id or command") # Use helper
                     continue
 
                 if command_handler := COMMAND_HANDLERS.get(command):
                     await command_handler(websocket, cmd_id, payload)
                 else:
-                    error_response = ResultBase(code=1, data={"original_cmd_id": cmd_id, "error": f"Unknown command: {command}"}).get_json()
-                    await websocket.send(json.dumps(error_response))
-
+                    await send_response(websocket, cmd_id, code=1, error=f"Unknown command: {command}") # Use helper
+            
             except json.JSONDecodeError:
-                # cmd_id is not available if JSON is invalid
-                error_response = ResultBase(code=1, data={"error": "Invalid JSON message"}).get_json()
-                await websocket.send(json.dumps(error_response))
+                # cmd_id is not available if JSON is invalid, so pass None or a placeholder
+                # The send_response helper expects a cmd_id, so provide a placeholder.
+                await send_response(websocket, cmd_id="unknown_json_error_cmd_id", code=1, error="Invalid JSON message")
             except Exception as e:
-                print(f"Error processing message: {e}")
-                # Try to include cmd_id if it was parsed before the error
-                error_data = {"error": f"Server error: {str(e)}"}
-                # This assumes 'data' variable is available and might have 'cmd_id'
-                # A bit risky if 'data' itself is the cause or not a dict.
-                try: 
-                    parsed_cmd_id = data.get("cmd_id")
-                    if parsed_cmd_id:
-                         error_data["original_cmd_id"] = parsed_cmd_id
-                except NameError: # data not defined
-                    pass 
-                except AttributeError: # data not a dict
-                    pass
-
-                error_response = ResultBase(code=1, data=error_data).get_json()
-                await websocket.send(json.dumps(error_response))
+                print(f"Error processing message for cmd_id {cmd_id if 'cmd_id' in locals() else 'unknown'}: {e}")
+                # import traceback; traceback.print_exc() # For debugging
+                # Use cmd_id if available, otherwise use a placeholder.
+                current_cmd_id = locals().get("cmd_id", "unknown_error_cmd_id")
+                await send_response(websocket, current_cmd_id, code=1, error=f"Server error: {str(e)}")
     finally:
         print(f"Client disconnected from {websocket.remote_address}")
         CONNECTED_CLIENTS.remove(websocket)
