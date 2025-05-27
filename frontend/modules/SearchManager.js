@@ -1,6 +1,6 @@
 // frontend/modules/SearchManager.js
 import SongCardRenderer from './SongCardRenderer.js';
-
+const SEARCH_SOURCE = "bilibili"
 class SearchManager {
     constructor({
         webSocketManager,
@@ -65,7 +65,8 @@ class SearchManager {
             return;
         }
 
-        console.log(`SearchManager: Searching for: ${query} (Source: SoundCloud)`);
+        // console.log(`SearchManager: Searching for: ${query} (Source: SoundCloud)`);
+        console.log(`SearchManager: Searching for: ${query} (Source: ${SEARCH_SOURCE})`);
 
         // Navigate to results page. If already on search-results, this will just ensure content area is set up.
         // The displayResults method will be called by NavigationManager's navigateTo logic for 'search-results' page.
@@ -89,7 +90,7 @@ class SearchManager {
         try {
             const searchResponse = await this.webSocketManager.sendWebSocketCommand(
                 "search",
-                { query: query, source: "soundcloud" } // Assuming SoundCloud for now
+                { query: query, source: SEARCH_SOURCE } // Assuming SoundCloud for now
             );
             console.log("SearchManager: Results received:", searchResponse);
             this.appState.searchResults = searchResponse.data.results || [];
@@ -200,6 +201,7 @@ class SearchManager {
 
                 const queueItem = {
                     ...trackObject,
+                    artwork_url:trackObject.cover_url,
                     music_id: trackObject.id ? trackObject.id.toString() : Date.now().toString(), // Ensure music_id from id
                     progressPercent: 0,
                     status: "pending",
@@ -212,7 +214,7 @@ class SearchManager {
                 this.uiManager.updateMainTaskQueueIcon();
 
                 this.webSocketManager.sendWebSocketCommand("download_track", {
-                    source: trackObject.source || "soundcloud", // Ensure source is passed
+                    source: trackObject.source || SEARCH_SOURCE, // Ensure source is passed
                     track_data: trackObject,
                 })
                 .then((response) => {

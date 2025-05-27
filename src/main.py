@@ -119,10 +119,10 @@ async def handle_download_track(websocket, cmd_id: str, payload: dict):
         json_message = json.dumps(ResultBase(code=0, data=progress_update_payload).get_json())
 
         # Schedule the send operation on the main event loop
-        if not current_websocket.closed: # Use the bound current_websocket
-            asyncio.run_coroutine_threadsafe(current_websocket.send(json_message), main_loop) # Use the bound main_loop
-        else:
-            print(f"WebSocket connection closed for cmd_id {original_cmd_id}, cannot send progress for track {track_id}.")
+        try:
+            asyncio.run_coroutine_threadsafe(current_websocket.send(json_message), main_loop)
+        except Exception as e:
+            print(f"Failed to send progress for cmd_id {original_cmd_id}, track {track_id}: {e}")
 
     try:
         print(f"Starting download for track: {track_data.get('title', track_id_for_progress)} (cmd_id: {cmd_id})")
@@ -161,8 +161,7 @@ async def handle_download_track(websocket, cmd_id: str, payload: dict):
             # A specific error message should have been sent by the progress callback.
             # This is a fallback/final status if the websocket is still open.
             # Ensure a response is sent if no other error message was.
-            if not websocket.closed: # Check if websocket is still open
-                 await send_response(websocket, cmd_id, code=1, error="Download failed. Check progress updates for specific errors.")
+            await send_response(websocket, cmd_id, code=1, error="Download failed. Check progress updates for specific errors.")
 
     except Exception as e:
         print(f"Exception during download process for cmd_id {cmd_id} (track: {track_data.get('title', track_id_for_progress)}): {e}")
@@ -273,30 +272,6 @@ async def handle_search_downloaded_music(websocket, cmd_id: str, payload: dict):
         print(f"Error searching downloaded music library: {e}")
         await send_response(websocket, cmd_id, code=1, error=f"Failed to search library: {str(e)}") # Use helper
 
-COMMAND_HANDLERS = {
-    "search": handle_search,
-    "download_track": handle_download_track,
-    "get_downloaded_music": handle_get_downloaded_music,
-    "search_downloaded_music": handle_search_downloaded_music,
-    "delete_track": handle_delete_track,
-    "update_track_info": handle_update_track_info,
-    "upload_track": handle_upload_track,
-}
-
-async def send_response(websocket, cmd_id: str, code: int, data: dict = None, error: str = None):
-    """Helper function to send a consistent response structure."""
-    response_payload = {"original_cmd_id": cmd_id}
-    if error:
-        response_payload["error"] = error
-    if data:
-        response_payload.update(data) # Merge additional data
-    
-    response = ResultBase(code=code, data=response_payload)
-    if not websocket.closed:
-        await websocket.send(json.dumps(response.get_json()))
-    else:
-        print(f"WebSocket connection closed for cmd_id {cmd_id}, cannot send response.")
-
 async def handle_delete_track(websocket, cmd_id: str, payload: dict):
     print(f"Handling delete_track command with cmd_id: {cmd_id}, payload: {payload}")
     music_id = payload.get("music_id")
@@ -381,12 +356,17 @@ async def handle_upload_track(websocket, cmd_id: str, payload: dict):
     cover_final_relative_path = payload.get("cover_filename") 
     audio_final_relative_path = payload.get("audio_filename")
 
-    required_metadata_fields = ["title", "author"]
+    # Fix: define required_fields
+    required_fields = ["title", "author"]
     for field in required_fields:
         if field not in track_data:
             await send_response(websocket, cmd_id, code=1, error=f"Missing required field in track_data: {field}.")
             return
-    
+
+    # Fix: define cover_temp_path and audio_temp_path (for conceptual validation, just use the final paths)
+    cover_temp_path = cover_final_relative_path
+    audio_temp_path = audio_final_relative_path
+
     # Validate required file paths (conceptually)
     if not cover_temp_path or not isinstance(cover_temp_path, str):
         await send_response(websocket, cmd_id, code=1, error="Missing or invalid cover_filename.")
@@ -453,8 +433,38 @@ async def handle_upload_track(websocket, cmd_id: str, payload: dict):
         
         await send_response(websocket, cmd_id, code=1, error=f"Failed to upload track: {str(e)}")
 
+async def handle_get_available_sources(websocket, cmd_id: str, payload: dict):
+    """Returns a list of available music sources."""
+    print(f"Handling get_available_sources command with cmd_id: {cmd_id}")
+    await send_response(websocket, cmd_id, code=0, data={"sources": DOWNLOADER_MODULES.keys()})
 
-async def handler(websocket, path): # path is not used yet, but part of websockets.serve signature
+COMMAND_HANDLERS = {
+    "search": handle_search,
+    "download_track": handle_download_track,
+    "get_downloaded_music": handle_get_downloaded_music,
+    "search_downloaded_music": handle_search_downloaded_music,
+    "delete_track": handle_delete_track,
+    "update_track_info": handle_update_track_info,
+    "upload_track": handle_upload_track,
+    "get_available_sources":  handle_get_available_sources,
+}
+
+async def send_response(websocket, cmd_id: str, code: int, data: dict = None, error: str = None):
+    """Helper function to send a consistent response structure."""
+    response_payload = {"original_cmd_id": cmd_id}
+    if error:
+        response_payload["error"] = error
+    if data:
+        response_payload.update(data) # Merge additional data
+    
+    response = ResultBase(code=code, data=response_payload)
+    try:
+        await websocket.send(json.dumps(response.get_json()))
+    except Exception as e:  # Catch any send errors
+        print(f"Failed to send response for cmd_id {cmd_id}: {e}")
+
+
+async def handler(websocket, path = None): # path is not used yet, but part of websockets.serve signature
     print(f"Client connected from {websocket.remote_address}")
     CONNECTED_CLIENTS.add(websocket)
     try:

@@ -113,8 +113,7 @@ class NavigationManager {
         this.updateActiveDrawerLink(pageId, subPageId);
 
         this.mainContent.style.opacity = "0";
-        const thiz = this
-        console.log(thiz);
+        const thiz = this;
         requestAnimationFrame((() => {
             thiz.mainContent.style.transition = "opacity 0.3s ease-in-out";
             thiz.mainContent.style.opacity = "1";
@@ -190,7 +189,10 @@ class NavigationManager {
             // Buttons are now handled by the main event listener in script.js for play/add to collection
 
             let detailImageUrl = "placeholder_album_art.png";
-            if (track.preview_cover && typeof track.preview_cover === "string" && track.preview_cover.trim() !== "") {
+            if (track.cover_path && typeof track.cover_path === "string" && track.cover_path.trim() !== "") {
+                detailImageUrl = '.' + track.cover_path;
+            }
+            else if (track.preview_cover && typeof track.preview_cover === "string" && track.preview_cover.trim() !== "") {
                 detailImageUrl = track.preview_cover;
             } else if (track.cover_url && typeof track.cover_url === "string" && track.cover_url.trim() !== "") {
                 detailImageUrl = track.cover_url;

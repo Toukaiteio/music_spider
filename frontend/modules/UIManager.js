@@ -95,10 +95,10 @@ class UIManager {
                 `;
 
         listItem.innerHTML = `
-                    <img src="${
+                    <img referrerpolicy="no-referrer" src="${
                       task.cover_path
                         ? "." + task.cover_path
-                        : task.artwork_url || "placeholder_album_art_2.png"
+                        : (task.artwork_url || task.cover_url || "placeholder_album_art_2.png")
                     }" alt="Cover for ${task.title}" class="task-item-cover">
                     <div class="task-item-info">
                         <h4 class="task-item-title" title="${task.title}">${

@@ -137,6 +137,7 @@ body {
 /* Song Detail Page Styles */
 #song-detail-page {
     display: flex;
+    height: 100%;
     padding: 20px;
     gap: 20px;
 }
