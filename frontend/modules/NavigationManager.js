@@ -1,5 +1,7 @@
 // frontend/modules/NavigationManager.js
 import SongCardRenderer from './SongCardRenderer.js';
+import { initLyricsEditorControls, setMainPlayerManager, lyricsEditorAudio, loadAudioSource } from './LyricsEditor.js';
+// PlayerManager is already available as this.playerManager.
 
 class NavigationManager {
     constructor({
@@ -559,6 +561,57 @@ class NavigationManager {
         this.currentSubPageId = subPageId;
         this.currentPath = path;
         this.currentTitle = title;
+
+        // Initialize lyrics editor controls if the page includes the lyrics tool
+        if (pageId === "update-track" || pageId === "upload-track") {
+            const lyricsEditorContainer = this.mainContent.querySelector(".lyrics-tool-container");
+            if (lyricsEditorContainer) {
+                initLyricsEditorControls(lyricsEditorContainer);
+                // Setup mutual exclusivity
+                if (this.playerManager && typeof this.playerManager.setLyricsEditorAudio === 'function') {
+                    this.playerManager.setLyricsEditorAudio(lyricsEditorAudio);
+                } else {
+                    console.warn("PlayerManager instance or setLyricsEditorAudio method not available.");
+                }
+                setMainPlayerManager(this.playerManager); 
+
+                // Load audio source for Lyrics Editor based on page context
+                if (pageId === "update-track") {
+                    if (this.appState.currentSongDetail && this.appState.currentSongDetail.music_id) {
+                        const audioUrl = `/audio_stream/${this.appState.currentSongDetail.music_id}`;
+                        loadAudioSource(audioUrl);
+                    } else {
+                        console.warn("No currentSongDetail or music_id found for update-track page, cannot load audio for lyrics editor.");
+                        loadAudioSource(null); // Clear any previous audio
+                    }
+                } else if (pageId === "upload-track") {
+                    if (this.appState.droppedFile && this.appState.droppedFile.type.startsWith('audio/')) {
+                        const blobUrl = URL.createObjectURL(this.appState.droppedFile);
+                        loadAudioSource(blobUrl);
+                    } else {
+                        console.warn("No dropped audio file found for upload-track page, cannot load audio for lyrics editor.");
+                        loadAudioSource(null); // Clear any previous audio
+                    }
+                }
+
+            } else {
+                console.warn("Lyrics editor container not found on page:", pageId);
+                loadAudioSource(null); // Clear audio if editor not present
+            }
+        } else {
+            // If not on an editor page, ensure any existing blob URLs are revoked
+            // and audio source is cleared if it was for the editor.
+            // This is primarily for blob URLs from 'upload-track'.
+            // The current logic in LyricsEditor.loadAudioSource(null) handles this.
+            // We can explicitly call it if lyricsEditorAudio might persist across navigations
+            // without going through a new loadAudioSource call.
+            // However, loadAudioSource(null) is called when navigating away from editor pages
+            // if those pages are the only ones loading audio.
+            // For now, let's ensure editor audio is cleared if not on relevant pages:
+            if (this.currentPageId === "update-track" || this.currentPageId === "upload-track") {
+                 loadAudioSource(null); // Clear audio when navigating away from editor pages
+            }
+        }
     }
 
     navigateBack() {

@@ -5,6 +5,7 @@
 
 // 假设有鼓点检测和高潮检测算法
 // 可用如 music-beat-detector、music-tempo、ml5.js pitch detection等库，或简单实现
+import { pauseEditorAndResetButton } from './LyricsEditor.js'; // Import the function
 
 class PlayerManager {
   constructor({
@@ -30,6 +31,7 @@ class PlayerManager {
     this.climaxDetected = false;
     this.theme = this.getTheme();
     this.isAnimating = false;
+    this.lyricsEditorAudioRef = null; // Reference to LyricsEditor audio
     this.init();
   }
 
@@ -311,16 +313,26 @@ class PlayerManager {
     return this.playlist.findIndex((track) => track.music_id === id);
   }
   playTrackById(id) {
-    const track = this.findTrackById(id);
-    if (track !== -1) {
-      this.loadTrack(track);
+    const trackIndex = this.findTrackById(id); // Renamed to avoid conflict
+    if (trackIndex !== -1) {
+      this.loadTrack(trackIndex);
       this.play();
     }
-    return track;
+    return trackIndex;
   }
+
+  setLyricsEditorAudio(audioElement) {
+    this.lyricsEditorAudioRef = audioElement;
+  }
+
   play() {
-    this.audioCtx.resume();
-    this.audio.play();
+    // Pause LyricsEditor audio if it's playing
+    if (this.lyricsEditorAudioRef && !this.lyricsEditorAudioRef.paused) {
+        pauseEditorAndResetButton(); // This function is imported from LyricsEditor.js
+    }
+
+    this.audioCtx.resume(); // Ensure AudioContext is resumed
+    this.audio.play().catch(e => console.error("Error playing main audio:", e));
     this.isPlaying = true;
     this.startVisualizer();
   }
@@ -329,6 +341,11 @@ class PlayerManager {
     this.audio.pause();
     this.isPlaying = false;
     this.stopVisualizer();
+  }
+  
+  // Allow external modules (like LyricsEditor) to pause the main player.
+  pauseTrack() {
+    this.pause();
   }
 
   togglePlay() {
