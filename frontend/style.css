@@ -134,6 +134,199 @@ body {
     color: var(--text-color-secondary);
 }
 
+/* Lyrics Tool Styles */
+.lyrics-tool-container {
+    margin-top: 20px;
+    padding: 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    background-color: var(--secondary-bg-color); 
+}
+.lyrics-tool-container h4 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: var(--text-color-primary);
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 10px;
+}
+#lyrics-waveform-placeholder, #lyrics-playback-controls-placeholder {
+    height: 80px;
+    background-color: var(--primary-bg-color);
+    border: 1px dashed var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 10px;
+    color: var(--text-color-secondary);
+    border-radius: 4px;
+}
+#lyrics-playback-controls-placeholder button {
+    padding: 8px 12px; /* Consistent with other small buttons */
+    margin: 0 5px;
+    background-color: var(--secondary-bg-color); /* Match theme */
+    color: var(--text-color-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    cursor: pointer;
+}
+#lyrics-playback-controls-placeholder button:hover {
+    background-color: var(--primary-bg-color);
+}
+#lrc-input-area {
+    width: 100%;
+    min-height: 150px;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-family: monospace; /* Good for LRC */
+    font-size: 0.9em;
+    margin-bottom: 10px;
+    background-color: var(--primary-bg-color);
+    color: var(--text-color-primary);
+}
+#lrc-input-area:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(var(--accent-color-rgb), 0.2);
+}
+#lrc-preview-area {
+    width: 100%;
+    min-height: 150px;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--primary-bg-color);
+    overflow-y: auto;
+    color: var(--text-color-secondary); /* Preview text color */
+    white-space: pre-wrap; /* To respect newlines from LRC */
+    font-size: 0.9em;
+}
+.lyrics-tool-container label {
+    display: block;
+    margin-top: 10px;
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: var(--text-color-secondary);
+}
+
+/* Lyrics Preview Highlighting */
+#lrc-preview-area .lyric-line,
+#lrc-preview-area .lyric-word {
+    transition: background-color 0.1s ease-in-out, color 0.1s ease-in-out; /* Smooth transition for highlighting */
+    cursor: pointer; /* Indicate lines are clickable */
+}
+#lrc-preview-area .lyric-line:hover,
+#lrc-preview-area .lyric-word:hover {
+    background-color: var(--shadow-color); /* Subtle hover effect */
+}
+
+.highlighted-lyric {
+    background-color: var(--accent-color) !important; /* Use !important to override potential specificity issues if needed */
+    color: white !important; /* Ensure text is readable on accent background */
+    padding: 2px 4px; /* Add some padding to make highlight distinct */
+    border-radius: 3px; /* Slightly rounded corners for highlight */
+}
+.lyric-line.past-line {
+    opacity: 0.6; /* Make past lines less prominent */
+    color: var(--text-color-secondary);
+}
+.lyric-line.past-line .lyric-word { /* Also apply to words in past lines */
+    opacity: 0.6;
+    color: var(--text-color-secondary);
+}
+
+
+/* Drag Overlay Styles */
+#drag-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.7); /* Slightly darker for more emphasis */
+    color: white;
+    display: none; /* Initially hidden */
+    align-items: center;
+    justify-content: center;
+    font-size: 2em;
+    z-index: 9999; /* Very high z-index */
+    text-align: center;
+    padding: 20px;
+    border: 2px dashed white; /* Dashed border for drop zone indication */
+    box-sizing: border-box;
+}
+
+/* Upload Track Page Styles - similar to update-track */
+#upload-track-page { 
+    padding: 20px; 
+    max-width: 700px;
+    margin: 0 auto;
+}
+#upload-track-page h2 {
+    text-align: center;
+    margin-bottom: 25px;
+}
+#upload-track-form div {
+    margin-bottom: 15px;
+}
+#upload-track-form label { 
+    display: block; 
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: var(--text-color-secondary);
+}
+#upload-track-form input[type="text"],
+#upload-track-form input[type="file"],
+#upload-track-form textarea { 
+    width: 100%; 
+    padding: 10px;
+    border: 1px solid var(--border-color); 
+    border-radius: 5px;
+    background-color: var(--primary-bg-color);
+    color: var(--text-color-primary);
+    font-size: 1em;
+}
+#upload-track-form input[type="text"]:focus,
+#upload-track-form input[type="file"]:focus,
+#upload-track-form textarea:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(var(--accent-color-rgb), 0.2);
+}
+#upload-track-form button { 
+    margin-top: 20px; 
+    margin-right: 10px; 
+    padding: 10px 20px;
+}
+#upload-track-form button#cancel-upload-button {
+    background-color: var(--secondary-bg-color);
+    color: var(--text-color-primary);
+    border: 1px solid var(--border-color);
+}
+#upload-track-form button#cancel-upload-button:hover {
+    background-color: var(--primary-bg-color);
+}
+#upload-file-info {
+    padding: 10px;
+    background-color: var(--primary-bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    margin-bottom: 20px;
+    color: var(--text-color-secondary);
+}
+#upload-filename-placeholder {
+    font-style: italic;
+    color: var(--text-color-primary);
+}
+#upload-cover-preview {
+    max-width: 150px; /* Slightly larger preview */
+    max-height: 150px;
+    display: none; /* Hidden by default */
+    margin-top: 10px;
+    border-radius: 5px;
+    border: 1px solid var(--border-color);
+}
+
 /* Song Detail Page Styles */
 #song-detail-page {
     display: flex;
@@ -458,7 +651,7 @@ body {
     margin-top: auto; /* Push actions to the bottom if card height varies */
 }
 
-.remove-from-collection-button,.favorite-button,.search-result-download-button,.add-to-collection-button {
+.remove-from-collection-button,.favorite-button,.search-result-download-button,.add-to-collection-button, .delete-track-button {
     background: transparent;
     border: none;
     color: var(--icon-color);
@@ -468,23 +661,48 @@ body {
     width: 36px;
 }
 .remove-from-collection-button{
-    color:rgb(251, 119, 119)
+    color:rgb(251, 119, 119);
 }
-.detail-play-button,.detail-add-to-collection-button {
+.delete-track-button {
+    color: rgb(239, 83, 80); /* Material Design Red 500 for delete actions */
+}
+.detail-play-button,.detail-add-to-collection-button, .detail-update-button {
     background: transparent;
     border: none;
-    color: white;
+    color: white; /* Assuming white icon color is desired for all detail action buttons */
     padding: 6px;
     border-radius: 50%;
     height: 50px;
     width: 50px;
 }
-.remove-from-collection-button:hover,.favorite-button:hover,.detail-play-button:hover,.detail-add-to-collection-button:hover,.search-result-download-button:hover,.add-to-collection-button:hover {
+.remove-from-collection-button:hover,.favorite-button:hover,.detail-play-button:hover,.detail-add-to-collection-button:hover,.search-result-download-button:hover,.add-to-collection-button:hover, .delete-track-button:hover {
     background-color: var(--shadow-color);
+    /* The general color: var(--accent-color) is removed from here to allow specific hover colors. */
+}
+
+/* Specific hover colors for buttons */
+.favorite-button:hover, 
+.add-to-collection-button:hover,
+.search-result-download-button:hover,
+.detail-play-button:hover, /* Assuming detail buttons should also use accent color on hover */
+.detail-add-to-collection-button:hover {
     color: var(--accent-color);
 }
-.search-result-download-button,.add-to-collection-button .material-icons {
-    font-size: 22px;
+
+.remove-from-collection-button:hover {
+    color: rgb(229, 57, 53); /* Darker red for remove from collection hover */
+}
+
+.delete-track-button:hover {
+    color: rgb(211, 47, 47); /* Material Design Red 700 - darker for delete hover */
+}
+
+.search-result-download-button,.add-to-collection-button .material-icons, .delete-track-button .material-icons, .detail-update-button .material-icons {
+    font-size: 22px; /* Consistent icon sizing, can be overridden if .detail-update-button needs larger icon */
+}
+/* Ensure the icon color for detail-update-button is white, if not covered by the above general rule for detail buttons */
+.detail-update-button .material-icons {
+    color: white;
 }
 
 
@@ -1711,3 +1929,63 @@ button:hover {
 .color-band.beat {
     transform: scale(1.55);
 } */
+
+/* Update Track Page Styles */
+#update-track-page { 
+    padding: 20px; 
+    max-width: 700px; /* Limit width for better readability on wider screens */
+    margin: 0 auto; /* Center the form area */
+}
+#update-track-page h2 {
+    text-align: center;
+    margin-bottom: 25px;
+}
+#update-track-form div {
+    margin-bottom: 15px; /* Space between form fields/sections */
+}
+#update-track-form label { 
+    display: block; 
+    margin-bottom: 5px; /* Reduced margin-top from original request, using margin-bottom here */
+    font-weight: 500;
+    color: var(--text-color-secondary);
+}
+#update-track-form input[type="text"], 
+#update-track-form textarea { 
+    width: 100%; 
+    padding: 10px; /* Increased padding for better touch/click targets */
+    margin-top: 0; /* Removed margin-top as label has margin-bottom */
+    border: 1px solid var(--border-color); 
+    border-radius: 5px; /* Slightly more rounded corners */
+    background-color: var(--primary-bg-color); /* Consistent with other inputs */
+    color: var(--text-color-primary);
+    font-size: 1em;
+}
+#update-track-form input[type="text"]:focus, 
+#update-track-form textarea:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(var(--accent-color-rgb), 0.2);
+}
+#update-track-form button { 
+    margin-top: 20px; 
+    margin-right: 10px; 
+    padding: 10px 20px; /* More substantial buttons */
+}
+#update-track-form button#cancel-track-update-button {
+    background-color: var(--secondary-bg-color); /* Different bg for cancel */
+    color: var(--text-color-primary);
+    border: 1px solid var(--border-color);
+}
+#update-track-form button#cancel-track-update-button:hover {
+    background-color: var(--primary-bg-color);
+}
+#lyrics-tool-placeholder { 
+    margin-top: 25px; /* Increased margin */
+    margin-bottom: 25px; /* Added margin bottom */
+    padding: 20px; /* Increased padding */
+    background-color: var(--primary-bg-color); 
+    border: 1px dashed var(--border-color); 
+    text-align: center; 
+    border-radius: 5px; /* Added border-radius */
+    color: var(--text-color-secondary);
+}

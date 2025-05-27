@@ -36,6 +36,9 @@ class SongCardRenderer {
                 <button class="add-to-collection-button icon-button" aria-label="Add to Playlist" data-song-id="${musicId}" data-track-info='${trackInfoJson}'>
                     <span class="material-icons">playlist_add</span>
                 </button>
+                <button class="delete-track-button icon-button" aria-label="Delete Track" data-song-id="${musicId}">
+                    <span class="material-icons">delete</span>
+                </button>
             `;
         } else if (context === 'search-result') {
             if (options.isDownloaded) {
@@ -81,9 +84,11 @@ class SongCardRenderer {
             <div class="song-card" data-song-id="${musicId}" data-track-info='${trackInfoJson}' data-source="${track.source || 'unknown'}">
                 <div class="card-art-container">
                     <img referrerpolicy="no-referrer" src="${imageUrl}" alt="Album Art for ${title}" class="song-card-art">
+                    ${context !== 'search-result' ? `
                     <button class="play-on-card-button icon-button" aria-label="Play Song" data-track-info='${trackInfoJson}'>
                         <span class="material-icons">play_arrow</span>
                     </button>
+                    ` : ''}
                 </div>
                 <div class="song-card-info">
                     <h3 class="song-card-title">${title}</h3>
