@@ -30,6 +30,13 @@ class SongCardRenderer {
         const trackInfoJson = JSON.stringify(track).replace(/'/g, "&apos;");
 
         let actionButtonsHtml = "";
+        // Favorite button - always added, icon depends on options.isFavorite
+        const favoriteIcon = options.isFavorite ? 'favorite' : 'favorite_border';
+        const favoriteButtonHtml = `
+            <button class="favorite-button icon-button" data-song-id="${musicId}" aria-label="Favorite">
+                <span class="material-icons">${favoriteIcon}</span>
+            </button>
+        `;
 
         if (context === 'library') {
             actionButtonsHtml = `
@@ -39,7 +46,7 @@ class SongCardRenderer {
                 <button class="delete-track-button icon-button" aria-label="Delete Track" data-song-id="${musicId}">
                     <span class="material-icons">delete</span>
                 </button>
-            `;
+            ` + favoriteButtonHtml;
         } else if (context === 'search-result') {
             if (options.isDownloaded) {
                  actionButtonsHtml = `
@@ -62,23 +69,17 @@ class SongCardRenderer {
                 <button class="add-to-collection-button icon-button" aria-label="Add to Playlist" data-song-id="${musicId}" data-track-info='${trackInfoJson}'>
                     <span class="material-icons">playlist_add</span>
                 </button>
-            `;
+            ` + favoriteButtonHtml;
         } else if (context === 'favorites-view') { // Favorites view specific buttons (if different from collection)
              actionButtonsHtml = `
                 <button class="add-to-collection-button icon-button" aria-label="Add to Playlist" data-song-id="${musicId}" data-track-info='${trackInfoJson}'>
                     <span class="material-icons">playlist_add</span>
                 </button>
-            `;
+            ` + favoriteButtonHtml;
         }
 
 
-        // Favorite button - always added, icon depends on options.isFavorite
-        const favoriteIcon = options.isFavorite ? 'favorite' : 'favorite_border';
-        const favoriteButtonHtml = `
-            <button class="favorite-button icon-button" data-song-id="${musicId}" aria-label="Favorite">
-                <span class="material-icons">${favoriteIcon}</span>
-            </button>
-        `;
+
 
         return `
             <div class="song-card" data-song-id="${musicId}" data-track-info='${trackInfoJson}' data-source="${track.source || 'unknown'}">
@@ -96,7 +97,6 @@ class SongCardRenderer {
                     <p class="song-card-artist">${artist}</p>
                 </div>
                 <div class="song-card-actions">
-                    ${favoriteButtonHtml}
                     ${actionButtonsHtml} 
                 </div>
             </div>

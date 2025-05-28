@@ -187,36 +187,55 @@ document.addEventListener("DOMContentLoaded", () => {
                 <form id="update-track-form">
                     <div class="track-details-form-column">
                         <input type="hidden" id="update-music-id" name="music_id">
-                        <div>
-                            <label for="update-title">Title:</label>
-                            <input type="text" id="update-title" name="title" required>
+                        <div class="form-section">
+                            <h3>Track Metadata</h3>
+                            <div>
+                                <label for="update-title">Title:</label>
+                                <input type="text" id="update-title" name="title" required>
+                            </div>
+                            <div>
+                                <label for="update-artist">Artist:</label>
+                                <input type="text" id="update-artist" name="artist" required>
+                            </div>
+                            <div>
+                                <label for="update-album">Album:</label>
+                                <input type="text" id="update-album" name="album">
+                            </div>
                         </div>
-                        <div>
-                            <label for="update-artist">Artist:</label>
-                            <input type="text" id="update-artist" name="artist" required>
+                        <div class="form-section">
+                            <h3>Categorization & Details</h3>
+                            <div>
+                                <label for="update-genre">Genre:</label>
+                                <input type="text" id="update-genre" name="genre">
+                            </div>
+                            <div>
+                                <label for="update-year">Year:</label>
+                                <input type="text" id="update-year" name="year">
+                            </div>
                         </div>
-                        <div>
-                            <label for="update-album">Album:</label>
-                            <input type="text" id="update-album" name="album">
+                        <div class="form-section">
+                            <h3>Cover Art</h3>
+                            <div class="cover-upload-area">
+                                <input type="file" id="update-cover-file-input" name="cover_file" accept="image/*" style="display: none;">
+                                <button type="button" id="update-cover-upload-button" class="cover-upload-button">
+                                    <span class="material-icons initial-icon">add_photo_alternate</span>
+                                    <img src="#" alt="Cover Preview" class="cover-preview-image" style="display: none;">
+                                </button>
+                                <p class="cover-upload-hint">Click to upload new cover image. Current cover path:</p>
+                                <input type="text" id="update-cover-path" name="cover_path" placeholder="Existing cover path or new URL" style="margin-top: 5px; font-size: 0.8em;">
+                            </div>
                         </div>
-                        <div>
-                            <label for="update-genre">Genre:</label>
-                            <input type="text" id="update-genre" name="genre">
-                        </div>
-                        <div>
-                            <label for="update-year">Year:</label>
-                            <input type="text" id="update-year" name="year">
-                        </div>
-                        <div>
-                            <label for="update-cover-path">Cover Path:</label>
-                            <input type="text" id="update-cover-path" name="cover_path">
-                        </div>
-                        <div>
-                            <label for="update-description">Description:</label>
-                            <textarea id="update-description" name="description" rows="3"></textarea>
+                        <div class="form-section">
+                            <h3>Description</h3>
+                            <div>
+                                <label for="update-description">Track Description:</label>
+                                <textarea id="update-description" name="description" rows="4"></textarea>
+                            </div>
                         </div>
                     </div>
-                    ${lyricsToolHtml} 
+                    <div class="lyrics-tool-container-wrapper"> <!-- Wrapper for consistent styling if needed -->
+                        ${lyricsToolHtml} 
+                    </div>
                     <div class="form-actions">
                         <button type="submit" id="save-track-update-button" class="dialog-button primary">Save Changes</button>
                         <button type="button" id="cancel-track-update-button" class="dialog-button secondary">Cancel</button>
@@ -233,37 +252,52 @@ document.addEventListener("DOMContentLoaded", () => {
                 <form id="upload-track-form">
                     <div class="track-details-form-column">
                         <input type="hidden" id="upload-original-filepath" name="original_filepath">
-                        <div>
-                            <label for="upload-title">Title:</label>
-                            <input type="text" id="upload-title" name="title" required>
+                        <div class="form-section">
+                            <h3>Track Metadata</h3>
+                            <div>
+                                <label for="upload-title">Title:</label>
+                                <input type="text" id="upload-title" name="title" required>
+                            </div>
+                            <div>
+                                <label for="upload-artist">Artist:</label>
+                                <input type="text" id="upload-artist" name="artist" required>
+                            </div>
+                            <div>
+                                <label for="upload-album">Album:</label>
+                                <input type="text" id="upload-album" name="album">
+                            </div>
                         </div>
-                        <div>
-                            <label for="upload-artist">Artist:</label>
-                            <input type="text" id="upload-artist" name="artist" required>
+                        <div class="form-section">
+                            <h3>Categorization & Cover Art</h3>
+                            <div>
+                                <label for="upload-genre">Genre:</label>
+                                <input type="text" id="upload-genre" name="genre">
+                            </div>
+                            <div>
+                                <label for="upload-year">Year:</label>
+                                <input type="text" id="upload-year" name="year">
+                            </div>
+                            <div class="cover-upload-area">
+                                <label for="upload-cover-file-input">Cover Image (Optional):</label>
+                                <input type="file" id="upload-cover-file-input" name="cover_file" accept="image/*" style="display: none;">
+                                <button type="button" id="upload-cover-upload-button" class="cover-upload-button">
+                                    <span class="material-icons initial-icon">add_photo_alternate</span>
+                                    <img src="#" alt="Cover Preview" class="cover-preview-image" style="display: none;">
+                                </button>
+                                <p class="cover-upload-hint">Click to upload or drag & drop cover image</p>
+                            </div>
                         </div>
-                        <div>
-                            <label for="upload-album">Album:</label>
-                            <input type="text" id="upload-album" name="album">
-                        </div>
-                        <div>
-                            <label for="upload-genre">Genre:</label>
-                            <input type="text" id="upload-genre" name="genre">
-                        </div>
-                        <div>
-                            <label for="upload-year">Year:</label>
-                            <input type="text" id="upload-year" name="year">
-                        </div>
-                        <div>
-                            <label for="upload-cover-file">Cover Image (Optional):</label>
-                            <input type="file" id="upload-cover-file" name="cover_file" accept="image/*">
-                            <img id="upload-cover-preview" src="#" alt="Cover Preview" style="max-width: 100px; max-height: 100px; display: none; margin-top: 10px;">
-                        </div>
-                        <div>
-                            <label for="upload-description">Description:</label>
-                            <textarea id="upload-description" name="description" rows="3"></textarea>
+                        <div class="form-section">
+                            <h3>Description</h3>
+                            <div>
+                                <label for="upload-description">Track Description:</label>
+                                <textarea id="upload-description" name="description" rows="4"></textarea>
+                            </div>
                         </div>
                     </div>
-                    ${lyricsToolHtml}
+                    <div class="lyrics-tool-container-wrapper"> <!-- Wrapper for consistent styling -->
+                        ${lyricsToolHtml}
+                    </div>
                     <div class="form-actions">
                         <button type="submit" id="submit-upload-button" class="dialog-button primary">Upload Track</button>
                         <button type="button" id="cancel-upload-button" class="dialog-button secondary">Cancel</button>
@@ -364,31 +398,48 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   mainContent.addEventListener('change', function(event) {
-    if (event.target.id === 'upload-cover-file') {
+    if (event.target.id === 'upload-cover-file-input' || event.target.id === 'update-cover-file-input') {
         const file = event.target.files[0];
+        const isUpdatePage = event.target.id === 'update-cover-file-input';
+        const previewButton = isUpdatePage 
+            ? document.getElementById('update-cover-upload-button') 
+            : document.getElementById('upload-cover-upload-button');
+
         if (file && file.type.startsWith('image/')) {
             const reader = new FileReader();
             reader.onload = function(e) {
-                const preview = document.getElementById('upload-cover-preview');
-                if (preview) {
-                    preview.src = e.target.result;
-                    preview.style.display = 'block';
+                if (previewButton) {
+                    const imgElement = previewButton.querySelector('.cover-preview-image');
+                    const iconElement = previewButton.querySelector('.initial-icon');
+                    if (imgElement) {
+                        imgElement.src = e.target.result;
+                        imgElement.style.display = 'block';
+                    }
+                    if (iconElement) {
+                        iconElement.style.display = 'none';
+                    }
                 }
-                window.appState.selectedCoverBase64 = e.target.result; 
+                window.appState.selectedCoverBase64 = e.target.result;
             };
             reader.readAsDataURL(file);
         } else if (file) {
             UIManager.showToast("Please select an image file for the cover.", "error");
             window.appState.selectedCoverBase64 = null;
-            const preview = document.getElementById('upload-cover-preview');
-            if (preview) {
-                 preview.src = "#";
-                 preview.style.display = 'none';
+            if (previewButton) {
+                const imgElement = previewButton.querySelector('.cover-preview-image');
+                const iconElement = previewButton.querySelector('.initial-icon');
+                if (imgElement) {
+                    imgElement.src = "#";
+                    imgElement.style.display = 'none';
+                }
+                if (iconElement) {
+                    iconElement.style.display = 'block'; // Show icon again
+                }
             }
-            event.target.value = ''; 
+            event.target.value = '';
         }
     }
-  });
+});
 
   mainContent.addEventListener('input', function(event) {
     if (event.target.id === 'lrc-input-area') {
@@ -440,7 +491,7 @@ document.addEventListener("DOMContentLoaded", () => {
       !event.target.closest(".add-to-collection-button")
     ) {
       const songCard = artContainer.closest(".song-card");
-      if (songCard) {
+      if (songCard && navigationManager.getCurrentPageId() !== "search-results") {
         const trackInfoString =
           songCard.querySelector(".play-on-card-button")?.dataset.trackInfo ||
           songCard.querySelector(".add-to-collection-button")?.dataset
@@ -795,7 +846,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const playerCoverArea = document.getElementById("player-cover-area");
   if (playerCoverArea) {
     playerCoverArea.addEventListener("click", () => {
-      const currentTrack = playerManager.getCurrentTrack?.();
+      const currentTrack = playerManager.currentLoadedTrack;
       window.appState.currentSongDetail = currentTrack;
       const musicId = currentTrack?.bvid  || currentTrack?.music_id || currentTrack?.id;
       if (musicId) {

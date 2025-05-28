@@ -103,6 +103,10 @@ class NavigationManager {
             }
         });
     }
+    
+    getCurrentPageId() {
+        return this.currentPageId;
+    }
 
     navigateTo(pageId, title, path, skipPushState = false, subPageId = null) {
         if (!this.mainContent) {
@@ -318,7 +322,34 @@ class NavigationManager {
             const songCardGrid = this.mainContent.querySelector("#song-card-grid");
             const noMusicMessage = this.mainContent.querySelector("#collections-no-music-message");
             const collectionNameElement = this.mainContent.querySelector("#collection-name");
+            if (!this.appState.library || this.appState.library.length === 0) {
+                // Library is empty, fetch from server
+                if (collectionsLoadingMessage) collectionsLoadingMessage.style.display = "block";
+                if (!window.__isForbidNavigationInCollections__) {
 
+                this.webSocketManager.sendWebSocketCommand("get_downloaded_music", {})
+                    .then((response) => {
+                        window.__isForbidNavigationInCollections = true;
+                        const libraryData = response.data && response.data.library ? response.data.library : [];
+                        this.appState.library = libraryData;
+                        // After fetching, re-trigger navigation to refresh the view with the new library data
+                        this.navigateTo(pageId, title, path, true, subPageId);
+                    })
+                    .catch((error) => {
+                        console.error("Failed to load library for collections:", error);
+                        if (collectionsLoadingMessage) {
+                            collectionsLoadingMessage.innerHTML = '<p style="color: red;">Failed to load your library. Please try again later.</p>';
+                            collectionsLoadingMessage.style.display = "block";
+                        }
+                        if (songCardGrid) songCardGrid.style.display = "none";
+                        if (noMusicMessage) noMusicMessage.style.display = "none";
+                    });
+                return; // Prevent further execution until library is loaded
+                } else {
+                    window.__isForbidNavigationInCollections__ = false; // Reset the flag for future navigation
+                }
+
+            }
 
             if (collectionsLoadingMessage) collectionsLoadingMessage.style.display = "block";
             if (songCardGrid) songCardGrid.style.display = "none";
@@ -460,24 +491,44 @@ class NavigationManager {
                     form.querySelector("#upload-genre").value = this.appState.parsedMetadata.genre || '';
                     form.querySelector("#upload-year").value = this.appState.parsedMetadata.year || '';
                     // Description is not typically in basic ID3 tags, leave for manual input or future enhancement
-                    // Cover preview handling:
-                    const coverPreview = form.querySelector("#upload-cover-preview");
-                    if (this.appState.parsedMetadata.picture && coverPreview) {
-                        const picture = this.appState.parsedMetadata.picture;
-                        let base64String = "";
-                        for (let i = 0; i < picture.data.length; i++) {
-                            base64String += String.fromCharCode(picture.data[i]);
+                    
+                    // Setup for new cover upload button
+                    const uploadCoverButton = this.mainContent.querySelector("#upload-cover-upload-button");
+                    const uploadCoverFileInput = this.mainContent.querySelector("#upload-cover-file-input"); 
+
+                    if (uploadCoverButton && uploadCoverFileInput) {
+                        uploadCoverButton.addEventListener('click', () => uploadCoverFileInput.click());
+                        
+                        const imgElement = uploadCoverButton.querySelector('.cover-preview-image');
+                        const iconElement = uploadCoverButton.querySelector('.initial-icon');
+
+                        // Auto-load metadata picture into the new button preview
+                        if (this.appState.parsedMetadata && this.appState.parsedMetadata.picture && imgElement && iconElement) {
+                            const picture = this.appState.parsedMetadata.picture;
+                            let base64String = "";
+                            // Convert Uint8Array to string correctly
+                            const uint8Array = new Uint8Array(picture.data);
+                            for (let i = 0; i < uint8Array.length; i++) {
+                                base64String += String.fromCharCode(uint8Array[i]);
+                            }
+                            const imgSrc = `data:${picture.format};base64,${window.btoa(base64String)}`;
+                            
+                            imgElement.src = imgSrc;
+                            imgElement.style.display = 'block';
+                            iconElement.style.display = 'none';
+                            this.appState.selectedCoverBase64 = imgSrc; // Store the auto-loaded cover
+                        } else {
+                            // Ensure initial icon is visible if no metadata picture
+                            if (iconElement) iconElement.style.display = 'block';
+                            if (imgElement) {
+                                imgElement.style.display = 'none';
+                                imgElement.src = '#'; // Clear src
+                            }
                         }
-                        coverPreview.src = `data:${picture.format};base64,${window.btoa(base64String)}`;
-                        coverPreview.style.display = 'block';
-                    } else if (coverPreview) {
-                        coverPreview.style.display = 'none';
-                        coverPreview.src = '#';
+                         // Reset file input to ensure change event fires
+                        uploadCoverFileInput.value = "";
                     }
                 }
-                 // Reset file input for cover to ensure change event fires even if same file is re-selected after page load
-                const coverFileInput = form.querySelector("#upload-cover-file");
-                if(coverFileInput) coverFileInput.value = "";
 
                 // Handle lyrics for upload page (from jsmediatags if available)
                 const lrcInputAreaUpload = form.querySelector("#lrc-input-area");
@@ -495,54 +546,106 @@ class NavigationManager {
                     }
                 }
                 
-                // Note: We don't clear droppedFile or parsedMetadata here anymore, 
-                // as the user might navigate away and back before submitting.
-                // They are cleared after successful upload or explicit cancellation.
-            } else if (pageId === "upload-track") { // This block was duplicated, ensure it's the correct one for upload-track logic
-                this.appState.selectedCoverBase64 = null; 
-                const form = this.mainContent.querySelector("#upload-track-form");
-                const filenamePlaceholder = this.mainContent.querySelector("#upload-filename-placeholder");
-                const coverPreview = form.querySelector("#upload-cover-preview");
-
-                if (filenamePlaceholder && this.appState.droppedFile) {
-                    filenamePlaceholder.textContent = this.appState.droppedFile.name;
-                    const originalFilepathInput = form.querySelector("#upload-original-filepath");
-                    if (originalFilepathInput) {
-                        originalFilepathInput.value = this.appState.droppedFile.name; 
+                    // Setup for new cover upload button
+                    const uploadCoverButton = this.mainContent.querySelector("#upload-cover-upload-button");
+                    const uploadCoverFileInput = this.mainContent.querySelector("#upload-cover-file-input");
+                    if (uploadCoverButton && uploadCoverFileInput) {
+                        uploadCoverButton.addEventListener('click', () => uploadCoverFileInput.click());
                     }
-                } else if (filenamePlaceholder) {
-                     filenamePlaceholder.textContent = "No file selected/dropped.";
-                }
-
-                if (form && this.appState.parsedMetadata) {
-                    form.querySelector("#upload-title").value = this.appState.parsedMetadata.title || '';
-                    form.querySelector("#upload-artist").value = this.appState.parsedMetadata.artist || '';
-                    form.querySelector("#upload-album").value = this.appState.parsedMetadata.album || '';
-                    form.querySelector("#upload-genre").value = this.appState.parsedMetadata.genre || '';
-                    form.querySelector("#upload-year").value = this.appState.parsedMetadata.year || '';
-                    
-                    if (this.appState.parsedMetadata.picture && coverPreview) {
+                     // Auto-load metadata picture into the new button preview
+                    if (this.appState.parsedMetadata && this.appState.parsedMetadata.picture && uploadCoverButton) {
                         const picture = this.appState.parsedMetadata.picture;
                         let base64String = "";
                         for (let i = 0; i < picture.data.length; i++) {
                             base64String += String.fromCharCode(picture.data[i]);
                         }
-                        coverPreview.src = `data:${picture.format};base64,${window.btoa(base64String)}`;
-                        coverPreview.style.display = 'block';
-                        this.appState.selectedCoverBase64 = coverPreview.src; // Store the auto-loaded cover
-                    } else if (coverPreview) {
-                        coverPreview.style.display = 'none';
-                        coverPreview.src = '#';
+                        const imgSrc = `data:${picture.format};base64,${window.btoa(base64String)}`;
+                        const imgElement = uploadCoverButton.querySelector('.cover-preview-image');
+                        const iconElement = uploadCoverButton.querySelector('.initial-icon');
+                        if (imgElement) {
+                            imgElement.src = imgSrc;
+                            imgElement.style.display = 'block';
+                        }
+                        if (iconElement) {
+                            iconElement.style.display = 'none';
+                        }
+                        this.appState.selectedCoverBase64 = imgSrc; // Store the auto-loaded cover
                     }
-                }
-                 // Reset file input for cover to ensure change event fires even if same file is re-selected after page load
-                const coverFileInput = form.querySelector("#upload-cover-file");
-                if(coverFileInput) coverFileInput.value = "";
+
 
                 // Note: We don't clear droppedFile or parsedMetadata here anymore, 
                 // as the user might navigate away and back before submitting.
                 // They are cleared after successful upload or explicit cancellation.
+            } else if (pageId === "update-track") { // Logic specific to update-track
+                const musicIdToUpdate = subPageId;
+                const form = this.mainContent.querySelector("#update-track-form");
+                if (!form) {
+                    console.error("Update track form not found on the page.");
+                    this.mainContent.innerHTML = "<p>Error: Update form failed to load.</p>";
+                    return;
+                }
+
+                let trackToUpdate = null;
+                if (this.appState.currentSongDetail && String(this.appState.currentSongDetail.music_id || this.appState.currentSongDetail.id) === String(musicIdToUpdate)) {
+                    trackToUpdate = this.appState.currentSongDetail;
+                } else if (this.appState.library) {
+                    trackToUpdate = this.appState.library.find(track => String(track.music_id || track.id) === String(musicIdToUpdate));
+                }
+
+                if (trackToUpdate) {
+                    form.querySelector("#update-music-id").value = trackToUpdate.music_id || trackToUpdate.id || '';
+                    form.querySelector("#update-title").value = trackToUpdate.title || '';
+                    form.querySelector("#update-artist").value = trackToUpdate.author || trackToUpdate.artist_name || '';
+                    form.querySelector("#update-album").value = trackToUpdate.album_name || trackToUpdate.album || '';
+                    form.querySelector("#update-genre").value = trackToUpdate.genre || '';
+                    form.querySelector("#update-year").value = trackToUpdate.year || trackToUpdate.release_year || '';
+                    form.querySelector("#update-cover-path").value = trackToUpdate.cover_path || ''; // Keep this for existing path display
+                    form.querySelector("#update-description").value = trackToUpdate.description || '';
+
+                    const lrcInputArea = form.querySelector("#lrc-input-area");
+                    const lrcPreviewArea = this.mainContent.querySelector("#lrc-preview-area");
+                    if (lrcInputArea && lrcPreviewArea) {
+                        lrcInputArea.value = trackToUpdate.lyrics || '';
+                        if (typeof window.parseLRC === 'function' && typeof window.renderLyricsPreview === 'function') {
+                            window.renderLyricsPreview(window.parseLRC(trackToUpdate.lyrics || ''), '#lrc-preview-area');
+                        }
+                    }
+
+                    // Setup for new cover upload button on update page
+                    const updateCoverButton = this.mainContent.querySelector("#update-cover-upload-button");
+                    const updateCoverFileInput = this.mainContent.querySelector("#update-cover-file-input");
+                    if (updateCoverButton && updateCoverFileInput) {
+                        updateCoverButton.addEventListener('click', () => updateCoverFileInput.click());
+
+                        // Display existing cover in the button
+                        const imgElement = updateCoverButton.querySelector('.cover-preview-image');
+                        const iconElement = updateCoverButton.querySelector('.initial-icon');
+                        const coverPathDisplay = form.querySelector("#update-cover-path");
+
+                        let existingCoverSrc = null;
+                        if (trackToUpdate.cover_path && trackToUpdate.cover_path.trim() !== "") {
+                            existingCoverSrc = '.' + trackToUpdate.cover_path; // Assuming relative path from server
+                        } else if (trackToUpdate.preview_cover) { // Fallback to preview_cover if available
+                            existingCoverSrc = trackToUpdate.preview_cover;
+                        }
+                        
+                        if (imgElement && iconElement && existingCoverSrc) {
+                            imgElement.src = existingCoverSrc;
+                            imgElement.style.display = 'block';
+                            iconElement.style.display = 'none';
+                        } else if (imgElement && iconElement) {
+                            imgElement.style.display = 'none';
+                            iconElement.style.display = 'block';
+                        }
+                        if(coverPathDisplay) coverPathDisplay.value = trackToUpdate.cover_path || ''; // Also ensure this input is populated
+                    }
+
+                } else {
+                    console.error(`Track with ID ${musicIdToUpdate} not found for update.`);
+                    this.mainContent.querySelector("#update-track-page").innerHTML = `<p style="color: red; text-align: center;">Error: Could not load track details for ID ${musicIdToUpdate}.</p>`;
+                }
             }
+
 
             // Focus logic, should be after all content is loaded and visible
             if (this.appState.focusElementAfterLoad) {
@@ -706,9 +809,9 @@ class NavigationManager {
 
         const currentPageId = this.getCurrentPageId();
         const currentSubPageId = this.getCurrentSubPageId();
-        const relevantPages = ['home', 'collections', 'collection-detail', 'search-results'];
+        const relevantPages = ['collections'];
 
-        if (relevantPages.includes(currentPageId)) {
+        if (relevantPages.includes(currentPageId) && !currentSubPageId) {
             console.log(`NavigationManager: Refreshing page ${currentPageId} due to favorite change.`);
             this.navigateTo(currentPageId, document.title.replace(' - Music Downloader', ''), location.hash, true, currentSubPageId);
         }

@@ -21,6 +21,7 @@ class PlayerManager {
     this.onColorChange = onColorChange;
     this.audio = audioElement || new Audio();
     this.currentIndex = 0;
+    this.currentLoadedTrack = {};
     this.mode = "list-loop"; // 'list-loop', 'single-loop', 'random'
     this.isPlaying = false;
     this.audioCtx = null;
@@ -301,6 +302,7 @@ class PlayerManager {
 
   loadTrack(index) {
     if (!this.playlist[index]) return;
+    this.currentLoadedTrack = this.playlist[index];
     this.currentIndex = index;
     this.audio.src = "." + this.playlist[index].audio_path;
     if (this.coverImgElement) {

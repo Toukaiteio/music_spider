@@ -318,127 +318,177 @@ async def handle_update_track_info(websocket, cmd_id: str, payload: dict):
             await send_response(websocket, cmd_id, code=1, error=f"Track {music_id} not found.")
             return
 
-        # Update metadata attributes
-        allowed_metadata_fields = ["title", "author", "album", "description", "genre", "tags", "lyrics"]
-        for field in allowed_metadata_fields:
-            if field in track_data_update:
-                setattr(music_item, field, track_data_update[field]) # Uses setters if available in MusicItem
-
-        # Conceptual file handling for cover:
-        # 'cover_filename' from payload is the new final relative path.
-        new_cover_final_relative_path = track_data_update.get("cover_filename")
-        if new_cover_final_relative_path and isinstance(new_cover_final_relative_path, str):
-            # For conceptual update, we directly set this path.
-            # No actual file move or deletion of old file in this handler.
-            music_item.set_cover(new_cover_final_relative_path)
-            print(f"Updated cover path for {music_id} to conceptual path: {new_cover_final_relative_path}")
-
-        # Conceptual file handling for audio:
-        # 'audio_filename' from payload is the new final relative path.
-        new_audio_final_relative_path = track_data_update.get("audio_filename")
-        if new_audio_final_relative_path and isinstance(new_audio_final_relative_path, str):
-            music_item.set_audio(new_audio_final_relative_path)
-            print(f"Updated audio path for {music_id} to conceptual path: {new_audio_final_relative_path}")
-            
-            # Update lossless status if 'lossless' is explicitly provided in the update.
-            if 'lossless' in track_data_update:
-                music_item.lossless = bool(track_data_update['lossless'])
+        # List of fields that can be directly updated from the payload
+        updatable_fields = ["title", "author", "album", "genre", "description", "lyrics"]
         
+        # Update only the fields that were provided in the payload
+        for field in updatable_fields:
+            if field in track_data_update:
+                setattr(music_item, field, track_data_update[field])
+
+        # Handle cover binary data if provided
+        if "cover_binary" in track_data_update and track_data_update["cover_binary"]:
+            try:
+                # Create the cover directory if it doesn't exist
+                cover_dir = os.path.join(music_item.work_path, "covers")
+                os.makedirs(cover_dir, exist_ok=True)
+                
+                # Generate a filename (you might want to use the original extension if available)
+                cover_filename = f"cover_{int(time.time())}.{track_data_update["cover_ext"] if track_data_update.get("cover_ext") else 'jpg'}"  # or .png based on your needs
+                cover_path = os.path.join(cover_dir, cover_filename)
+                
+                # Convert base64 to binary and save
+                if isinstance(track_data_update["cover_binary"], str):
+                    # Assuming it's base64 encoded
+                    import base64
+                    cover_data = base64.b64decode(track_data_update["cover_binary"].split(",")[-1])
+                    with open(cover_path, "wb") as f:
+                        f.write(cover_data)
+                    
+                    # Update the cover path in the MusicItem
+                    relative_path = os.path.join("covers", cover_filename)
+                    music_item.set_cover(relative_path)
+                    print(f"Updated cover image for track {music_id}")
+                
+            except Exception as e:
+                print(f"Error processing cover image for track {music_id}: {e}")
+                # Continue with other updates even if cover fails
+
         music_item.dump_self()
-        print(f"Track {music_id} updated successfully.")
-        await send_response(websocket, cmd_id, code=0, data={"message": "Track updated successfully.", "track_data": music_item.data.to_dict()})
+        print(f"Track {music_id} updated successfully with provided fields")
+        
+        await send_response(
+            websocket, 
+            cmd_id, 
+            code=0, 
+            data={
+                "message": "Track updated successfully.", 
+                "track_data": music_item.data.to_dict(),
+                "updated_fields": [k for k in track_data_update.keys() if k in updatable_fields or k == "cover_binary"]
+            }
+        )
 
     except Exception as e:
         print(f"Error updating track {music_id}: {e}")
-        # import traceback; traceback.print_exc() # For debugging
         await send_response(websocket, cmd_id, code=1, error=f"Failed to update track: {str(e)}")
-
 
 async def handle_upload_track(websocket, cmd_id: str, payload: dict):
     print(f"Handling upload_track command with cmd_id: {cmd_id}")
     track_data = payload.get("track_data", {})
-    # These are final relative paths, e.g., "downloads/new_id/cover.jpg"
-    # The server is assumed to have already placed the files here if they are provided.
-    cover_final_relative_path = payload.get("cover_filename") 
-    audio_final_relative_path = payload.get("audio_filename")
-
-    # Fix: define required_fields
-    required_fields = ["title", "author"]
+    
+    # Validate required fields
+    required_fields = ["title", "audio_binary"]
     for field in required_fields:
         if field not in track_data:
-            await send_response(websocket, cmd_id, code=1, error=f"Missing required field in track_data: {field}.")
+            await send_response(websocket, cmd_id, code=1, error=f"Missing required field: {field}")
             return
 
-    # Fix: define cover_temp_path and audio_temp_path (for conceptual validation, just use the final paths)
-    cover_temp_path = cover_final_relative_path
-    audio_temp_path = audio_final_relative_path
-
-    # Validate required file paths (conceptually)
-    if not cover_temp_path or not isinstance(cover_temp_path, str):
-        await send_response(websocket, cmd_id, code=1, error="Missing or invalid cover_filename.")
-        return
-    if not audio_temp_path or not isinstance(audio_temp_path, str):
-        await send_response(websocket, cmd_id, code=1, error="Missing or invalid audio_filename.")
-        return
-
-    # For this conceptual handler, we don't check os.path.exists for cover_final_relative_path
-    # or audio_final_relative_path because the files are *conceptually* already in their 
-    # final place by an external process if these paths are provided.
-    # We just trust the provided paths if they are not None/empty.
-    # Client/server is responsible for ensuring these files exist at these paths before calling.
-
-    new_music_id = str(uuid.uuid4())
-    
     try:
-        # MusicItem constructor creates the work_path directory
+        # Generate music_id with the specified format
+        now = time.localtime()
+        timestamp = time.strftime("%Y_%m_%d_%H_%M_%S", now)
+        
+        # Get audio file size (estimate from base64 if needed)
+        audio_size = 0
+        if isinstance(track_data["audio_binary"], str):  # Assuming base64
+            audio_size = len(track_data["audio_binary"]) * 3 // 4  # Approximate base64->binary size
+            
+        music_id = f"upload_{timestamp}_{audio_size}"
+        
+        # Create working directory
+        work_path = os.path.join("./downloads", music_id)
+        os.makedirs(work_path, exist_ok=True)
+        
+        # Process audio file
+        audio_path = os.path.join(work_path, "audio.mp3")  # Assuming MP3 format
+        if isinstance(track_data["audio_binary"], str):  # Base64 encoded
+            import base64
+            audio_data = base64.b64decode(track_data["audio_binary"].split(",")[-1])
+            with open(audio_path, "wb") as f:
+                f.write(audio_data)
+        else:
+            # Handle raw binary if needed
+            with open(audio_path, "wb") as f:
+                f.write(track_data["audio_binary"])
+        
+        # Process cover image if provided
+        cover_path = None
+        if "cover_binary" in track_data and track_data["cover_binary"]:
+            cover_dir = os.path.join(work_path, "covers")
+            os.makedirs(cover_dir, exist_ok=True)
+            
+            # Try to detect image type from binary data
+            cover_ext = "jpg"  # default
+            if isinstance(track_data["cover_binary"], str):
+                # For base64, look for header
+                if track_data["cover_binary"].startswith("data:image/png"):
+                    cover_ext = "png"
+                elif track_data["cover_binary"].startswith("data:image/jpeg"):
+                    cover_ext = "jpg"
+                
+                cover_data = base64.b64decode(track_data["cover_binary"].split(",")[-1])
+            else:
+                # For raw binary, try to detect from magic numbers
+                cover_data = track_data["cover_binary"]
+                if len(cover_data) > 3:
+                    if cover_data.startswith(b'\x89PNG'):
+                        cover_ext = "png"
+                    elif cover_data.startswith(b'\xff\xd8'):
+                        cover_ext = "jpg"
+            
+            cover_filename = f"cover.{cover_ext}"
+            cover_path = os.path.join(cover_dir, cover_filename)
+            with open(cover_path, "wb") as f:
+                f.write(cover_data)
+        
+        # Create MusicItem
         music_item = MusicItem(
-            music_id=new_music_id,
-            title=track_data.get("title"),
-            author=track_data.get("author"),
+            music_id=music_id,
+            title=track_data["title"],
+            author=track_data.get("author", ""),
             album=track_data.get("album", ""),
             description=track_data.get("description", ""),
             genre=track_data.get("genre", ""),
-            tags=track_data.get("tags", []),
+            tags=[],  # Can be populated from track_data if needed
             lyrics=track_data.get("lyrics", ""),
-            lossless=bool(track_data.get("lossless", False)),
-            # Duration would ideally come from the audio file itself after processing,
-            # but for this conceptual upload, we might take it from track_data if provided, or set to 0.
-            duration=int(track_data.get("duration", 0)), 
-            # cover and audio paths will be set below using the provided final relative paths
+            lossless=False,  # Can be determined from audio if needed
+            duration=0  # Should be calculated from audio file
         )
-
-        # Set cover and audio paths using the provided final relative paths
-        # These paths are relative to the project root, e.g., "downloads/new_music_id/cover.jpg"
-        if cover_final_relative_path and isinstance(cover_final_relative_path, str):
-            # Conceptual: We assume cover_final_relative_path IS the correct final path.
-            music_item.set_cover(cover_final_relative_path)
-            print(f"Set cover for {new_music_id} to conceptual path: {cover_final_relative_path}")
         
-        if audio_final_relative_path and isinstance(audio_final_relative_path, str):
-            music_item.set_audio(audio_final_relative_path)
-            print(f"Set audio for {new_music_id} to conceptual path: {audio_final_relative_path}")
-
-        music_item.dump_self() # Creates music.json in ./downloads/{new_music_id}/
-        print(f"Track {new_music_id} uploaded and metadata saved successfully.")
-        await send_response(websocket, cmd_id, code=0, data={
-            "message": "Track uploaded successfully.",
-            "music_id": new_music_id,
-            "track_data": music_item.data.to_dict()
-        })
-
+        # Set file paths
+        music_item.set_audio(os.path.join(music_id, "audio.mp3"))
+        if cover_path:
+            relative_cover_path = os.path.join(music_id, "covers", os.path.basename(cover_path))
+            music_item.set_cover(relative_cover_path)
+        
+        # Save metadata
+        music_item.dump_self()
+        
+        # TODO: Calculate actual duration from audio file
+        # TODO: Set lossless flag based on audio format
+        
+        # Return success response
+        await send_response(
+            websocket,
+            cmd_id,
+            code=0,
+            data={
+                "message": "Track uploaded successfully",
+                "music_id": music_id,
+                "track_data": music_item.data.to_dict()
+            }
+        )
+        
     except Exception as e:
         print(f"Error uploading track: {e}")
-        # import traceback; traceback.print_exc() # For debugging
-        # Attempt to clean up created directory if upload fails mid-way
-        if 'music_item' in locals() and os.path.exists(music_item.work_path):
+        # Clean up if directory was created
+        if 'work_path' in locals() and os.path.exists(work_path):
             try:
-                shutil.rmtree(music_item.work_path)
-                print(f"Cleaned up directory {music_item.work_path} after upload failure.")
-            except OSError as cleanup_e:
-                print(f"Error cleaning up directory {music_item.work_path}: {cleanup_e}")
+                shutil.rmtree(work_path)
+            except Exception as cleanup_error:
+                print(f"Error cleaning up failed upload: {cleanup_error}")
         
-        await send_response(websocket, cmd_id, code=1, error=f"Failed to upload track: {str(e)}")
-
+        await send_response(websocket, cmd_id, code=1, error=f"Upload failed: {str(e)}")
 async def handle_get_available_sources(websocket, cmd_id: str, payload: dict):
     """Returns a list of available music sources."""
     print(f"Handling get_available_sources command with cmd_id: {cmd_id}")
