@@ -205,6 +205,10 @@ body {
     border-color: var(--accent-color);
     box-shadow: 0 0 0 2px rgba(var(--accent-color-rgb), 0.2);
 }
+.lrc-input-error { /* Style for LRC textarea when there's a parsing error */
+    border: 1px solid var(--error-color, red) !important; /* Use CSS variable or fallback */
+    box-shadow: 0 0 0 2px rgba(255, 0, 0, 0.2) !important; /* Optional: add a red glow */
+}
 #lrc-preview-area {
     width: 100%;
     min-height: 150px;
@@ -230,6 +234,8 @@ body {
 #lrc-preview-area .lyric-word {
     transition: background-color 0.1s ease-in-out, color 0.1s ease-in-out; /* Smooth transition for highlighting */
     cursor: pointer; /* Indicate lines are clickable */
+    margin-top: 4px;
+    margin-bottom: 4px;
 }
 #lrc-preview-area .lyric-line:hover,
 #lrc-preview-area .lyric-word:hover {
@@ -742,6 +748,8 @@ body {
 }
 #search-source-button {
     aspect-ratio: 1 / 1;
+    height: 32px;
+    width: 32px;
 }
 .remove-from-collection-button,.favorite-button,.search-result-download-button,.add-to-collection-button, .delete-track-button {
     background: transparent;

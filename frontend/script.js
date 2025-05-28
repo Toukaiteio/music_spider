@@ -5,189 +5,24 @@ import NavigationManager from "./modules/NavigationManager.js";
 import CollectionManager from "./modules/CollectionManager.js";
 import SearchManager from "./modules/SearchManager.js";
 import FavoriteManager from "./modules/FavoriteManager.js"; 
+import { 
+    lyricsToolHtml, 
+    parseLRC, 
+    renderLyricsPreview, 
+
+    // initLyricsEditorControls // No longer needed here, NavigationManager handles it.
+    loadAudioSource // Potentially needed if we load audio from script.js context
+} from "./modules/LyricsEditor.js";
 
 const applyTheme = UIManager.applyTheme;
 const savedTheme = localStorage.getItem("theme") || "light-theme";
 applyTheme(savedTheme);
 
-// Define the HTML structure for the Lyrics Tool
-const lyricsToolHtml = `
-<div class="lyrics-tool-container">
-    <h4>Lyrics Editor (LRC Format)</h4>
-    <div id="lyrics-waveform-placeholder">Waveform Display Placeholder</div>
-    <div id="lyrics-playback-controls-placeholder">
-        <button id="lyrics-slow-down" class="icon-button" aria-label="Slow Down"><span class="material-icons">fast_rewind</span></button>
-        <button id="lyrics-simulate-play" class="icon-button" aria-label="Simulate Play"><span class="material-icons">play_arrow</span></button>
-        <button id="lyrics-reset-simulation" class="icon-button" aria-label="Reset Simulation"><span class="material-icons">replay</span></button>
-        <button id="lyrics-speed-up" class="icon-button" aria-label="Speed Up"><span class="material-icons">fast_forward</span></button>
-    </div>
-    <label for="lrc-input-area">LRC Content:</label>
-    <textarea id="lrc-input-area" placeholder="[mm:ss.xx]Lyric line 1\n[mm:ss.xx]<00:00.xx>Word <00:00.xx>by <00:00.xx>word..." rows="10"></textarea>
-    <label for="lrc-preview-area">Preview:</label>
-    <div id="lrc-preview-area">Lyrics preview will appear here.</div>
-</div>
-`;
-
-let mockPlaybackTimeoutIds = [];
-
-window.parseLRC = function(lrcString) {
-    const lines = lrcString.split('\n');
-    const parsedLyrics = [];
-    const timeTagRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/; 
-    const wordTimeTagRegex = /<(\d{2}):(\d{2})\.(\d{2,3})>/g; 
-
-    for (const line of lines) {
-        const match = line.match(timeTagRegex);
-        if (match) {
-            const minutes = parseInt(match[1], 10);
-            const seconds = parseInt(match[2], 10);
-            const milliseconds = parseInt(match[3].padEnd(3, '0'), 10);
-            const time = minutes * 60 + seconds + milliseconds / 1000;
-            
-            let textContent = line.substring(match[0].length).trim();
-            const words = [];
-            let plainTextOnlyForLine = textContent; // Store text without word tags for the line's main text
-
-            if (textContent.includes('<')) { 
-                plainTextOnlyForLine = '';
-                const parts = textContent.split(/(<[^>]+>)/); // Split by tags, keeping delimiters
-                let currentAbsTime = time; // Word timings are often relative to line start, but we'll make them absolute
-
-                for(let i=0; i < parts.length; i++) {
-                    const part = parts[i];
-                    if (part.match(wordTimeTagRegex)) {
-                        const wordMatch = part.match(/<(\d{2}):(\d{2})\.(\d{2,3})>/);
-                        if (wordMatch) {
-                            const wordMinutes = parseInt(wordMatch[1], 10);
-                            const wordSeconds = parseInt(wordMatch[2], 10);
-                            const wordMilliseconds = parseInt(wordMatch[3].padEnd(3, '0'), 10);
-                            // IMPORTANT: LRC spec often has word timestamps *relative to the line's main timestamp*.
-                            // For absolute timing needed by playback simulation, we add the line's time.
-                            // If your LRCs use absolute word timestamps, remove `+ time`.
-                            currentAbsTime = time + (wordMinutes * 60 + wordSeconds + wordMilliseconds / 1000);
-                        }
-                    } else if (part.trim()) {
-                        words.push({ time: currentAbsTime, text: part.trim() });
-                        plainTextOnlyForLine += part.trim() + " ";
-                    }
-                }
-                plainTextOnlyForLine = plainTextOnlyForLine.trim();
-            }
-
-            parsedLyrics.push({
-                time: time,
-                text: plainTextOnlyForLine, 
-                words: words.length > 0 ? words : null 
-            });
-        }
-    }
-    return parsedLyrics.sort((a, b) => a.time - b.time);
-};
-
-window.renderLyricsPreview = function(parsedLyrics, targetElementSelector) {
-    const previewArea = document.querySelector(targetElementSelector);
-    if (!previewArea) return;
-    previewArea.innerHTML = ''; 
-
-    if (!parsedLyrics || parsedLyrics.length === 0) {
-        previewArea.textContent = 'No lyrics to display or invalid LRC format.';
-        return;
-    }
-
-    parsedLyrics.forEach(line => {
-        const p = document.createElement('p');
-        p.classList.add('lyric-line');
-        p.dataset.time = line.time.toFixed(3);
-
-        if (line.words && line.words.length > 0) {
-            line.words.forEach(word => {
-                const span = document.createElement('span');
-                span.classList.add('lyric-word');
-                span.textContent = word.text + ' '; 
-                span.dataset.time = word.time.toFixed(3);
-                p.appendChild(span);
-            });
-        } else {
-            p.textContent = line.text;
-        }
-        previewArea.appendChild(p);
-    });
-};
-
-window.resetMockPlayback = function() {
-    mockPlaybackTimeoutIds.forEach(clearTimeout);
-    mockPlaybackTimeoutIds = [];
-    document.querySelectorAll('#lrc-preview-area .highlighted-lyric').forEach(el => {
-        el.classList.remove('highlighted-lyric');
-    });
-     document.querySelectorAll('#lrc-preview-area .lyric-line.past-line').forEach(el => {
-        el.classList.remove('past-line');
-    });
-};
-
-window.startMockPlayback = function() {
-    window.resetMockPlayback(); // Clear previous timeouts and highlights
-
-    const lrcText = document.getElementById('lrc-input-area')?.value;
-    if (!lrcText) return;
-
-    const lyrics = window.parseLRC(lrcText);
-    if (!lyrics || lyrics.length === 0) return;
-
-    const previewArea = document.getElementById('lrc-preview-area');
-    if (!previewArea) return;
-
-    const lines = previewArea.querySelectorAll('.lyric-line');
-    let globalStartTime = Date.now(); // Start of the simulation
-    let lastHighlightedElement = null;
-
-    lyrics.forEach((line, lineIndex) => {
-        const lineElement = lines[lineIndex]; // Assumes direct mapping
-
-        // Highlight the entire line
-        const lineHighlightDelay = Math.max(0, (line.time * 1000) - (Date.now() - globalStartTime));
-        const lineTimeoutId = setTimeout(() => {
-            if (lastHighlightedElement) {
-                 lastHighlightedElement.classList.remove('highlighted-lyric');
-                 // Add 'past-line' to distinguish from upcoming lines for styling
-                 if(lastHighlightedElement.classList.contains('lyric-line')) lastHighlightedElement.classList.add('past-line');
-            }
-             if(lineElement) {
-                lineElement.classList.add('highlighted-lyric');
-                lineElement.classList.remove('past-line'); // Ensure current line isn't styled as past
-                lastHighlightedElement = lineElement;
-             }
-        }, lineHighlightDelay);
-        mockPlaybackTimeoutIds.push(lineTimeoutId);
-
-        // If word-level timing exists for this line
-        if (line.words && lineElement) {
-            const wordElements = lineElement.querySelectorAll('.lyric-word');
-            line.words.forEach((word, wordIndex) => {
-                const wordElement = wordElements[wordIndex]; // Assumes direct mapping
-                // Word time is absolute in our parsed structure
-                const wordHighlightDelay = Math.max(0, (word.time * 1000) - (Date.now() - globalStartTime));
-                
-                const wordTimeoutId = setTimeout(() => {
-                    if (lastHighlightedElement && lastHighlightedElement !== lineElement) { // If previous highlight was a word in another line
-                        lastHighlightedElement.classList.remove('highlighted-lyric');
-                    }
-                    // If the line itself was the last highlighted, remove its highlight
-                    if (lineElement && lineElement.classList.contains('highlighted-lyric') && wordElement) {
-                         lineElement.classList.remove('highlighted-lyric');
-                    }
-
-                    if(wordElement) {
-                        wordElement.classList.add('highlighted-lyric');
-                        lastHighlightedElement = wordElement;
-                    }
-                }, wordHighlightDelay);
-                mockPlaybackTimeoutIds.push(wordTimeoutId);
-            });
-        }
-    });
-};
-
+// Assign functions to window object for potential global usage (legacy or external)
+// This ensures that if any other part of the application (or developer console) 
+// was relying on these functions being global, they still work.
+window.parseLRC = parseLRC;
+window.renderLyricsPreview = renderLyricsPreview;
 
 document.addEventListener("DOMContentLoaded", () => {
   const webSocketManager = new WebSocketManager();
@@ -470,45 +305,7 @@ document.addEventListener("DOMContentLoaded", () => {
   
   navigationManager.init(); 
   searchManager.init(); 
-  // if (
-  //   searchSourceButton &&
-  //   webSocketManager &&
-  //   typeof webSocketManager.sendWebSocketCommand === "function"
-  // ) {
-  //   webSocketManager
-  //     .sendWebSocketCommand("get_available_sources", {})
-  //     .then((response) => {
-  //       const sources = Array.isArray(response.data) ? response.data : [];
-  //       let currentSourceIndex = 0;
-  //       if (sources.length > 0) {
-  //         // Set initial icon and source
-  //         const img = searchSourceButton.querySelector("img");
-  //         if (img) {
-  //           img.src = `source_icon/${sources[0]}.ico`;
-  //         }
-  //         if (typeof searchManager?.switchSource === "function") {
-  //           searchManager.switchSource(sources[0]);
-  //         }
-  //       }
-  //       searchSourceButton.addEventListener("click", () => {
-  //         if (sources.length > 0) {
-  //           currentSourceIndex = (currentSourceIndex + 1) % sources.length;
-  //           const source = sources[currentSourceIndex];
-  //           const img = searchSourceButton.querySelector("img");
-  //           if (img && source) {
-  //             img.src = `source_icon/${source}.ico`;
-  //           }
-  //           if (typeof searchManager?.switchSource === "function") {
-  //             searchManager.switchSource(source);
-  //           }
-  //         }
-  //       });
-  //     })
-  //     .catch((err) => {
-  //       console.warn("Failed to fetch available sources:", err);
-  //     });
-  // }
-  // Global Drag and Drop
+
   const dragOverlay = document.getElementById('drag-overlay');
 
   window.addEventListener('dragenter', (event) => {
@@ -596,8 +393,8 @@ document.addEventListener("DOMContentLoaded", () => {
   mainContent.addEventListener('input', function(event) {
     if (event.target.id === 'lrc-input-area') {
         const lrcText = event.target.value;
-        const parsed = window.parseLRC(lrcText);
-        window.renderLyricsPreview(parsed, '#lrc-preview-area');
+        const parsed = parseLRC(lrcText); // Use imported function
+        renderLyricsPreview(parsed, '#lrc-preview-area'); // Use imported function
     }
   });
 
@@ -817,8 +614,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const cancelUpdateButton = event.target.closest("#cancel-track-update-button");
     const submitUploadButton = event.target.closest("#submit-upload-button");
     const cancelUploadButton = event.target.closest("#cancel-upload-button");
-    const lyricsSimulatePlayButton = event.target.closest("#lyrics-simulate-play");
-    const lyricsResetSimulationButton = event.target.closest("#lyrics-reset-simulation");
+    // const lyricsSimulatePlayButton = event.target.closest("#lyrics-simulate-play"); // Now handled by LyricsEditor.js
+    // const lyricsResetSimulationButton = event.target.closest("#lyrics-reset-simulation"); // Now handled by LyricsEditor.js
     const lrcPreviewArea = event.target.closest("#lrc-preview-area");
 
 
@@ -952,22 +749,21 @@ document.addEventListener("DOMContentLoaded", () => {
         history.back(); 
     }
 
-    if (lyricsSimulatePlayButton) {
-        window.startMockPlayback();
-    } else if (lyricsResetSimulationButton) {
-        window.resetMockPlayback();
-    }
+    // Removed lyricsSimulatePlayButton and lyricsResetSimulationButton listeners,
+    // as they are now initialized within LyricsEditor.js by initLyricsEditorControls,
+    // which is called by NavigationManager when the relevant pages are loaded.
+    // The old startMockPlayback and resetMockPlayback were for LRC text simulation,
+    // the new audio controls in LyricsEditor.js handle actual audio.
 
     if (lrcPreviewArea && event.target.closest('.lyric-line')) {
         const clickedLineElement = event.target.closest('.lyric-line');
         const lrcInputArea = document.getElementById('lrc-input-area');
         if (clickedLineElement && lrcInputArea) {
-            // Reconstruct the text from spans if words exist, otherwise use textContent
             let clickedLineText = "";
             const wordSpans = clickedLineElement.querySelectorAll('.lyric-word');
             if (wordSpans.length > 0) {
-                wordSpans.forEach(span => clickedLineText += span.textContent); // .textContent already includes the trailing space
-                clickedLineText = clickedLineText.trim(); // Remove last space
+                wordSpans.forEach(span => clickedLineText += span.textContent); 
+                clickedLineText = clickedLineText.trim(); 
             } else {
                 clickedLineText = clickedLineElement.textContent.trim();
             }
@@ -976,7 +772,6 @@ document.addEventListener("DOMContentLoaded", () => {
             const lines = fullLrc.split('\n');
             for(let i = 0; i < lines.length; i++) {
                 const line = lines[i];
-                // Match timestamp and text part
                 const timeTagMatch = line.match(/\[\d{2}:\d{2}\.\d{2,3}\]/);
                 if (timeTagMatch) {
                     const textPart = line.substring(timeTagMatch[0].length).replace(/<[^>]+>/g, '').trim();
@@ -985,7 +780,6 @@ document.addEventListener("DOMContentLoaded", () => {
                         const endIndex = startIndex + line.length;
                         lrcInputArea.focus();
                         lrcInputArea.setSelectionRange(startIndex, endIndex);
-                        // Scroll to selection:
                         const textLines = lrcInputArea.value.substr(0, startIndex).split("\n").length -1;
                         const avgLineHeight = lrcInputArea.scrollHeight / lrcInputArea.value.split("\n").length;
                         lrcInputArea.scrollTop = textLines * avgLineHeight;
@@ -1002,7 +796,6 @@ document.addEventListener("DOMContentLoaded", () => {
   if (playerCoverArea) {
     playerCoverArea.addEventListener("click", () => {
       const currentTrack = playerManager.getCurrentTrack?.();
-      // console.log(currentTrack);
       window.appState.currentSongDetail = currentTrack;
       const musicId = currentTrack?.bvid  || currentTrack?.music_id || currentTrack?.id;
       if (musicId) {
