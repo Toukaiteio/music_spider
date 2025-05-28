@@ -578,7 +578,7 @@ class NavigationManager {
                 // Load audio source for Lyrics Editor based on page context
                 if (pageId === "update-track") {
                     if (this.appState.currentSongDetail && this.appState.currentSongDetail.music_id) {
-                        const audioUrl = `/audio_stream/${this.appState.currentSongDetail.music_id}`;
+                        const audioUrl = '.' + this.appState.currentSongDetail.audio_path;
                         loadAudioSource(audioUrl);
                     } else {
                         console.warn("No currentSongDetail or music_id found for update-track page, cannot load audio for lyrics editor.");

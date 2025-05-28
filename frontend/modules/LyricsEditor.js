@@ -296,7 +296,7 @@ export function initLyricsEditorControls(lyricsEditorContainerElement) {
     }
 }
 
-export function parseLRC(lrcString) {
+export function parseLRC(lrcString) { 
     const lines = lrcString.trim().split('\n');
     const parsedLyrics = [];
     const timeTagRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/;
@@ -305,27 +305,31 @@ export function parseLRC(lrcString) {
 
     for (let i = 0; i < lines.length; i++) {
         const lineStr = lines[i].trim();
-        if (!lineStr) continue; 
+        if (!lineStr) continue;
 
         const lineMatch = lineStr.match(timeTagRegex);
         if (!lineMatch) {
             if (lineStr.startsWith('[') || lineStr.includes(']')) { 
-                 return { lyrics: parsedLyrics, error: { message: `Invalid line timestamp format. Expected [mm:ss.xx].`, lineNumber: i + 1 } };
+                return { lyrics: parsedLyrics, error: { message: `Invalid line timestamp format. Expected [mm:ss.xx].`, lineNumber: i + 1 } };
             }
-            continue; 
+            continue;
         }
 
         const lineMinutes = parseInt(lineMatch[1], 10);
         const lineSeconds = parseInt(lineMatch[2], 10);
         const lineMillisStr = lineMatch[3];
-        const lineHundredthsOrMillis = parseInt(lineMillisStr.padEnd(3,'0'), 10); 
+        const lineMillis = parseInt(lineMillisStr, 10);
+        const millisFactor = lineMillisStr.length === 2 ? 100 : 1000;
 
-        if (lineMinutes < 0 || lineMinutes > 59 || lineSeconds < 0 || lineSeconds > 59 || 
-            lineHundredthsOrMillis < 0 || (lineMillisStr.length === 2 && lineHundredthsOrMillis > 990) || (lineMillisStr.length === 3 && lineHundredthsOrMillis > 999) ) {
+        if (
+            lineMinutes < 0 || lineMinutes > 59 ||
+            lineSeconds < 0 || lineSeconds > 59 ||
+            lineMillis < 0 || (millisFactor === 100 && lineMillis > 99) || (millisFactor === 1000 && lineMillis > 999)
+        ) {
             return { lyrics: parsedLyrics, error: { message: `Invalid time values in line timestamp.`, lineNumber: i + 1 } };
         }
-        const lineTime = lineMinutes * 60 + lineSeconds + (lineMillisStr.length === 2 ? lineHundredthsOrMillis/100 : lineHundredthsOrMillis/1000) ;
 
+        const lineTime = lineMinutes * 60 + lineSeconds + lineMillis / millisFactor;
 
         if (lineTime < lastLineTime) {
             return { lyrics: parsedLyrics, error: { message: `Line timestamps not in chronological order.`, lineNumber: i + 1 } };
@@ -335,7 +339,7 @@ export function parseLRC(lrcString) {
         let textContent = lineStr.substring(lineMatch[0].length).trim();
         const words = [];
         let plainTextOnlyForLine = textContent;
-        let lastWordTime = -1; 
+        let lastWordTime = -1;
 
         if (textContent.includes('<')) {
             plainTextOnlyForLine = '';
@@ -351,17 +355,23 @@ export function parseLRC(lrcString) {
                     const wordMinutes = parseInt(wordMatch[1], 10);
                     const wordSeconds = parseInt(wordMatch[2], 10);
                     const wordMillisStr = wordMatch[3];
-                    const wordHundredthsOrMillis = parseInt(wordMillisStr.padEnd(3,'0'),10);
+                    const wordMillis = parseInt(wordMillisStr, 10);
+                    const wordMillisFactor = wordMillisStr.length === 2 ? 100 : 1000;
 
-                    if (wordMinutes < 0 || wordMinutes > 59 || wordSeconds < 0 || wordSeconds > 59 ||
-                        wordHundredthsOrMillis < 0 || (wordMillisStr.length === 2 && wordHundredthsOrMillis > 990) || (wordMillisStr.length === 3 && wordHundredthsOrMillis > 999)) {
+                    if (
+                        wordMinutes < 0 || wordMinutes > 59 ||
+                        wordSeconds < 0 || wordSeconds > 59 ||
+                        wordMillis < 0 || (wordMillisFactor === 100 && wordMillis > 99) || (wordMillisFactor === 1000 && wordMillis > 999)
+                    ) {
                         return { lyrics: parsedLyrics, error: { message: `Invalid time values in word timestamp.`, lineNumber: i + 1 } };
                     }
-                    const wordTimeOffset = wordMinutes * 60 + wordSeconds + (wordMillisStr.length === 2 ? wordHundredthsOrMillis/100 : wordHundredthsOrMillis/1000);
-                    
+
+                    const wordTimeOffset = wordMinutes * 60 + wordSeconds + wordMillis / wordMillisFactor;
+
                     if (wordTimeOffset < lastWordTime) {
-                         return { lyrics: parsedLyrics, error: { message: `Word timestamps not in chronological order within line.`, lineNumber: i + 1 } };
+                        return { lyrics: parsedLyrics, error: { message: `Word timestamps not in chronological order within line.`, lineNumber: i + 1 } };
                     }
+
                     lastWordTime = wordTimeOffset;
                     currentAbsWordTime = lineTime + wordTimeOffset;
 
@@ -370,6 +380,7 @@ export function parseLRC(lrcString) {
                     plainTextOnlyForLine += part.trim() + " ";
                 }
             }
+
             plainTextOnlyForLine = plainTextOnlyForLine.trim();
         }
 
@@ -379,6 +390,7 @@ export function parseLRC(lrcString) {
             words: words.length > 0 ? words : null
         });
     }
+
     return { lyrics: parsedLyrics.sort((a, b) => a.time - b.time), error: null };
 };
 

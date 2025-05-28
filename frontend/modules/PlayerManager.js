@@ -104,7 +104,7 @@ class PlayerManager {
       this.playerProgressBar.addEventListener("input", (e) => {
         const value = Number(e.target.value);
         if (this.audio.duration) {
-          this.audio.currentTime = value;
+          this.audio.currentTime = value / 100;
         }
       });
     }

@@ -9,8 +9,7 @@ import {
     lyricsToolHtml, 
     parseLRC, 
     renderLyricsPreview, 
-    startMockPlayback, 
-    resetMockPlayback,
+
     // initLyricsEditorControls // No longer needed here, NavigationManager handles it.
     loadAudioSource // Potentially needed if we load audio from script.js context
 } from "./modules/LyricsEditor.js";
@@ -24,8 +23,6 @@ applyTheme(savedTheme);
 // was relying on these functions being global, they still work.
 window.parseLRC = parseLRC;
 window.renderLyricsPreview = renderLyricsPreview;
-window.startMockPlayback = startMockPlayback;
-window.resetMockPlayback = resetMockPlayback;
 
 document.addEventListener("DOMContentLoaded", () => {
   const webSocketManager = new WebSocketManager();

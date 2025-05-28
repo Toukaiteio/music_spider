@@ -234,6 +234,8 @@ body {
 #lrc-preview-area .lyric-word {
     transition: background-color 0.1s ease-in-out, color 0.1s ease-in-out; /* Smooth transition for highlighting */
     cursor: pointer; /* Indicate lines are clickable */
+    margin-top: 4px;
+    margin-bottom: 4px;
 }
 #lrc-preview-area .lyric-line:hover,
 #lrc-preview-area .lyric-word:hover {
@@ -746,6 +748,8 @@ body {
 }
 #search-source-button {
     aspect-ratio: 1 / 1;
+    height: 32px;
+    width: 32px;
 }
 .remove-from-collection-button,.favorite-button,.search-result-download-button,.add-to-collection-button, .delete-track-button {
     background: transparent;
