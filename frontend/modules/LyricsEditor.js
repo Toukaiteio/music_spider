@@ -344,6 +344,51 @@ export function initLyricsEditorControls(lyricsEditorContainerElement) {
     );
   }
 
+  if (lrcPreviewAreaElement && lrcInputAreaElement) {
+    lrcPreviewAreaElement.addEventListener('click', (event) => {
+        const clickedLineElement = event.target.closest('.lyric-line');
+        if (clickedLineElement) {
+            let clickedLineText = "";
+            // Attempt to reconstruct text exactly as it would be from .text or .words
+            // This needs to match how renderLyricsPreview constructs the line.
+            // If words are used, concatenate them. Otherwise, use textContent of the p element.
+            const wordSpans = clickedLineElement.querySelectorAll('.lyric-word');
+            if (wordSpans.length > 0) {
+                wordSpans.forEach(span => clickedLineText += span.textContent); // Includes spaces from rendering
+                clickedLineText = clickedLineText.trim(); // Trim trailing space if any
+            } else {
+                clickedLineText = clickedLineElement.textContent.trim();
+            }
+
+            const fullLrcTextInEditor = lrcInputAreaElement.value;
+            const linesInEditor = fullLrcTextInEditor.split('\n');
+            
+            for (let i = 0; i < linesInEditor.length; i++) {
+                const editorLine = linesInEditor[i];
+                // Match based on text content after the timestamp
+                const timeTagMatch = editorLine.match(/^\[\d{2}:\d{2}\.\d{2,3}\]/);
+                if (timeTagMatch) {
+                    const textPartInEditor = editorLine.substring(timeTagMatch[0].length).trim();
+                    // Compare with the potentially word-span reconstructed text
+                    if (textPartInEditor === clickedLineText) {
+                        const startIndex = fullLrcTextInEditor.indexOf(editorLine);
+                        const endIndex = startIndex + editorLine.length;
+                        
+                        lrcInputAreaElement.focus();
+                        lrcInputAreaElement.setSelectionRange(startIndex, endIndex);
+                        
+                        // Scroll into view
+                        const textLines = fullLrcTextInEditor.substring(0, startIndex).split("\n").length -1;
+                        const avgLineHeight = lrcInputAreaElement.scrollHeight / editorAllLines.length;
+                        lrcInputAreaElement.scrollTop = Math.max(0, textLines * avgLineHeight - lrcInputAreaElement.clientHeight / 2); // Center it
+                        break;
+                    }
+                }
+            }
+        }
+    });
+  }
+
   if (playPauseButton) {
     lyricsEditorPlayButtonIcon =
       playPauseButton.querySelector(".material-icons");

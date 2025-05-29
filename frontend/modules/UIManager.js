@@ -278,6 +278,92 @@ class UIManager {
       // No need to manually set transform here, as each toast animates in/out itself
     });
   }
+
+  static initThemeSwitcher() {
+    const themeSwitcher = document.getElementById("theme-switcher");
+    if (themeSwitcher) {
+      themeSwitcher.addEventListener("click", () => {
+        const currentTheme = document.body.classList.contains("dark-theme")
+          ? "dark-theme"
+          : "light-theme";
+        const newTheme =
+          currentTheme === "dark-theme" ? "light-theme" : "dark-theme";
+        UIManager.applyTheme(newTheme); // applyTheme will also update the icon
+      });
+    } else {
+      console.warn("Theme switcher element (#theme-switcher) not found.");
+    }
+  }
+
+  static initTaskQueueControls() {
+    const taskQueueButton = document.getElementById("task-queue-button");
+    const expandedTaskQueue = document.getElementById("expanded-task-queue");
+
+    if (taskQueueButton && expandedTaskQueue) {
+      taskQueueButton.addEventListener("click", (event) => {
+        event.stopPropagation(); // Prevent the document click listener from immediately closing it
+        const isVisible = expandedTaskQueue.classList.toggle("visible");
+        expandedTaskQueue.setAttribute("aria-hidden", !isVisible);
+      });
+
+      document.addEventListener("click", (event) => {
+        // Check if the click is outside the button and the expanded queue
+        if (
+          expandedTaskQueue.classList.contains("visible") &&
+          !taskQueueButton.contains(event.target) &&
+          !expandedTaskQueue.contains(event.target)
+        ) {
+          expandedTaskQueue.classList.remove("visible");
+          expandedTaskQueue.setAttribute("aria-hidden", "true");
+        }
+      });
+    } else {
+      console.warn("Task queue button or expanded queue element not found.");
+    }
+  }
+
+  static initDrawerControls() {
+    const drawerToggleButton = document.getElementById("drawer-toggle-button");
+    const mainDrawer = document.getElementById("main-drawer");
+    const drawerToggleIcon = drawerToggleButton
+      ? drawerToggleButton.querySelector(".material-icons")
+      : null;
+
+    if (drawerToggleButton && mainDrawer && drawerToggleIcon) {
+      const setDrawerState = (isCollapsed) => {
+        mainDrawer.classList.toggle("collapsed", isCollapsed);
+        drawerToggleIcon.textContent = isCollapsed ? "menu_open" : "menu";
+        localStorage.setItem("drawerCollapsed", isCollapsed);
+      };
+
+      // Load saved state and set initial state
+      const savedDrawerState = localStorage.getItem("drawerCollapsed") === "true";
+      setDrawerState(savedDrawerState);
+
+      // Add event listener
+      drawerToggleButton.addEventListener("click", () => {
+        const isCollapsed = mainDrawer.classList.contains("collapsed");
+        setDrawerState(!isCollapsed); // Toggle the state
+      });
+    } else {
+      console.warn(
+        "Drawer toggle button, main drawer, or toggle icon not found."
+      );
+    }
+  }
+
+  static updateFavoriteIcon(buttonElement, isFavorite) {
+    if (buttonElement) {
+      const iconElement = buttonElement.querySelector('.material-icons');
+      if (iconElement) {
+        iconElement.textContent = isFavorite ? 'favorite' : 'favorite_border';
+      } else {
+        console.warn("Favorite button icon element not found.", buttonElement);
+      }
+    } else {
+      console.warn("Favorite button element not provided to updateFavoriteIcon.");
+    }
+  }
 }
 
 export default UIManager;

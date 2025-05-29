@@ -4,7 +4,10 @@ import PlayerManager from "./modules/PlayerManager.js";
 import NavigationManager from "./modules/NavigationManager.js";
 import CollectionManager from "./modules/CollectionManager.js";
 import SearchManager from "./modules/SearchManager.js";
-import FavoriteManager from "./modules/FavoriteManager.js"; 
+import FavoriteManager from "./modules/FavoriteManager.js";
+// fileToBase64, getFileExtension, sliceFile are now used by UploadManager
+import { getFileExtension } from "./modules/Utils.js"; 
+import UploadManager from "./modules/UploadManager.js";
 import { 
     lyricsToolHtml, 
     parseLRC, 
@@ -21,8 +24,8 @@ applyTheme(savedTheme);
 // Assign functions to window object for potential global usage (legacy or external)
 // This ensures that if any other part of the application (or developer console) 
 // was relying on these functions being global, they still work.
-window.parseLRC = parseLRC;
-window.renderLyricsPreview = renderLyricsPreview;
+// window.parseLRC = parseLRC; // Now handled by LyricsEditor.js
+// window.renderLyricsPreview = renderLyricsPreview; // Now handled by LyricsEditor.js
 
 document.addEventListener("DOMContentLoaded", () => {
   const webSocketManager = new WebSocketManager();
@@ -30,203 +33,27 @@ document.addEventListener("DOMContentLoaded", () => {
     backgroundElement: document.getElementById("background-effects"),
     coverImgElement: document.getElementById("player-album-art"),
   });
-  const themeSwitcher = document.getElementById("theme-switcher");
-  const body = document.body;
+  // const themeSwitcher = document.getElementById("theme-switcher"); // No longer needed here
+  // const body = document.body; // No longer needed here for theme switcher
 
   const CHUNK_SIZE = 256 * 1024; // 256KB
 
-  // Helper function to convert File to base64 string (data part only)
-  function fileToBase64(file) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const base64String = reader.result;
-        // Remove the prefix 'data:*/*;base64,'
-        const parts = base64String.split(',');
-        if (parts.length === 2) {
-          resolve(parts[1]);
-        } else {
-          // Handle cases where the prefix might be missing or different, though unlikely for standard files
-          console.warn("Base64 string prefix not found or in unexpected format. Resolving with full string.");
-          resolve(base64String); // Fallback, though backend might not like this
-        }
-      };
-      reader.onerror = error => reject(error);
-      reader.readAsDataURL(file);
-    });
-  }
+  // startChunkedUploadProcess has been moved to UploadManager.js
 
-  // Helper function to get file extension without dot, in lowercase
-  function getFileExtension(filename) {
-    if (!filename || typeof filename !== 'string') {
-      return '';
-    }
-    const lastDot = filename.lastIndexOf('.');
-    if (lastDot === -1 || lastDot === filename.length - 1) {
-      // No extension or filename ends with a dot
-      return '';
-    }
-    return filename.substring(lastDot + 1).toLowerCase();
-  }
+  // Theme switcher logic is now handled by UIManager.initThemeSwitcher()
+  UIManager.initThemeSwitcher();
 
-  // Helper function to slice a file into Blob chunks
-  function sliceFile(file, chunkSize) {
-      const chunks = [];
-      let offset = 0;
-      while (offset < file.size) {
-          const chunk = file.slice(offset, offset + chunkSize);
-          chunks.push(chunk);
-          offset += chunkSize;
-      }
-      return chunks;
-  }
+  // Task Queue UI controls are now handled by UIManager.initTaskQueueControls()
+  UIManager.initTaskQueueControls();
 
-  async function startChunkedUploadProcess(file, fileType, metadataForInit, webSocketManager, uiManager, associatedMusicId = null) {
-    console.log(`Initiating ${fileType} upload...`);
+  // Task Queue UI controls are now handled by UIManager.initTaskQueueControls()
+  UIManager.initTaskQueueControls();
 
-    const initiatePayload = {
-        filename: file.name,
-        total_size: file.size,
-        file_type: fileType,
-        metadata: metadataForInit, // For audio: { title, artist, etc. }, For cover: { music_id_for_cover: associatedMusicId }
-        chunk_size: CHUNK_SIZE 
-    };
+  // Drawer controls are now handled by UIManager.initDrawerControls()
+  UIManager.initDrawerControls();
 
-    try {
-        const initResponse = await webSocketManager.sendWebSocketCommand("initiate_chunked_upload", initiatePayload);
-        if (!initResponse || !initResponse.data || !initResponse.data.upload_session_id) {
-            UIManager.showToast(`Failed to initiate ${fileType} upload session: ${initResponse.error || 'Unknown error'}`, "error");
-            return { success: false, error: `Failed to initiate ${fileType} upload session.` };
-        }
-
-        const { upload_session_id, actual_chunk_size = CHUNK_SIZE } = initResponse.data;
-        // UIManager.showToast(`${fileType} upload session started: ${upload_session_id}`, "info");
-
-        const chunks = sliceFile(file, actual_chunk_size);
-        const total_chunks = chunks.length;
-
-        for (let i = 0; i < total_chunks; i++) {
-            const chunk = chunks[i];
-            // fileToBase64 already returns only the data part.
-            const base64ChunkData = await fileToBase64(chunk); 
-
-            const chunkPayload = {
-                upload_session_id,
-                chunk_index: i,
-                total_chunks,
-                chunk_data: base64ChunkData
-            };
-
-            // Simple retry mechanism
-            let attempt = 0;
-            let chunkUploadSuccess = false;
-            while (attempt < 3 && !chunkUploadSuccess) {
-                attempt++;
-                const chunkResponse = await webSocketManager.sendWebSocketCommand("upload_chunk", chunkPayload);
-                if (chunkResponse && chunkResponse.code === 0) {
-                    chunkUploadSuccess = true;
-                    // UIManager.showToast(`Uploaded ${fileType} chunk ${i + 1}/${total_chunks}`, "info", 2000); // Short duration
-                } else {
-                    UIManager.showToast(`Error uploading ${fileType} chunk ${i + 1} (attempt ${attempt}/3): ${chunkResponse.error || 'Unknown error'}`, "warning", 3000);
-                    if (attempt >= 3) {
-                        UIManager.showToast(`Failed to upload ${fileType} chunk ${i + 1} after 3 attempts. Aborting.`, "error");
-                        return { success: false, error: `Chunk ${fileType} upload failed for chunk ${i + 1}.` };
-                    }
-                    // Wait a bit before retrying (optional)
-                    await new Promise(resolve => setTimeout(resolve, 1000)); 
-                }
-            }
-            if (!chunkUploadSuccess) { // Should have been caught by the attempt limit, but as a safeguard
-                 return { success: false, error: `Critical error in ${fileType} chunk upload logic for chunk ${i + 1}.` };
-            }
-        }
-
-        // UIManager.showToast(`All ${fileType} chunks uploaded. Finalizing...`, "info");
-        const finalizePayload = {
-            upload_session_id,
-            filename: file.name,
-            total_chunks
-        };
-
-        if (fileType === "audio") {
-            finalizePayload.metadata = metadataForInit; 
-        } else if (fileType === "cover" && associatedMusicId) {
-            // For cover, the key 'music_id' is used to associate with existing track.
-            // 'metadataForInit' for cover ( { music_id_for_cover: associatedMusicId } ) was used for initiation.
-            // The finalize command for cover might just need the music_id.
-            finalizePayload.music_id = associatedMusicId; 
-        }
-
-        const finalResponse = await webSocketManager.sendWebSocketCommand("finalize_chunked_upload", finalizePayload);
-        if (!finalResponse || finalResponse.code !== 0) {
-            UIManager.showToast(`Failed to finalize ${fileType} upload: ${finalResponse.error || 'Unknown error'}`, "error");
-            return { success: false, error: `Finalization of ${fileType} upload failed.` };
-        }
-
-        UIManager.showToast(`${fileType} upload finalized successfully!`, "success");
-        return { success: true, data: finalResponse.data };
-
-    } catch (error) {
-        console.error(`Error during ${fileType} chunked upload process:`, error);
-        UIManager.showToast(`A critical error occurred during ${fileType} upload: ${error.message || 'Unknown error'}`, "error");
-        return { success: false, error: `Critical error in ${fileType} upload process.` };
-    }
-  }
-
-  if (themeSwitcher) {
-    themeSwitcher.addEventListener("click", () => {
-      const currentTheme = body.classList.contains("dark-theme")
-        ? "dark-theme"
-        : "light-theme";
-      const newTheme =
-        currentTheme === "dark-theme" ? "light-theme" : "dark-theme";
-      applyTheme(newTheme);
-    });
-  }
   if (!localStorage.getItem("favSongs")) {
     localStorage.setItem("favSongs", "[]");
-  }
-
-  const taskQueueButton = document.getElementById("task-queue-button");
-  const expandedTaskQueue = document.getElementById("expanded-task-queue");
-
-  if (taskQueueButton && expandedTaskQueue) {
-    taskQueueButton.addEventListener("click", (event) => {
-      event.stopPropagation(); 
-      const isVisible = expandedTaskQueue.classList.toggle("visible");
-      expandedTaskQueue.setAttribute("aria-hidden", !isVisible);
-    });
-
-    document.addEventListener("click", (event) => {
-      if (
-        expandedTaskQueue.classList.contains("visible") &&
-        !taskQueueButton.contains(event.target) &&
-        !expandedTaskQueue.contains(event.target)
-      ) {
-        expandedTaskQueue.classList.remove("visible");
-        expandedTaskQueue.setAttribute("aria-hidden", "true");
-      }
-    });
-  }
-
-  const drawerToggleButton = document.getElementById("drawer-toggle-button");
-  const mainDrawer = document.getElementById("main-drawer");
-  const drawerToggleIcon = drawerToggleButton
-    ? drawerToggleButton.querySelector(".material-icons")
-    : null;
-
-  if (drawerToggleButton && mainDrawer && drawerToggleIcon) {
-    const setDrawerState = (isCollapsed) => {
-      mainDrawer.classList.toggle("collapsed", isCollapsed);
-      drawerToggleIcon.textContent = isCollapsed ? "menu_open" : "menu";
-      localStorage.setItem("drawerCollapsed", isCollapsed);
-    };
-    const savedDrawerState = localStorage.getItem("drawerCollapsed") === "true";
-    setDrawerState(savedDrawerState);
-    drawerToggleButton.addEventListener("click", () => {
-      const isCollapsed = mainDrawer.classList.contains("collapsed");
-      setDrawerState(!isCollapsed);
-    });
   }
 
   const mainContent = document.getElementById("main-content");
@@ -477,6 +304,14 @@ document.addEventListener("DOMContentLoaded", () => {
   
   const favoriteManager = new FavoriteManager();
 
+  const uploadManager = new UploadManager({
+    webSocketManager,
+    navigationManager,
+    uiManager: UIManager,
+    appState: window.appState,
+    CHUNK_SIZE
+  });
+
   navigationManager.setSearchManager(searchManager);
   navigationManager.setFavoriteManager(favoriteManager);
   navigationManager.setCollectionManager(collectionManager); 
@@ -484,143 +319,21 @@ document.addEventListener("DOMContentLoaded", () => {
   
   navigationManager.init(); 
   searchManager.init(); 
+  uploadManager.initDragDrop(); // Initialize drag and drop listeners
 
-  const dragOverlay = document.getElementById('drag-overlay');
-
-  window.addEventListener('dragenter', (event) => {
-    event.preventDefault();
-    if (window.appState.isUploadPageActive) return; 
-    if (dragOverlay) dragOverlay.style.display = 'flex';
-  });
-
-  window.addEventListener('dragover', (event) => {
-    event.preventDefault(); 
-  });
-
-  window.addEventListener('dragleave', (event) => {
-    if (!event.relatedTarget || event.relatedTarget.nodeName === "HTML") {
-        if (dragOverlay) dragOverlay.style.display = 'none';
-    }
-  });
-
-  window.addEventListener('drop', (event) => {
-    event.preventDefault();
-    if (dragOverlay) dragOverlay.style.display = 'none';
-    if (window.appState.isUploadPageActive) { 
-        console.log("Drop event on upload page, likely for cover art, ignoring for new track upload.");
-        return; 
-    }
-
-    const files = event.dataTransfer.files;
-    if (files.length > 0) {
-        const file = files[0];
-        if (file.type.startsWith('audio/')) {
-            window.appState.droppedFile = file;
-            window.jsmediatags.read(file, {
-                onSuccess: (tag) => {
-                    const tags = tag.tags;
-                    window.appState.parsedMetadata = {
-                        title: tags.title || '',
-                        artist: tags.artist || '',
-                        album: tags.album || '',
-                        year: tags.year || '',
-                        genre: tags.genre || '',
-                        picture: tags.picture || null, 
-                        lyrics: tags.lyrics ? (typeof tags.lyrics === 'string' ? tags.lyrics : tags.lyrics.lyrics) : null 
-                    };
-                    navigationManager.navigateTo("upload-track", "Upload New Track", "#upload-track");
-                },
-                onError: (error) => {
-                    console.warn('jsmediatags error:', error);
-                    window.appState.parsedMetadata = { title: file.name.replace(/\.[^/.]+$/, "") }; 
-                    navigationManager.navigateTo("upload-track", "Upload New Track", "#upload-track");
-                }
-            });
-        } else {
-            UIManager.showToast("Not an audio file. Please drop an audio file.", "error");
-        }
-    }
-  });
+  // Global drag-drop listeners for audio files have been moved to UploadManager.initDragDrop()
 
   mainContent.addEventListener('change', function(event) {
-    if (event.target.id === 'upload-cover-file-input' || event.target.id === 'update-cover-file-input') {
-        const file = event.target.files[0];
-        const isUpdatePage = event.target.id === 'update-cover-file-input';
-        const previewButton = isUpdatePage 
-            ? document.getElementById('update-cover-upload-button') 
-            : document.getElementById('upload-cover-upload-button');
-
-        if (file && file.type.startsWith('image/')) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                if (previewButton) {
-                    const imgElement = previewButton.querySelector('.cover-preview-image');
-                    const iconElement = previewButton.querySelector('.initial-icon');
-                    if (imgElement) {
-                        imgElement.src = e.target.result;
-                        imgElement.style.display = 'block';
-                    }
-                    if (iconElement) {
-                        iconElement.style.display = 'none';
-                    }
-                }
-                window.appState.selectedCoverBase64 = e.target.result; // Full Data URL for preview
-                const extension = getFileExtension(file.name); // Extension without dot, lowercase
-                window.appState.selectedCoverFileObject = file; // Store the File object
-
-                window.appState.selectedCoverExt = extension;
-
-                if (isUpdatePage) {
-                    window.appState.newCoverSelectedForUpdate = true;
-                    const updateCoverExtInput = document.getElementById('update-cover-ext');
-                    if (updateCoverExtInput) {
-                        updateCoverExtInput.value = extension;
-                    }
-                } else { // Upload page
-                    const uploadCoverExtInput = document.getElementById('upload-cover-ext');
-                    if (uploadCoverExtInput) {
-                        uploadCoverExtInput.value = extension;
-                    }
-                }
-            };
-            reader.readAsDataURL(file);
-        } else if (file) { // File selected but not an image
-            UIManager.showToast("Please select an image file for the cover.", "error");
-            window.appState.selectedCoverBase64 = null;
-            window.appState.selectedCoverExt = null;
-            window.appState.selectedCoverFileObject = null; // Clear File object
-            if (isUpdatePage) {
-                window.appState.newCoverSelectedForUpdate = false;
-                const updateCoverExtInput = document.getElementById('update-cover-ext');
-                if (updateCoverExtInput) updateCoverExtInput.value = '';
-            } else { // Upload page
-                const uploadCoverExtInput = document.getElementById('upload-cover-ext');
-                if (uploadCoverExtInput) uploadCoverExtInput.value = '';
-            }
-            if (previewButton) {
-                const imgElement = previewButton.querySelector('.cover-preview-image');
-                const iconElement = previewButton.querySelector('.initial-icon');
-                if (imgElement) {
-                    imgElement.src = "#";
-                    imgElement.style.display = 'none';
-                }
-                if (iconElement) {
-                    iconElement.style.display = 'block'; // Show icon again
-                }
-            }
-            event.target.value = '';
-        }
-    }
-});
-
-  mainContent.addEventListener('input', function(event) {
-    if (event.target.id === 'lrc-input-area') {
-        const lrcText = event.target.value;
-        const parsed = parseLRC(lrcText); // Use imported function
-        renderLyricsPreview(parsed, '#lrc-preview-area'); // Use imported function
+    if (event.target.id === 'upload-cover-file-input') {
+        // Delegate to UploadManager
+        uploadManager.handleCoverFileSelect(event);
+    } else if (event.target.id === 'update-cover-file-input') {
+        // Delegate to NavigationManager
+        navigationManager.handleUpdateCoverFileSelect(event.target);
     }
   });
 
+  // mainContent 'input' listener for 'lrc-input-area' removed, now handled by LyricsEditor.js
 
   mainContent.addEventListener("click", function (event) {
     const playButton = event.target.closest(".play-on-card-button");
@@ -638,24 +351,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (playButton) {
       const trackInfoString = playButton.dataset.trackInfo;
       if (trackInfoString) {
-        try {
-          const trackInfo = JSON.parse(trackInfoString);
-          document.getElementById("player-track-title").textContent =
-            trackInfo.title || "Unknown Title";
-          document.getElementById("player-track-artist").textContent =
-            trackInfo.author || trackInfo.artist_name || "Unknown Artist";
-          playerManager.playTrackById(trackInfo.music_id);
-          UIManager.setPlayerVisibility(true); 
-          const playerPlayPauseButton = document.getElementById("player-play-pause-button"); 
-          if (playerPlayPauseButton) {
-            const playPauseIcon = playerPlayPauseButton.querySelector(".material-icons");
-            if (playPauseIcon) playPauseIcon.textContent = "pause_arrow"; 
-          }
-        } catch (e) {
-          console.error("Failed to parse track info for play button:", e);
-        }
+        playerManager.playTrackFromCard(trackInfoString);
       } else {
         console.warn("Play button clicked, but no track-info data found.");
+        UIManager.showToast("Could not play track: Missing track data.", "error");
       }
     } else if (
       artContainer &&
@@ -672,7 +371,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (trackInfoString) {
           try {
             const trackObject = JSON.parse(trackInfoString);
-            window.appState.currentSongDetail = trackObject;
+            // window.appState.currentSongDetail = trackObject; // Removed as NavigationManager handles this
             navigationManager.navigateToSongDetail(trackObject);
           } catch (e) {
             console.error(
@@ -689,25 +388,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (deleteTrackButton) {
       const musicId = deleteTrackButton.dataset.songId;
       if (musicId) {
-        webSocketManager.sendWebSocketCommand("delete_track", { music_id: musicId })
-          .then(() => {
-            const songCardToRemove = document.querySelector(`.song-card[data-song-id="${musicId}"]`);
-            if (songCardToRemove) {
-              songCardToRemove.remove();
-              if (window.appState && window.appState.library) {
-                window.appState.library = window.appState.library.filter(track => String(track.music_id || track.id) !== String(musicId));
-                if (window.appState.library.length === 0) {
-                    const noSongsMessage = document.getElementById('no-songs-message');
-                    if (noSongsMessage) noSongsMessage.style.display = 'block';
-                }
-              }
-            }
-          })
-          .catch(error => {
-            console.error(`Error sending delete_track command for ${musicId}:`, error);
-          });
+        navigationManager.handleDeleteTrack(musicId);
       } else {
         console.warn("Delete button clicked, but no song-id data found.");
+        UIManager.showToast("Cannot delete track: Missing Music ID.", "error");
       }
     }
 
@@ -733,10 +417,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const songId = favoriteButton.dataset.songId;
         if (songId) {
             const newStatus = favoriteManager.toggleFavorite(songId);
-            const iconElement = favoriteButton.querySelector('.material-icons');
-            if (iconElement) {
-                iconElement.textContent = newStatus ? 'favorite' : 'favorite_border';
-            }
+            UIManager.updateFavoriteIcon(favoriteButton, newStatus);
         }
     }
 
@@ -771,25 +452,10 @@ document.addEventListener("DOMContentLoaded", () => {
     if (detailPlayButton) {
       const trackInfoString = detailPlayButton.dataset.trackInfo;
       if (trackInfoString) {
-        try {
-          const trackInfo = JSON.parse(trackInfoString);
-          document.getElementById("player-track-title").textContent =
-            trackInfo.title || "Unknown Title";
-          document.getElementById("player-track-artist").textContent =
-            trackInfo.author || trackInfo.artist_name || "Unknown Artist";
-          UIManager.setPlayerVisibility(true); 
-          playerManager.playTrackById(trackInfo.music_id);
-           const playerPlayPauseButton = document.getElementById("player-play-pause-button"); 
-           if (playerPlayPauseButton) {
-            const playPauseIcon = playerPlayPauseButton.querySelector(".material-icons");
-            if (playPauseIcon) playPauseIcon.textContent = "pause_arrow";
-           }
-        } catch (e) {
-          console.error(
-            "Failed to parse track info for detail play button:",
-            e
-          );
-        }
+        playerManager.playTrackFromCard(trackInfoString);
+      } else {
+        console.warn("Detail play button clicked, but no track-info data found.");
+        UIManager.showToast("Could not play track: Missing track data.", "error");
       }
     }
 
@@ -836,285 +502,28 @@ document.addEventListener("DOMContentLoaded", () => {
     const saveUpdateButton = event.target.closest("#save-track-update-button");
     const cancelUpdateButton = event.target.closest("#cancel-track-update-button");
     const submitUploadButton = event.target.closest("#submit-upload-button");
-    const cancelUploadButton = event.target.closest("#cancel-upload-button");
-    const lrcPreviewArea = event.target.closest("#lrc-preview-area");
+    const cancelUploadButton = event.target.closest("#cancel-upload-button"); 
+    // const lrcPreviewArea = event.target.closest("#lrc-preview-area"); // Click handled by LyricsEditor.js
 
 
     if (saveUpdateButton) {
         event.preventDefault();
-        console.log("Save Changes button clicked - handler entered");
-        const form = document.getElementById("update-track-form");
-        if (!form) {
-            console.error("Update form (#update-track-form) not found in the DOM!");
-            UIManager.showToast("Critical error: Update form not found.", "error");
-            return;
-        }
-        // The original 'if (form)' is now handled by the explicit check above.
-        // Proceeding with form processing logic directly.
-        const musicId = form.querySelector("#update-music-id").value;
-            const title = form.querySelector("#update-title").value.trim();
-            const artist = form.querySelector("#update-artist").value.trim();
-
-            if (!title || !artist) {
-                UIManager.showToast("Title and Artist cannot be empty.", "error");
-                return;
-            }
-
-            const initialData = window.appState.editingTrackInitialData || {};
-            const payload = { music_id: musicId };
-            let hasChanges = false;
-
-            // Define fields to check and their form element IDs and initial data keys
-            const fieldsToCompare = [
-                { formId: "#update-title", payloadKey: "title", initialKey: "title" },
-                { formId: "#update-artist", payloadKey: "author", initialKey: "author" }, // Backend expects 'author'
-                { formId: "#update-album", payloadKey: "album", initialKey: "album_name", altInitialKey: "album" },
-                { formId: "#update-genre", payloadKey: "genre", initialKey: "genre" },
-                { formId: "#update-description", payloadKey: "description", initialKey: "description" },
-                { formId: "#lrc-input-area", payloadKey: "lyrics", initialKey: "lyrics" }
-            ];
-
-            fieldsToCompare.forEach(field => {
-                const formElement = form.querySelector(field.formId);
-                if (formElement) {
-                    const currentValue = formElement.value.trim();
-                    let initialValue = initialData[field.initialKey];
-                    if (field.altInitialKey && initialValue === undefined) {
-                        initialValue = initialData[field.altInitialKey];
-                    }
-                    initialValue = initialValue || ""; // Treat null/undefined initial values as empty string for comparison
-
-                    if (currentValue !== initialValue) {
-                        payload[field.payloadKey] = currentValue;
-                        hasChanges = true;
-                    }
-                }
-            });
-            
-            // Always include title and author if they are not empty, even if not "changed" from an empty initial state
-            // This ensures they are sent if they were initially null/empty but now have values.
-            if (title && !payload.title) payload.title = title;
-            if (artist && !payload.author) payload.author = artist;
-
-            // Cover image handling
-            if (window.appState.newCoverSelectedForUpdate && window.appState.selectedCoverBase64 && window.appState.selectedCoverExt) {
-                const base64Parts = window.appState.selectedCoverBase64.split(',');
-                if (base64Parts.length === 2) {
-                    payload.cover_binary = base64Parts[1];
-                    payload.cover_ext = window.appState.selectedCoverExt;
-                    hasChanges = true;
-                    // Optionally populate the hidden form field, though not strictly needed if sending in payload
-                    const coverExtInput = form.querySelector("#update-cover-ext");
-                    if (coverExtInput) coverExtInput.value = window.appState.selectedCoverExt;
-                } else {
-                    console.warn("Invalid base64 string format for cover image.");
-                }
-            }
-
-            if (!hasChanges) {
-                UIManager.showToast("No changes detected to save.", "info");
-                return;
-            }
-            
-            // Ensure mandatory fields (title, author) are in payload if they have values,
-            // even if not strictly "changed" from an empty initial state but were filled by user.
-            if (!payload.title && title) payload.title = title;
-            if (!payload.author && artist) payload.author = artist;
-
-
-            webSocketManager.sendWebSocketCommand("update_track_info", payload)
-                .then((response) => {
-                    if (response.code === 0) {
-                        UIManager.showToast("Track updated successfully!", "success");
-                        
-                        // Create an updated track object based on payload for local state update
-                        const updatedTrackDataForState = { ...initialData }; // Start with initial
-                        for (const key in payload) {
-                            if (key === "author") updatedTrackDataForState["author"] = payload[key];
-                            else if (key === "album") updatedTrackDataForState["album_name"] = payload[key]; // Assuming store uses album_name
-                            else if (key !== "music_id" && key !== "cover_binary" && key !== "cover_ext") { // Don't store binary in appState
-                                updatedTrackDataForState[key] = payload[key];
-                            }
-                        }
-                        // If cover was updated, backend will provide new cover_path. We might need to refresh or use a placeholder.
-                        // For now, if a cover was sent, we can anticipate the detail page might need to show it.
-                        // The navigation to song-detail should ideally handle fetching the latest track details or use current appState.
-
-                        if (window.appState && window.appState.library) {
-                            const index = window.appState.library.findIndex(track => String(track.music_id || track.id) === String(musicId));
-                            if (index !== -1) {
-                                // Merge changes. If new cover was uploaded, cover_path might change,
-                                // so a full refresh or specific update of cover_path would be ideal.
-                                // For now, merge known fields. Backend response might include full updated track.
-                                window.appState.library[index] = { ...window.appState.library[index], ...updatedTrackDataForState };
-                                if (payload.cover_ext) { // If a new cover was sent
-                                    // We don't know the new path yet from frontend alone.
-                                    // A full re-fetch or response from backend is needed for cover_path.
-                                    // Forcing a refresh on song-detail might be an option or rely on backend sending full object.
-                                    // For now, let's assume backend response would be used if it contained the full object.
-                                    // Or, we can mark it to be reloaded.
-                                }
-                            }
-                        }
-                        if (window.appState && window.appState.currentSongDetail && String(window.appState.currentSongDetail.music_id || window.appState.currentSongDetail.id) === String(musicId)) {
-                            window.appState.currentSongDetail = { ...window.appState.currentSongDetail, ...updatedTrackDataForState };
-                             if (payload.cover_ext && response.data && response.data.cover_path) { // Example: if backend sends back new path
-                                window.appState.currentSongDetail.cover_path = response.data.cover_path;
-                            }
-                        }
-                        // NavigationManager will clear editingTrackInitialData, etc. on successful navigation
-                        navigationManager.navigateTo("song-detail", updatedTrackDataForState.title || "Track Detail", "#song-detail/" + musicId, false, musicId);
-                    } else {
-                        UIManager.showToast(response.message || "Failed to update track.", "error");
-                    }
-                })
-                .catch(error => { // Only one .catch block needed for the promise chain
-                    UIManager.showToast("Error updating track: " + (error.message || "Unknown error"), "error");
-                });
+        navigationManager.handleUpdateTrackSubmit();
     } else if (cancelUpdateButton) {
-        history.back(); // NavigationManager will handle clearing update-track state
+        navigationManager.navigateBack(); // This will also clear update-track state
     }
 
     if (submitUploadButton) {
       event.preventDefault();
       const form = document.getElementById("upload-track-form");
-      if (!form) {
+      if (form) {
+        // Delegate to UploadManager
+        uploadManager.handleUploadFormSubmit(form, submitUploadButton);
+      } else {
         UIManager.showToast("Critical error: Upload form not found.", "error");
-        return;
       }
-
-      (async () => {
-        try {
-          // 1. 校验音频文件和表单字段
-          const audioFile = window.appState.droppedFile;
-          if (!audioFile) {
-            UIManager.showToast("No audio file has been selected or dropped.", "error");
-            return;
-          }
-          const title = form.querySelector("#upload-title").value.trim();
-          const artist = form.querySelector("#upload-artist").value.trim();
-          if (!title || !artist) {
-            UIManager.showToast("Title and Artist fields are required.", "error");
-            return;
-          }
-
-          // 2. 禁用按钮防止重复提交
-          submitUploadButton.disabled = true;
-          submitUploadButton.textContent = "Uploading...";
-
-          // 3. 构建音频元数据
-          const audioMetadata = {
-            title,
-            author: artist,
-            album_name: form.querySelector("#upload-album").value.trim(),
-            genre: form.querySelector("#upload-genre").value.trim(),
-            description: form.querySelector("#upload-description").value.trim(),
-            lyrics: form.querySelector("#lrc-input-area")?.value.trim() || null,
-            original_filename: audioFile.name
-          };
-
-          // 4. 上传音频文件（分片）
-          const audioUploadResult = await startChunkedUploadProcess(
-            audioFile, "audio", audioMetadata, webSocketManager, UIManager
-          );
-          if (!audioUploadResult?.success) {
-            UIManager.showToast(audioUploadResult.error || "Audio upload failed.", "error");
-            return;
-          }
-
-          // 5. 处理音乐ID和封面
-          let finalTrackData = audioUploadResult.data?.track_data || null;
-          const newMusicId = finalTrackData?.music_id || null;
-
-          // 5.1 如果标签中有图片，转为File对象
-          const tagPic = window.appState.parsedMetadata?.picture;
-          if (tagPic?.data && tagPic?.format) {
-            const ext = tagPic.format.split('/')[1] || 'jpg';
-            const file = new File([new Uint8Array(tagPic.data)], `cover_from_tag.${ext}`, { type: tagPic.format });
-            window.appState.selectedCoverFileObject = file;
-            window.appState.selectedCoverExt = ext;
-            const reader = new FileReader();
-            reader.onload = e => window.appState.selectedCoverBase64 = e.target.result;
-            reader.readAsDataURL(file);
-          }
-
-          // 5.2 上传封面（如果有）
-          if (window.appState.selectedCoverFileObject && newMusicId && !audioMetadata.cover_binary_on_finalize) {
-            const coverUploadResult = await startChunkedUploadProcess(
-              window.appState.selectedCoverFileObject, "cover", {}, webSocketManager, UIManager, newMusicId
-            );
-            if (!coverUploadResult?.success) {
-              UIManager.showToast(coverUploadResult.error || "Cover upload failed. Audio was saved.", "warning");
-            } else if (coverUploadResult.data?.cover_path && finalTrackData) {
-              finalTrackData.cover_path = coverUploadResult.data.cover_path;
-              UIManager.showToast("Cover uploaded successfully!", "success");
-            }
-          } else if (newMusicId && audioMetadata.cover_binary_on_finalize) {
-            UIManager.showToast("Audio and initial cover uploaded successfully!", "success");
-          } else if (!newMusicId && window.appState.selectedCoverFileObject) {
-            UIManager.showToast("Audio upload succeeded but could not get Music ID to attach cover.", "warning");
-          } else {
-            UIManager.showToast("Audio uploaded successfully!", "success");
-          }
-
-          // 6. 清理状态和UI
-          window.appState.droppedFile = null;
-          window.appState.parsedMetadata = null;
-          window.appState.selectedCoverBase64 = null;
-          window.appState.selectedCoverExt = null;
-          window.appState.selectedCoverFileObject = null;
-
-          const previewButton = document.getElementById('upload-cover-upload-button');
-          if (previewButton) {
-            const imgElement = previewButton.querySelector('.cover-preview-image');
-            const iconElement = previewButton.querySelector('.initial-icon');
-            if (imgElement) { imgElement.src = "#"; imgElement.style.display = 'none'; }
-            if (iconElement) iconElement.style.display = 'block';
-          }
-          const uploadCoverExtInput = document.getElementById('upload-cover-ext');
-          if (uploadCoverExtInput) uploadCoverExtInput.value = '';
-          const filenamePlaceholder = document.getElementById('upload-filename-placeholder');
-          if (filenamePlaceholder) filenamePlaceholder.textContent = "No file selected";
-          const lrcInput = document.getElementById('lrc-input-area');
-          if (lrcInput) lrcInput.value = '';
-          const lrcPreview = document.getElementById('lrc-preview-area');
-          if (lrcPreview) lrcPreview.innerHTML = 'Lyrics preview will appear here.';
-
-          // 7. 恢复按钮状态并跳转
-          submitUploadButton.disabled = false;
-          submitUploadButton.textContent = "Upload Track";
-          navigationManager.navigateTo("home", "Home", "#home");
-
-        } catch (error) {
-          UIManager.showToast("Upload failed: " + (error.message || "Unknown error"), "error");
-          submitUploadButton.disabled = false;
-          submitUploadButton.textContent = "Upload Track";
-        }
-      })();
-
     } else if (cancelUploadButton) {
-      // 清理状态和UI
-      window.appState.droppedFile = null;
-      window.appState.parsedMetadata = null;
-      window.appState.selectedCoverBase64 = null;
-      window.appState.selectedCoverExt = null;
-      window.appState.selectedCoverFileObject = null;
-      const form = document.getElementById('upload-track-form');
-      if (form) form.reset();
-      const previewButton = document.getElementById('upload-cover-upload-button');
-      if (previewButton) {
-        const imgElement = previewButton.querySelector('.cover-preview-image');
-        const iconElement = previewButton.querySelector('.initial-icon');
-        if (imgElement) { imgElement.src = "#"; imgElement.style.display = 'none'; }
-        if (iconElement) iconElement.style.display = 'block';
-      }
-      const filenamePlaceholder = document.getElementById('upload-filename-placeholder');
-      if (filenamePlaceholder) filenamePlaceholder.textContent = "No file selected";
-      const lrcInput = document.getElementById('lrc-input-area');
-      if (lrcInput) lrcInput.value = '';
-      const lrcPreview = document.getElementById('lrc-preview-area');
-      if (lrcPreview) lrcPreview.innerHTML = 'Lyrics preview will appear here.';
-      history.back();
+      uploadManager.handleUploadCancel();
     }
 
     // Removed lyricsSimulatePlayButton and lyricsResetSimulationButton listeners,

@@ -1,5 +1,7 @@
 // frontend/modules/NavigationManager.js
 import SongCardRenderer from "./SongCardRenderer.js";
+import { getFileExtension } from "./Utils.js"; // Added for cover file extension
+import SongCardRenderer from "./SongCardRenderer.js";
 import {
   initLyricsEditorControls,
   setMainPlayerManager,
@@ -943,8 +945,15 @@ class NavigationManager {
               String(track.music_id || track.id) === String(musicIdToUpdate)
           );
         }
-
+        
+        // Setup for editingTrackInitialData and cover flags
         if (trackToUpdate) {
+          this.appState.editingTrackInitialData = JSON.parse(JSON.stringify(trackToUpdate)); // Deep copy
+          this.appState.newCoverSelectedForUpdate = false;
+          this.appState.selectedCoverBase64 = null;
+          this.appState.selectedCoverFileObject = null;
+          this.appState.selectedCoverExt = null;
+
           form.querySelector("#update-music-id").value =
             trackToUpdate.music_id || trackToUpdate.id || "";
           form.querySelector("#update-title").value = trackToUpdate.title || "";
@@ -953,9 +962,6 @@ class NavigationManager {
           form.querySelector("#update-album").value =
             trackToUpdate.album_name || trackToUpdate.album || "";
           form.querySelector("#update-genre").value = trackToUpdate.genre || "";
-          // form.querySelector("#update-year").value = trackToUpdate.year || trackToUpdate.release_year || '';
-          //   form.querySelector("#update-cover-path").value =
-          //     trackToUpdate.cover_path || ""; // Keep this for existing path display
           form.querySelector("#update-description").value =
             trackToUpdate.description || "";
 
@@ -1475,6 +1481,216 @@ class NavigationManager {
   // handleMainContentClick is mostly for actions within a page,
   // but navigation actions like clicking a song card to go to detail view
   // are handled by this.navigateToSongDetail(), called from script.js
+
+  handleUpdateCoverFileSelect(fileInput) {
+    const file = fileInput.files[0];
+    const previewButton = document.getElementById('update-cover-upload-button'); 
+    // const coverExtInput = document.getElementById('update-cover-ext'); // Not directly used here, but appState.selectedCoverExt is set
+
+    if (file && file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            if (previewButton) {
+                const imgElement = previewButton.querySelector('.cover-preview-image');
+                const iconElement = previewButton.querySelector('.initial-icon');
+                if (imgElement) {
+                    imgElement.src = e.target.result;
+                    imgElement.style.display = 'block';
+                }
+                if (iconElement) {
+                    iconElement.style.display = 'none';
+                }
+            }
+            this.appState.selectedCoverBase64 = e.target.result; // Full Data URL for preview
+            const extension = getFileExtension(file.name); // Use imported getFileExtension
+            this.appState.selectedCoverFileObject = file;
+            this.appState.selectedCoverExt = extension;
+            this.appState.newCoverSelectedForUpdate = true;
+            
+            // Optionally update hidden form field if it exists, though payload is built from appState
+            const updateCoverExtFormInput = document.getElementById('update-cover-ext');
+            if (updateCoverExtFormInput) {
+                updateCoverExtFormInput.value = extension;
+            }
+        };
+        reader.readAsDataURL(file);
+    } else if (file) { // File selected but not an image
+        this.uiManager.showToast("Please select an image file for the cover.", "error");
+        this.appState.selectedCoverBase64 = null;
+        this.appState.selectedCoverExt = null;
+        this.appState.selectedCoverFileObject = null;
+        this.appState.newCoverSelectedForUpdate = false;
+        
+        const updateCoverExtFormInput = document.getElementById('update-cover-ext');
+        if (updateCoverExtFormInput) updateCoverExtFormInput.value = '';
+
+        if (previewButton) {
+            const imgElement = previewButton.querySelector('.cover-preview-image');
+            const iconElement = previewButton.querySelector('.initial-icon');
+            if (imgElement) {
+                imgElement.src = "#";
+                imgElement.style.display = 'none';
+            }
+            if (iconElement) {
+                iconElement.style.display = 'block';
+            }
+        }
+        fileInput.value = ''; // Clear the file input
+    }
+  }
+
+  async handleUpdateTrackSubmit() {
+    const form = document.getElementById("update-track-form");
+    if (!form) {
+        console.error("Update form (#update-track-form) not found!");
+        this.uiManager.showToast("Critical error: Update form not found.", "error");
+        return;
+    }
+
+    const musicId = form.querySelector("#update-music-id").value;
+    const title = form.querySelector("#update-title").value.trim();
+    const artist = form.querySelector("#update-artist").value.trim();
+
+    if (!title || !artist) {
+        this.uiManager.showToast("Title and Artist cannot be empty.", "error");
+        return;
+    }
+
+    const initialData = this.appState.editingTrackInitialData || {};
+    const payload = { music_id: musicId };
+    let hasChanges = false;
+
+    const fieldsToCompare = [
+        { formId: "#update-title", payloadKey: "title", initialKey: "title" },
+        { formId: "#update-artist", payloadKey: "author", initialKey: "author" }, // Backend expects 'author'
+        { formId: "#update-album", payloadKey: "album", initialKey: "album_name", altInitialKey: "album" },
+        { formId: "#update-genre", payloadKey: "genre", initialKey: "genre" },
+        { formId: "#update-description", payloadKey: "description", initialKey: "description" },
+        { formId: "#lrc-input-area", payloadKey: "lyrics", initialKey: "lyrics" }
+    ];
+
+    fieldsToCompare.forEach(field => {
+        const formElement = form.querySelector(field.formId);
+        if (formElement) {
+            const currentValue = formElement.value.trim(); // Ensure lyrics are also trimmed
+            let initialValue = initialData[field.initialKey];
+            if (field.altInitialKey && initialValue === undefined) {
+                initialValue = initialData[field.altInitialKey];
+            }
+            initialValue = initialValue || ""; 
+
+            if (currentValue !== initialValue) {
+                payload[field.payloadKey] = currentValue;
+                hasChanges = true;
+            }
+        }
+    });
+     // Ensure title and author are included if they were initially empty but now have values
+    if (title && !payload.title && title !== (initialData.title || "")) {
+        payload.title = title;
+        hasChanges = true;
+    }
+    if (artist && !payload.author && artist !== (initialData.author || "")) {
+        payload.author = artist; // Assuming backend expects 'author'
+        hasChanges = true;
+    }
+
+
+    if (this.appState.newCoverSelectedForUpdate && this.appState.selectedCoverBase64 && this.appState.selectedCoverExt) {
+        const base64Parts = this.appState.selectedCoverBase64.split(',');
+        if (base64Parts.length === 2) {
+            payload.cover_binary = base64Parts[1];
+            payload.cover_ext = this.appState.selectedCoverExt;
+            hasChanges = true;
+        } else {
+            console.warn("Invalid base64 string format for cover image during update.");
+        }
+    }
+
+    if (!hasChanges) {
+        this.uiManager.showToast("No changes detected to save.", "info");
+        return;
+    }
+    
+    // Ensure mandatory fields (title, author) are in payload if they have values,
+    // even if not strictly "changed" from an empty initial state but were filled by user.
+    // This handles cases where initialData might have had null/empty for these fields.
+    if (!payload.title && title) payload.title = title;
+    if (!payload.author && artist) payload.author = artist;
+
+    try {
+        const response = await this.webSocketManager.sendWebSocketCommand("update_track_info", payload);
+        if (response.code === 0) {
+            this.uiManager.showToast("Track updated successfully!", "success");
+            
+            const updatedTrackDataForState = { ...initialData };
+            for (const key in payload) {
+                if (key === "author") updatedTrackDataForState["author"] = payload[key];
+                else if (key === "album") updatedTrackDataForState["album_name"] = payload[key];
+                else if (key !== "music_id" && key !== "cover_binary" && key !== "cover_ext") {
+                    updatedTrackDataForState[key] = payload[key];
+                }
+            }
+            if (payload.cover_ext && response.data && response.data.cover_path) {
+                updatedTrackDataForState.cover_path = response.data.cover_path;
+            }
+
+            if (this.appState.library) {
+                const index = this.appState.library.findIndex(track => String(track.music_id || track.id) === String(musicId));
+                if (index !== -1) {
+                    this.appState.library[index] = { ...this.appState.library[index], ...updatedTrackDataForState };
+                }
+            }
+            if (this.appState.currentSongDetail && String(this.appState.currentSongDetail.music_id || this.appState.currentSongDetail.id) === String(musicId)) {
+                this.appState.currentSongDetail = { ...this.appState.currentSongDetail, ...updatedTrackDataForState };
+            }
+            
+            this.navigateTo("song-detail", updatedTrackDataForState.title || "Track Detail", `#song-detail/${musicId}`, false, musicId);
+        } else {
+            this.uiManager.showToast(response.message || "Failed to update track.", "error");
+        }
+    } catch (error) {
+        this.uiManager.showToast("Error updating track: " + (error.message || "Unknown error"), "error");
+    }
+  }
+
+  async handleDeleteTrack(musicId) {
+    if (!musicId) {
+      this.uiManager.showToast("Cannot delete track: Missing Music ID.", "error");
+      return;
+    }
+    try {
+      await this.webSocketManager.sendWebSocketCommand("delete_track", { music_id: musicId });
+
+      const songCardToRemove = document.querySelector(`.song-card[data-song-id="${musicId}"]`);
+      if (songCardToRemove) {
+        songCardToRemove.remove();
+      }
+
+      if (this.appState && this.appState.library) {
+        this.appState.library = this.appState.library.filter(track => String(track.music_id || track.id) !== String(musicId));
+      }
+
+      if (this.playerManager && typeof this.playerManager.setPlayList === 'function') {
+        this.playerManager.setPlayList(this.appState.library);
+      }
+      
+      if (this.getCurrentPageId() === 'home' && this.appState.library && this.appState.library.length === 0) {
+        const noSongsMessage = document.getElementById('no-songs-message');
+        if (noSongsMessage) noSongsMessage.style.display = 'block';
+        
+        const songCardGrid = document.getElementById('song-card-grid');
+        if (songCardGrid) songCardGrid.style.display = 'none';
+      }
+
+      this.uiManager.showToast("Track deleted successfully.", "success");
+
+    } catch (error) {
+      console.error(`Error deleting track ${musicId}:`, error);
+      this.uiManager.showToast("Failed to delete track. " + (error.message || "Unknown error"), "error");
+    }
+  }
+  
   handleMainContentClick(event) {
     // Example: Handling inline links if any were part of dynamic content loaded by NavigationManager
     const inlineLink = event.target.closest(".inline-nav-link"); // A hypothetical class for such links
