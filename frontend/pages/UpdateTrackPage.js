@@ -10,7 +10,6 @@ import {
     parseLRC, // Used if displaying preview of existing lyrics
     renderLyricsPreview // Used if displaying preview of existing lyrics
 } from '../modules/LyricsEditor.js';
-
 class UpdateTrackPage {
     constructor() {
         // Page-specific initialization if any
@@ -82,7 +81,7 @@ class UpdateTrackPage {
     }
 
     onLoad(mainContentElement, subPageId, appState, managers) { // subPageId is musicIdToUpdate
-        console.log('UpdateTrackPage loaded for:', subPageId);
+        console.log('UpdateTrackPage loaded for:', subPageId,managers);
         const musicIdToUpdate = subPageId;
         const form = mainContentElement.querySelector("#update-track-form");
 
@@ -193,10 +192,13 @@ class UpdateTrackPage {
         const saveUpdateButton = mainContentElement.querySelector("#save-track-update-button");
         const cancelUpdateButton = mainContentElement.querySelector("#cancel-track-update-button");
 
-        if (saveUpdateButton && managers.uiManager) { // UIManager now has handleUpdateTrackSubmit
+        if (saveUpdateButton && managers.uploadManager) { // UIManager now has handleUpdateTrackSubmit
             saveUpdateButton.addEventListener('click', (event) => {
                 event.preventDefault();
-                managers.uiManager.handleUpdateTrackSubmit(); 
+                managers.uploadManager.handleUpdateTrackSubmit().then(result =>managers.navigationManager.navigateTo(
+                ...result
+                ))
+                
             });
         }
         if (cancelUpdateButton && managers.navigationManager) {

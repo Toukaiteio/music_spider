@@ -1687,7 +1687,7 @@ body {
 .player-track-info {
     overflow: hidden;
 }
-#lyrics-display-area {
+#lyrics-display-area:not(.lyrics-display-area-no-lyrics) {
     height: 100%;
     width: 100%;
     padding: 50px 0;

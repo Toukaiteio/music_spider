@@ -69,7 +69,7 @@ document.addEventListener("DOMContentLoaded", () => {
     playerManager: playerManager,
     uiManager: UIManager, // UIManager is globally available, can be passed directly
     appState: window.appState,
-    renderDrawerCollectionsCallback: collectionManager.renderCollectionsInDrawer.bind(collectionManager),
+    renderDrawerCollectionsCallback: collectionManager.renderDrawerCollections.bind(collectionManager),
     getCollectionsCallback: collectionManager.getCollections.bind(collectionManager),
   });
 
@@ -103,15 +103,15 @@ document.addEventListener("DOMContentLoaded", () => {
   searchManager.setFavoriteManager(favoriteManager); // SearchManager also needs FavoriteManager
   
   // Initialize UIManager with all managers
-  UIManager.setPlayerManager(playerManager);
-  UIManager.setNavigationManager(navigationManager);
-  UIManager.setWebSocketManager(webSocketManager);
-  UIManager.setSearchManager(searchManager);
-  UIManager.setFavoriteManager(favoriteManager);
-  UIManager.setCollectionManager(collectionManager);
-  UIManager.setUploadManager(uploadManager);
-  UIManager.setAppState(window.appState);
-  UIManager.init(); // General UIManager initializations
+  // UIManager.setPlayerManager(playerManager);
+  // UIManager.setNavigationManager(navigationManager);
+  // UIManager.setWebSocketManager(webSocketManager);
+  // UIManager.setSearchManager(searchManager);
+  // UIManager.setFavoriteManager(favoriteManager);
+  // UIManager.setCollectionManager(collectionManager);
+  // UIManager.setUploadManager(uploadManager);
+  // UIManager.setAppState(window.appState);
+  // UIManager.init(); // General UIManager initializations
 
   navigationManager.init(); 
   searchManager.init(); 
@@ -171,8 +171,9 @@ document.addEventListener("DOMContentLoaded", () => {
       if (musicId) {
         UIManager.showConfirmationDialog(
             "Are you sure you want to delete this track?",
-            () => { UIManager.handleDeleteTrack(musicId); } 
+            () => { uploadManager.handleDeleteTrack(musicId); } 
         );
+        // uploadManager.handleDeleteTrack(musicId);
       } else {
         console.warn("Delete button clicked, but no song-id data found.");
         UIManager.showToast("Cannot delete track: Missing Music ID.", "error");

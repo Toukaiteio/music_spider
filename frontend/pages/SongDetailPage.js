@@ -26,7 +26,7 @@ class SongDetailPage {
                     </div>
                 </div>
                 <div class="song-detail-right">
-                    <div id="lyrics-display-area">
+                    <div id="lyrics-display-area" class="lyrics-display-area-no-lyrics">
                         <p>暂无歌词</p>
                     </div>
                     <button id="upload-lyrics-button" class="icon-button" style="display: none;">
@@ -101,6 +101,7 @@ class SongDetailPage {
         if (lyricsDisplayArea && uploadLyricsButton) {
             if (track.lyrics && typeof track.lyrics === 'string' && track.lyrics.trim() !== '') {
                 lyricsDisplayArea.innerHTML = ""; // Clear "暂无歌词"
+                lyricsDisplayArea.classList.remove("lyrics-display-area-no-lyrics");
                 const canvas = document.createElement("canvas");
                 canvas.id = "lyrics-canvas";
                 canvas.style.display = "block";
