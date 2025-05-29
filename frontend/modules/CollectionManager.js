@@ -402,7 +402,7 @@ class CollectionManager {
                 link.className = "drawer-link local-collection-link"; 
                 link.dataset.page = "collection-detail";
                 link.dataset.collectionName = collection.name;
-
+                link.draggable = false;
                 const initial = collection.name.charAt(0).toUpperCase();
                 const color = collection.color || this.defaultCollectionColor; // Use default if no color
 

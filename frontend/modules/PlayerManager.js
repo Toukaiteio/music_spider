@@ -4,8 +4,9 @@
  */
 
 // 假设有鼓点检测和高潮检测算法
-// 可用如 music-beat-detector、music-tempo、ml5.js pitch detection等库，或简单实现
+// 可用如 music-beat-detector、music-tempo、ml5.js pitch detection等库、或简单实现
 import { pauseEditorAndResetButton } from './LyricsEditor.js'; // Import the function
+import UIManager from "./UIManager.js";
 
 class PlayerManager {
   constructor({
@@ -348,6 +349,37 @@ class PlayerManager {
     this.audio.pause();
     this.isPlaying = false;
     this.stopVisualizer();
+  }
+
+  playTrackFromCard(trackInfoString) {
+    if (!trackInfoString) {
+      console.warn("playTrackFromCard called with no trackInfoString.");
+      return;
+    }
+    try {
+      const trackInfo = JSON.parse(trackInfoString);
+      if (this.playerTrackTitle) {
+        this.playerTrackTitle.textContent = trackInfo.title || "Unknown Title";
+      }
+      if (this.playerTrackArtist) {
+        this.playerTrackArtist.textContent = trackInfo.author || trackInfo.artist_name || "Unknown Artist";
+      }
+      
+      this.playTrackById(trackInfo.music_id); // This should load and play the track
+      
+      UIManager.setPlayerVisibility(true); // Make player visible
+
+      // Update the main player's play/pause button icon to 'pause'
+      if (this.playerPlayPauseButton) {
+        const icon = this.playerPlayPauseButton.querySelector(".material-icons");
+        if (icon) {
+          icon.textContent = "pause_arrow"; 
+        }
+      }
+    } catch (e) {
+      console.error("Failed to parse track info for playTrackFromCard:", e);
+      UIManager.showToast("Error playing track: Invalid track data.", "error");
+    }
   }
   
   // Allow external modules (like LyricsEditor) to pause the main player.
