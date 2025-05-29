@@ -278,7 +278,7 @@ class UIManager {
       // No need to manually set transform here, as each toast animates in/out itself
     });
   }
-
+  
   static initThemeSwitcher() {
     const themeSwitcher = document.getElementById("theme-switcher");
     if (themeSwitcher) {

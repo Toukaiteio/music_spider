@@ -311,7 +311,6 @@ export function initLyricsEditorControls(lyricsEditorContainerElement) {
         currentParsedLyrics
       );
     });
-
     // Event listeners for cursor highlight
     lrcInputAreaElement.addEventListener("focus", () =>
       updateCursorHighlight(
@@ -345,47 +344,55 @@ export function initLyricsEditorControls(lyricsEditorContainerElement) {
   }
 
   if (lrcPreviewAreaElement && lrcInputAreaElement) {
-    lrcPreviewAreaElement.addEventListener('click', (event) => {
-        const clickedLineElement = event.target.closest('.lyric-line');
-        if (clickedLineElement) {
-            let clickedLineText = "";
-            // Attempt to reconstruct text exactly as it would be from .text or .words
-            // This needs to match how renderLyricsPreview constructs the line.
-            // If words are used, concatenate them. Otherwise, use textContent of the p element.
-            const wordSpans = clickedLineElement.querySelectorAll('.lyric-word');
-            if (wordSpans.length > 0) {
-                wordSpans.forEach(span => clickedLineText += span.textContent); // Includes spaces from rendering
-                clickedLineText = clickedLineText.trim(); // Trim trailing space if any
-            } else {
-                clickedLineText = clickedLineElement.textContent.trim();
-            }
-
-            const fullLrcTextInEditor = lrcInputAreaElement.value;
-            const linesInEditor = fullLrcTextInEditor.split('\n');
-            
-            for (let i = 0; i < linesInEditor.length; i++) {
-                const editorLine = linesInEditor[i];
-                // Match based on text content after the timestamp
-                const timeTagMatch = editorLine.match(/^\[\d{2}:\d{2}\.\d{2,3}\]/);
-                if (timeTagMatch) {
-                    const textPartInEditor = editorLine.substring(timeTagMatch[0].length).trim();
-                    // Compare with the potentially word-span reconstructed text
-                    if (textPartInEditor === clickedLineText) {
-                        const startIndex = fullLrcTextInEditor.indexOf(editorLine);
-                        const endIndex = startIndex + editorLine.length;
-                        
-                        lrcInputAreaElement.focus();
-                        lrcInputAreaElement.setSelectionRange(startIndex, endIndex);
-                        
-                        // Scroll into view
-                        const textLines = fullLrcTextInEditor.substring(0, startIndex).split("\n").length -1;
-                        const avgLineHeight = lrcInputAreaElement.scrollHeight / editorAllLines.length;
-                        lrcInputAreaElement.scrollTop = Math.max(0, textLines * avgLineHeight - lrcInputAreaElement.clientHeight / 2); // Center it
-                        break;
-                    }
-                }
-            }
+    lrcPreviewAreaElement.addEventListener("click", (event) => {
+      const clickedLineElement = event.target.closest(".lyric-line");
+      if (clickedLineElement) {
+        let clickedLineText = "";
+        // Attempt to reconstruct text exactly as it would be from .text or .words
+        // This needs to match how renderLyricsPreview constructs the line.
+        // If words are used, concatenate them. Otherwise, use textContent of the p element.
+        const wordSpans = clickedLineElement.querySelectorAll(".lyric-word");
+        if (wordSpans.length > 0) {
+          wordSpans.forEach((span) => (clickedLineText += span.textContent)); // Includes spaces from rendering
+          clickedLineText = clickedLineText.trim(); // Trim trailing space if any
+        } else {
+          clickedLineText = clickedLineElement.textContent.trim();
         }
+
+        const fullLrcTextInEditor = lrcInputAreaElement.value;
+        const linesInEditor = fullLrcTextInEditor.split("\n");
+
+        for (let i = 0; i < linesInEditor.length; i++) {
+          const editorLine = linesInEditor[i];
+          // Match based on text content after the timestamp
+          const timeTagMatch = editorLine.match(/^\[\d{2}:\d{2}\.\d{2,3}\]/);
+          if (timeTagMatch) {
+            const textPartInEditor = editorLine
+              .substring(timeTagMatch[0].length)
+              .trim();
+            // Compare with the potentially word-span reconstructed text
+            if (textPartInEditor === clickedLineText) {
+              const startIndex = fullLrcTextInEditor.indexOf(editorLine);
+              const endIndex = startIndex + editorLine.length;
+
+              lrcInputAreaElement.focus();
+              lrcInputAreaElement.setSelectionRange(startIndex, endIndex);
+
+              // Scroll into view
+              const textLines =
+                fullLrcTextInEditor.substring(0, startIndex).split("\n")
+                  .length - 1;
+              const avgLineHeight =
+                lrcInputAreaElement.scrollHeight / editorAllLines.length;
+              lrcInputAreaElement.scrollTop = Math.max(
+                0,
+                textLines * avgLineHeight - lrcInputAreaElement.clientHeight / 2
+              ); // Center it
+              break;
+            }
+          }
+        }
+      }
     });
   }
 
@@ -684,11 +691,11 @@ function drawWaveform(audioBuffer, canvas, ctx, currentTime) {
   // Define 5-second window
   const windowDuration = 5; // seconds
   const halfWindow = windowDuration / 2;
-  
+
   // Calculate start and end times
   let startTime = Math.max(0, currentTime - halfWindow);
   let endTime = Math.min(audioBuffer.duration, currentTime + halfWindow);
-  
+
   // Handle edge cases
   if (currentTime < halfWindow) {
     endTime = Math.min(windowDuration, audioBuffer.duration);
@@ -698,17 +705,17 @@ function drawWaveform(audioBuffer, canvas, ctx, currentTime) {
 
   const data = audioBuffer.getChannelData(0);
   const sampleRate = audioBuffer.sampleRate;
-  
+
   // Get colors from CSS variables
-  const waveformColor = 
+  const waveformColor =
     getComputedStyle(document.documentElement)
       .getPropertyValue("--text-color-secondary")
       .trim() || "#cccccc";
-  const playedColor = 
+  const playedColor =
     getComputedStyle(document.documentElement)
       .getPropertyValue("--accent-color")
       .trim() || "#ff6f00";
-  const needleColor = 
+  const needleColor =
     getComputedStyle(document.documentElement)
       .getPropertyValue("--accent-color-darker")
       .trim() || "#e65100";
@@ -719,7 +726,7 @@ function drawWaveform(audioBuffer, canvas, ctx, currentTime) {
   const totalSamples = endSample - startSample;
   const sampleCount = 350; // Fixed number of sample points
   const step = Math.max(1, Math.floor(totalSamples / sampleCount));
-  
+
   const spacing = width / sampleCount;
   const halfHeight = height / 2;
   const scaleY = height / 2;
@@ -730,16 +737,16 @@ function drawWaveform(audioBuffer, canvas, ctx, currentTime) {
   // First draw the played (highlighted) section
   ctx.strokeStyle = playedColor;
   ctx.beginPath();
-  
+
   let hasData = false;
-  
+
   for (let i = 0; i < sampleCount; i++) {
     let min = 1.0;
     let max = -1.0;
     const sampleIndex = startSample + Math.floor(i * step);
-    
+
     if (sampleIndex >= data.length) break;
-    
+
     // Get min/max values for this sample block
     for (let j = 0; j < step && sampleIndex + j < data.length; j++) {
       const datum = data[sampleIndex + j];
@@ -747,9 +754,9 @@ function drawWaveform(audioBuffer, canvas, ctx, currentTime) {
       if (datum > max) max = datum;
       hasData = true;
     }
-    
+
     const x = i * spacing;
-    
+
     // Only draw the played section (before current time)
     if (x < centerX) {
       ctx.moveTo(x, halfHeight - max * scaleY);
@@ -761,22 +768,22 @@ function drawWaveform(audioBuffer, canvas, ctx, currentTime) {
   // Then draw the future section (gray)
   ctx.strokeStyle = waveformColor;
   ctx.beginPath();
-  
+
   for (let i = 0; i < sampleCount; i++) {
     let min = 1.0;
     let max = -1.0;
     const sampleIndex = startSample + Math.floor(i * step);
-    
+
     if (sampleIndex >= data.length) break;
-    
+
     for (let j = 0; j < step && sampleIndex + j < data.length; j++) {
       const datum = data[sampleIndex + j];
       if (datum < min) min = datum;
       if (datum > max) max = datum;
     }
-    
+
     const x = i * spacing;
-    
+
     // Only draw the future section (after current time)
     if (x >= centerX) {
       ctx.moveTo(x, halfHeight - max * scaleY);
@@ -788,9 +795,9 @@ function drawWaveform(audioBuffer, canvas, ctx, currentTime) {
   // Draw needle cursor (triangle shape pointing downward)
   ctx.fillStyle = needleColor;
   ctx.beginPath();
-  ctx.moveTo(centerX, height - 15);  // Point at bottom
-  ctx.lineTo(centerX - 5, height);  // Left corner
-  ctx.lineTo(centerX + 5, height);  // Right corner
+  ctx.moveTo(centerX, height - 15); // Point at bottom
+  ctx.lineTo(centerX - 5, height); // Left corner
+  ctx.lineTo(centerX + 5, height); // Right corner
   ctx.closePath();
   ctx.fill();
 
@@ -949,7 +956,7 @@ export function renderLyricsPreview(
   parsedLyricsToRender,
   targetElementSelectorOrElement
 ) {
-  const lyricsToUse = currentParsedLyrics;
+  const lyricsToUse = parsedLyricsToRender || currentParsedLyrics;
   if (typeof targetElementSelectorOrElement === "string") {
     lrcPreviewAreaElement = document.querySelector(
       targetElementSelectorOrElement

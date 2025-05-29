@@ -101,6 +101,8 @@
     _addEventListeners() {
       const handleStart = (e) => {
         if (this.disabled) return;
+        e.preventDefault();
+        e.stopPropagation();
         this._isDragging = true;
         document.addEventListener('mousemove', handleMove);
         document.addEventListener('mouseup', handleEnd);
@@ -112,11 +114,14 @@
       const handleMove = (e) => {
         if (!this._isDragging) return;
         e.preventDefault();
+        e.stopPropagation();
         this._handleInteraction(e);
       };
 
       const handleEnd = () => {
         this._isDragging = false;
+        e.preventDefault();
+        e.stopPropagation();
         document.removeEventListener('mousemove', handleMove);
         document.removeEventListener('mouseup', handleEnd);
         document.removeEventListener('touchmove', handleMove);
@@ -125,7 +130,8 @@
 
       this.thumb.addEventListener('mousedown', handleStart);
       this.thumb.addEventListener('touchstart', handleStart);
-      
+      this.track.setAttribute('draggable', 'false');
+      this.thumb.setAttribute('draggable', 'false');
       this.track.addEventListener('click', (e) => {
         if (this.disabled) return;
         this._handleInteraction(e);
@@ -346,7 +352,7 @@
         <nav class="drawer-navigation">
           <ul>
             <li>
-              <a href="#home" class="drawer-link active" data-page="home">
+              <a draggable="false" href="#home" class="drawer-link active" data-page="home">
                 <span class="material-icons">home</span>
                 <span class="link-text">Home</span>
               </a>
@@ -356,20 +362,21 @@
                 href="#collections"
                 class="drawer-link"
                 data-page="collections"
+                draggable="false"
               >
                 <span class="material-icons">favorite</span>
                 <span class="link-text">My Favorites</span>
               </a>
             </li>
             <li>
-              <a href="#upload-track" class="drawer-link" data-page="upload-track">
+              <a draggable="false" href="#upload-track" class="drawer-link" data-page="upload-track">
                 <span class="material-icons">upload_file</span>
                 <span class="link-text">Upload Track</span>
               </a>
             </li>
             <!-- Add more links as needed -->
           </ul>
-          <div class="drawer-list-header">
+          <div class="drawer-list-header" draggable="false">
             <h3>My Saved Playlists</h3>
           </div>
           <ul id="local-collections-list" class="drawer-sub-list">

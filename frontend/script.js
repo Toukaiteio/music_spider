@@ -532,40 +532,40 @@ document.addEventListener("DOMContentLoaded", () => {
     // The old startMockPlayback and resetMockPlayback were for LRC text simulation,
     // the new audio controls in LyricsEditor.js handle actual audio.
 
-    if (lrcPreviewArea && event.target.closest('.lyric-line')) {
-        const clickedLineElement = event.target.closest('.lyric-line');
-        const lrcInputArea = document.getElementById('lrc-input-area');
-        if (clickedLineElement && lrcInputArea) {
-            let clickedLineText = "";
-            const wordSpans = clickedLineElement.querySelectorAll('.lyric-word');
-            if (wordSpans.length > 0) {
-                wordSpans.forEach(span => clickedLineText += span.textContent); 
-                clickedLineText = clickedLineText.trim(); 
-            } else {
-                clickedLineText = clickedLineElement.textContent.trim();
-            }
+    // if (lrcPreviewArea && event.target.closest('.lyric-line')) {
+    //     const clickedLineElement = event.target.closest('.lyric-line');
+    //     const lrcInputArea = document.getElementById('lrc-input-area');
+    //     if (clickedLineElement && lrcInputArea) {
+    //         let clickedLineText = "";
+    //         const wordSpans = clickedLineElement.querySelectorAll('.lyric-word');
+    //         if (wordSpans.length > 0) {
+    //             wordSpans.forEach(span => clickedLineText += span.textContent); 
+    //             clickedLineText = clickedLineText.trim(); 
+    //         } else {
+    //             clickedLineText = clickedLineElement.textContent.trim();
+    //         }
 
-            const fullLrc = lrcInputArea.value;
-            const lines = fullLrc.split('\n');
-            for(let i = 0; i < lines.length; i++) {
-                const line = lines[i];
-                const timeTagMatch = line.match(/\[\d{2}:\d{2}\.\d{2,3}\]/);
-                if (timeTagMatch) {
-                    const textPart = line.substring(timeTagMatch[0].length).replace(/<[^>]+>/g, '').trim();
-                    if (textPart === clickedLineText) {
-                        const startIndex = fullLrc.indexOf(line);
-                        const endIndex = startIndex + line.length;
-                        lrcInputArea.focus();
-                        lrcInputArea.setSelectionRange(startIndex, endIndex);
-                        const textLines = lrcInputArea.value.substr(0, startIndex).split("\n").length -1;
-                        const avgLineHeight = lrcInputArea.scrollHeight / lrcInputArea.value.split("\n").length;
-                        lrcInputArea.scrollTop = textLines * avgLineHeight;
-                        break;
-                    }
-                }
-            }
-        }
-    }
+    //         const fullLrc = lrcInputArea.value;
+    //         const lines = fullLrc.split('\n');
+    //         for(let i = 0; i < lines.length; i++) {
+    //             const line = lines[i];
+    //             const timeTagMatch = line.match(/\[\d{2}:\d{2}\.\d{2,3}\]/);
+    //             if (timeTagMatch) {
+    //                 const textPart = line.substring(timeTagMatch[0].length).replace(/<[^>]+>/g, '').trim();
+    //                 if (textPart === clickedLineText) {
+    //                     const startIndex = fullLrc.indexOf(line);
+    //                     const endIndex = startIndex + line.length;
+    //                     lrcInputArea.focus();
+    //                     lrcInputArea.setSelectionRange(startIndex, endIndex);
+    //                     const textLines = lrcInputArea.value.substr(0, startIndex).split("\n").length -1;
+    //                     const avgLineHeight = lrcInputArea.scrollHeight / lrcInputArea.value.split("\n").length;
+    //                     lrcInputArea.scrollTop = textLines * avgLineHeight;
+    //                     break;
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
 
   });
 

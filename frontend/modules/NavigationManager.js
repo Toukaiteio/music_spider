@@ -1,12 +1,14 @@
 // frontend/modules/NavigationManager.js
 import SongCardRenderer from "./SongCardRenderer.js";
 import { getFileExtension } from "./Utils.js"; // Added for cover file extension
-import SongCardRenderer from "./SongCardRenderer.js";
+// import SongCardRenderer from "./SongCardRenderer.js";
 import {
   initLyricsEditorControls,
   setMainPlayerManager,
   lyricsEditorAudio,
   loadAudioSource,
+  renderLyricsPreview,
+  parseLRC
 } from "./LyricsEditor.js";
 // PlayerManager is already available as this.playerManager.
 
@@ -427,8 +429,8 @@ class NavigationManager {
 
             // Parse LRC lyrics using LyricsEditor.parseLRC
             let parsedLyrics = [];
-            if (typeof window.parseLRC === "function") {
-              parsedLyrics = window.parseLRC(track.lyrics).lyrics;
+            if (typeof parseLRC === "function") {
+              parsedLyrics = parseLRC(track.lyrics).lyrics;
             } else if (
               typeof window.LyricsEditor !== "undefined" &&
               typeof window.LyricsEditor.parseLRC === "function"
@@ -862,10 +864,10 @@ class NavigationManager {
           ) {
             lrcInputAreaUpload.value = this.appState.parsedMetadata.lyrics;
             if (
-              typeof window.parseLRC === "function" &&
+              typeof parseLRC === "function" &&
               typeof window.renderLyricsPreview === "function"
             ) {
-              const parsedLyrics = window.parseLRC(
+              const parsedLyrics = parseLRC(
                 this.appState.parsedMetadata.lyrics
               );
               window.renderLyricsPreview(parsedLyrics, "#lrc-preview-area");
@@ -971,11 +973,11 @@ class NavigationManager {
           if (lrcInputArea && lrcPreviewArea) {
             lrcInputArea.value = trackToUpdate.lyrics || "";
             if (
-              typeof window.parseLRC === "function" &&
-              typeof window.renderLyricsPreview === "function"
+              typeof parseLRC === "function" &&
+              typeof renderLyricsPreview === "function"
             ) {
-              window.renderLyricsPreview(
-                window.parseLRC(trackToUpdate.lyrics || ""),
+              renderLyricsPreview(
+                parseLRC(trackToUpdate.lyrics || "").lyrics,
                 "#lrc-preview-area"
               );
             }

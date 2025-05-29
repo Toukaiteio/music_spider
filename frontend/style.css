@@ -1737,7 +1737,6 @@ body {
 #player-progress-bar {
     flex-grow: 1;
     margin: 0 10px;
-    cursor: pointer;
 }
 
 
