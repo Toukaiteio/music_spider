@@ -2,7 +2,7 @@
 
 class CollectionManager {
     constructor({
-        navigationManager, 
+        navigationManager = null, 
         appState, 
         dialogElementId = "add-to-collection-dialog",
         drawerListElementId = "local-collections-list",
@@ -527,6 +527,12 @@ class CollectionManager {
         } else {
             console.error("CollectionManager: Could not determine song ID for 'Add to Playlist' button.");
         }
+    }
+    setNavigationManager(navigationManager) {
+        this.navigationManager = navigationManager;
+    }
+    setUIManager(uiManager) {
+        this.uiManager = uiManager;
     }
 }
 

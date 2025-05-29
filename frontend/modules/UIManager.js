@@ -98,7 +98,9 @@ class UIManager {
                     <img referrerpolicy="no-referrer" src="${
                       task.cover_path
                         ? "." + task.cover_path
-                        : (task.artwork_url || task.cover_url || "placeholder_album_art_2.png")
+                        : task.artwork_url ||
+                          task.cover_url ||
+                          "placeholder_album_art_2.png"
                     }" alt="Cover for ${task.title}" class="task-item-cover">
                     <div class="task-item-info">
                         <h4 class="task-item-title" title="${task.title}">${
@@ -180,92 +182,114 @@ class UIManager {
       localStorage.setItem("playerVisible", "false");
     }
   }
-  static showToast(msg, type = "info",setted_duration = null) {
-    // Ensure toast container exists
-    let container = document.querySelector(".ui-toast-container");
-    if (!container) {
-      container = document.createElement("div");
-      container.className = "ui-toast-container";
-      container.style.position = "fixed";
-      container.style.top = "0";
-      container.style.left = "50%";
-      container.style.transform = "translateX(-50%)";
-      container.style.display = "flex";
-      container.style.flexDirection = "column";
-      container.style.alignItems = "center";
-      container.style.zIndex = 9999;
-      container.style.width = "auto";
-      container.style.pointerEvents = "none";
-      document.body.appendChild(container);
+  static showToast(message, type = "info", duration = 3000) {
+    // Create toast container if it doesn't exist
+    let toastContainer = document.getElementById("toast-container");
+    if (!toastContainer) {
+      toastContainer = document.createElement("div");
+      toastContainer.id = "toast-container";
+      toastContainer.style.position = "fixed";
+      toastContainer.style.bottom = "20px";
+      toastContainer.style.left = "20px"; // Changed from right to left
+      toastContainer.style.zIndex = "9999";
+      toastContainer.style.display = "flex";
+      toastContainer.style.flexDirection = "column";
+      toastContainer.style.gap = "10px";
+      document.body.appendChild(toastContainer);
     }
-
-    // Theme color mapping
-    const typeColors = {
-      error: "var(--error-color, #f44336)",
-      success: "var(--success-color, #4caf50)",
-      warning: "var(--warning-color, #ff9800)",
-      info: "var(--info-color, #2196f3)"
-    };
-
-    // Calculate duration: 50ms per char, min 3s, max 7s
-    const duration = setted_duration || Math.max(3000, Math.min(7000, 50 * msg.length));
 
     // Create toast element
     const toast = document.createElement("div");
-    toast.className = `ui-toast ui-toast-${type}`;
-    toast.textContent = msg;
-    toast.style.background = typeColors[type] || typeColors.info;
-    toast.style.color = "var(--on-primary-color, #fff)";
-    toast.style.padding = "12px 24px";
+    toast.style.minWidth = "250px";
+    toast.style.maxWidth = "350px";
+    toast.style.padding = "15px";
     toast.style.borderRadius = "6px";
-    toast.style.boxShadow = "0 2px 8px rgba(0,0,0,0.15)";
-    toast.style.fontSize = "1rem";
-    toast.style.marginTop = "12px";
+    toast.style.boxShadow = `0 4px 12px var(--shadow-color)`;
+    toast.style.color = "var(--text-color-primary)";
+    toast.style.backgroundColor = "var(--secondary-bg-color)";
+    toast.style.borderLeft = `4px solid var(--accent-color)`;
+    toast.style.display = "flex";
+    toast.style.alignItems = "center";
+    toast.style.justifyContent = "space-between";
+    toast.style.transition = "all 0.3s ease";
     toast.style.opacity = "0";
-    toast.style.transform = "translateY(-40px)";
-    toast.style.transition = "opacity 0.25s, transform 0.35s cubic-bezier(.4,1.4,.6,1)";
-    toast.style.pointerEvents = "auto";
-    toast.style.cursor = "pointer";
-    toast.style.minWidth = "120px";
-    toast.style.maxWidth = "calc(100vw - 32px)";
-    toast.style.wordBreak = "break-all";
+    toast.style.transform = "translateY(20px)";
 
-    // Insert toast
-    container.appendChild(toast);
+    // Set different border colors based on type
+    switch (type) {
+      case "success":
+        toast.style.borderLeftColor = "#4CAF50"; // Green for success
+        break;
+      case "error":
+        toast.style.borderLeftColor = "#F44336"; // Red for error
+        break;
+      case "warning":
+        toast.style.borderLeftColor = "#FF9800"; // Orange for warning
+        break;
+      default: // info
+        toast.style.borderLeftColor = "var(--accent-color)";
+    }
 
-    // Force reflow for animation
-    void toast.offsetHeight;
+    // Add icon based on type
+    const icon = document.createElement("span");
+    icon.className = "material-icons";
+    icon.style.marginRight = "10px";
+    icon.style.color = toast.style.borderLeftColor;
 
-    // Animate in
-    requestAnimationFrame(() => {
-      toast.style.opacity = "1";
-      toast.style.transform = "translateY(0)";
+    switch (type) {
+      case "success":
+        icon.textContent = "check_circle";
+        break;
+      case "error":
+        icon.textContent = "error";
+        break;
+      case "warning":
+        icon.textContent = "warning";
+        break;
+      default: // info
+        icon.textContent = "info";
+    }
+
+    // Create message element
+    const messageElement = document.createElement("span");
+    messageElement.textContent = message;
+    messageElement.style.flex = "1";
+
+    // Create close button
+    const closeButton = document.createElement("button");
+    closeButton.className = "material-icons";
+    closeButton.textContent = "close";
+    closeButton.style.background = "transparent";
+    closeButton.style.border = "none";
+    closeButton.style.color = "var(--icon-color)";
+    closeButton.style.cursor = "pointer";
+    closeButton.style.marginLeft = "10px";
+    closeButton.addEventListener("click", () => {
+      toast.style.opacity = "0";
+      setTimeout(() => toast.remove(), 300);
     });
 
-    // Remove toast with animation
-    const removeToast = () => {
-      toast.style.opacity = "0";
-      toast.style.transform = "translateY(-40px)";
-      toast.removeEventListener("click", removeToast);
+    // Assemble toast
+    toast.appendChild(icon);
+    toast.appendChild(messageElement);
+    toast.appendChild(closeButton);
+    toastContainer.appendChild(toast);
+
+    // Animate in
+    setTimeout(() => {
+      toast.style.opacity = "1";
+      toast.style.transform = "translateY(0)";
+    }, 10);
+
+    // Auto dismiss
+    if (duration > 0) {
       setTimeout(() => {
-        if (toast.parentNode) {
-          toast.parentNode.removeChild(toast);
-          // Animate remaining toasts upward
-          UIManager._reflowToasts(container);
-        }
-        // Remove container if empty
-        if (container && container.children.length === 0) {
-          container.parentNode && container.parentNode.removeChild(container);
-        }
-      }, 350);
-    };
+        toast.style.opacity = "0";
+        setTimeout(() => toast.remove(), 300);
+      }, duration);
+    }
 
-    toast.addEventListener("click", removeToast);
-
-    setTimeout(removeToast, duration);
-
-    // Animate toasts when one is removed
-    UIManager._reflowToasts(container);
+    return toast;
   }
 
   // Helper for animating toast position changes
@@ -273,12 +297,13 @@ class UIManager {
     // Animate all toasts to their new positions
     const toasts = Array.from(container.children);
     toasts.forEach((toast, idx) => {
-      toast.style.transition = "opacity 0.25s, transform 0.35s cubic-bezier(.4,1.4,.6,1)";
+      toast.style.transition =
+        "opacity 0.25s, transform 0.35s cubic-bezier(.4,1.4,.6,1)";
       toast.style.marginTop = idx === 0 ? "12px" : "8px";
       // No need to manually set transform here, as each toast animates in/out itself
     });
   }
-  
+
   static initThemeSwitcher() {
     const themeSwitcher = document.getElementById("theme-switcher");
     if (themeSwitcher) {
@@ -337,7 +362,8 @@ class UIManager {
       };
 
       // Load saved state and set initial state
-      const savedDrawerState = localStorage.getItem("drawerCollapsed") === "true";
+      const savedDrawerState =
+        localStorage.getItem("drawerCollapsed") === "true";
       setDrawerState(savedDrawerState);
 
       // Add event listener
@@ -354,15 +380,150 @@ class UIManager {
 
   static updateFavoriteIcon(buttonElement, isFavorite) {
     if (buttonElement) {
-      const iconElement = buttonElement.querySelector('.material-icons');
+      const iconElement = buttonElement.querySelector(".material-icons");
       if (iconElement) {
-        iconElement.textContent = isFavorite ? 'favorite' : 'favorite_border';
+        iconElement.textContent = isFavorite ? "favorite" : "favorite_border";
       } else {
         console.warn("Favorite button icon element not found.", buttonElement);
       }
     } else {
-      console.warn("Favorite button element not provided to updateFavoriteIcon.");
+      console.warn(
+        "Favorite button element not provided to updateFavoriteIcon."
+      );
     }
+  }
+  static showConfirmationDialog(msg, onConfirm = null, onCancel = null) {
+    // Ensure only one dialog at a time
+    if (document.querySelector(".ui-confirmation-dialog-backdrop")) return;
+
+    // Create backdrop
+    const backdrop = document.createElement("div");
+    backdrop.className = "ui-confirmation-dialog-backdrop";
+    backdrop.style.position = "fixed";
+    backdrop.style.top = "0";
+    backdrop.style.left = "0";
+    backdrop.style.width = "100vw";
+    backdrop.style.height = "100vh";
+    backdrop.style.background = "rgba(0,0,0,0.32)";
+    backdrop.style.zIndex = 10000;
+    backdrop.style.display = "flex";
+    backdrop.style.alignItems = "center";
+    backdrop.style.justifyContent = "center";
+
+    // Dialog container
+    const dialog = document.createElement("div");
+    dialog.className = "ui-confirmation-dialog";
+    dialog.style.background = "var(--secondary-bg-color)";
+    dialog.style.color = "var(--text-color-primary)";
+    dialog.style.borderRadius = "10px";
+    dialog.style.boxShadow = "0 4px 12px var(--shadow-color)";
+    dialog.style.padding = "28px 24px 16px 24px";
+    dialog.style.minWidth = "260px";
+    dialog.style.maxWidth = "90vw";
+    dialog.style.fontSize = "1rem";
+    dialog.style.display = "flex";
+    dialog.style.flexDirection = "column";
+    dialog.style.alignItems = "center";
+    dialog.style.gap = "18px";
+    dialog.style.position = "relative";
+    dialog.style.border = "1px solid var(--border-color)";
+
+    // Message
+    const message = document.createElement("div");
+    message.textContent = msg;
+    message.style.marginBottom = "12px";
+    message.style.textAlign = "center";
+    message.style.wordBreak = "break-word";
+    message.style.color = "var(--text-color-primary)";
+
+    // Buttons
+    const buttonRow = document.createElement("div");
+    buttonRow.style.display = "flex";
+    buttonRow.style.gap = "18px";
+    buttonRow.style.justifyContent = "center";
+    buttonRow.style.marginTop = "8px";
+
+    const btnConfirm = document.createElement("button");
+    btnConfirm.textContent = "确定";
+    btnConfirm.style.background = "var(--accent-color)";
+    btnConfirm.style.color = "white";
+    btnConfirm.style.border = "none";
+    btnConfirm.style.borderRadius = "5px";
+    btnConfirm.style.padding = "8px 22px";
+    btnConfirm.style.fontSize = "1rem";
+    btnConfirm.style.cursor = "pointer";
+    btnConfirm.style.transition = "background 0.2s";
+    btnConfirm.onmouseenter = () =>
+      (btnConfirm.style.background = "var(--accent-color-darker)");
+    btnConfirm.onmouseleave = () =>
+      (btnConfirm.style.background = "var(--accent-color)");
+
+    const btnCancel = document.createElement("button");
+    btnCancel.textContent = "取消";
+    btnCancel.style.background = "var(--primary-bg-color)";
+    btnCancel.style.color = "var(--text-color-primary)";
+    btnCancel.style.border = "1px solid var(--border-color)";
+    btnCancel.style.borderRadius = "5px";
+    btnCancel.style.padding = "8px 22px";
+    btnCancel.style.fontSize = "1rem";
+    btnCancel.style.cursor = "pointer";
+    btnCancel.style.transition = "background 0.2s, border-color 0.2s";
+    btnCancel.onmouseenter = () => {
+      btnCancel.style.background = "var(--shadow-color)";
+      btnCancel.style.borderColor = "var(--accent-color)";
+    };
+    btnCancel.onmouseleave = () => {
+      btnCancel.style.background = "var(--primary-bg-color)";
+      btnCancel.style.borderColor = "var(--border-color)";
+    };
+
+    // Remove dialog helper
+    const removeDialog = () => {
+      if (backdrop.parentNode) backdrop.parentNode.removeChild(backdrop);
+    };
+
+    btnConfirm.onclick = () => {
+      removeDialog();
+      if (typeof onConfirm === "function") onConfirm();
+    };
+    btnCancel.onclick = () => {
+      removeDialog();
+      if (typeof onCancel === "function") onCancel();
+    };
+
+    // Close on backdrop click (but not dialog click)
+    backdrop.addEventListener("click", (e) => {
+      if (e.target === backdrop) {
+        removeDialog();
+        if (typeof onCancel === "function") onCancel();
+      }
+    });
+
+    // Keyboard support: Enter=confirm, Esc=cancel
+    const keyHandler = (e) => {
+      if (e.key === "Enter") {
+        btnConfirm.click();
+      } else if (e.key === "Escape") {
+        btnCancel.click();
+      }
+    };
+    setTimeout(() => document.addEventListener("keydown", keyHandler), 0);
+
+    // Remove key handler on close
+    const cleanup = () => document.removeEventListener("keydown", keyHandler);
+    backdrop.addEventListener("transitionend", cleanup);
+    btnConfirm.addEventListener("click", cleanup);
+    btnCancel.addEventListener("click", cleanup);
+
+    buttonRow.appendChild(btnConfirm);
+    buttonRow.appendChild(btnCancel);
+    dialog.appendChild(message);
+    dialog.appendChild(buttonRow);
+    backdrop.appendChild(dialog);
+    document.body.appendChild(backdrop);
+
+    // Focus confirm button for accessibility
+    setTimeout(() => btnConfirm.focus(), 0);
   }
 }
 
