@@ -31,7 +31,147 @@ document.addEventListener("DOMContentLoaded", () => {
     coverImgElement: document.getElementById("player-album-art"),
   });
   const themeSwitcher = document.getElementById("theme-switcher");
-  const body = document.body; 
+  const body = document.body;
+
+  const CHUNK_SIZE = 256 * 1024; // 256KB
+
+  // Helper function to convert File to base64 string (data part only)
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64String = reader.result;
+        // Remove the prefix 'data:*/*;base64,'
+        const parts = base64String.split(',');
+        if (parts.length === 2) {
+          resolve(parts[1]);
+        } else {
+          // Handle cases where the prefix might be missing or different, though unlikely for standard files
+          console.warn("Base64 string prefix not found or in unexpected format. Resolving with full string.");
+          resolve(base64String); // Fallback, though backend might not like this
+        }
+      };
+      reader.onerror = error => reject(error);
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // Helper function to get file extension without dot, in lowercase
+  function getFileExtension(filename) {
+    if (!filename || typeof filename !== 'string') {
+      return '';
+    }
+    const lastDot = filename.lastIndexOf('.');
+    if (lastDot === -1 || lastDot === filename.length - 1) {
+      // No extension or filename ends with a dot
+      return '';
+    }
+    return filename.substring(lastDot + 1).toLowerCase();
+  }
+
+  // Helper function to slice a file into Blob chunks
+  function sliceFile(file, chunkSize) {
+      const chunks = [];
+      let offset = 0;
+      while (offset < file.size) {
+          const chunk = file.slice(offset, offset + chunkSize);
+          chunks.push(chunk);
+          offset += chunkSize;
+      }
+      return chunks;
+  }
+
+  async function startChunkedUploadProcess(file, fileType, metadataForInit, webSocketManager, uiManager, associatedMusicId = null) {
+    console.log(`Initiating ${fileType} upload...`);
+
+    const initiatePayload = {
+        filename: file.name,
+        total_size: file.size,
+        file_type: fileType,
+        metadata: metadataForInit, // For audio: { title, artist, etc. }, For cover: { music_id_for_cover: associatedMusicId }
+        chunk_size: CHUNK_SIZE 
+    };
+
+    try {
+        const initResponse = await webSocketManager.sendWebSocketCommand("initiate_chunked_upload", initiatePayload);
+        if (!initResponse || !initResponse.data || !initResponse.data.upload_session_id) {
+            UIManager.showToast(`Failed to initiate ${fileType} upload session: ${initResponse.error || 'Unknown error'}`, "error");
+            return { success: false, error: `Failed to initiate ${fileType} upload session.` };
+        }
+
+        const { upload_session_id, actual_chunk_size = CHUNK_SIZE } = initResponse.data;
+        // UIManager.showToast(`${fileType} upload session started: ${upload_session_id}`, "info");
+
+        const chunks = sliceFile(file, actual_chunk_size);
+        const total_chunks = chunks.length;
+
+        for (let i = 0; i < total_chunks; i++) {
+            const chunk = chunks[i];
+            // fileToBase64 already returns only the data part.
+            const base64ChunkData = await fileToBase64(chunk); 
+
+            const chunkPayload = {
+                upload_session_id,
+                chunk_index: i,
+                total_chunks,
+                chunk_data: base64ChunkData
+            };
+
+            // Simple retry mechanism
+            let attempt = 0;
+            let chunkUploadSuccess = false;
+            while (attempt < 3 && !chunkUploadSuccess) {
+                attempt++;
+                const chunkResponse = await webSocketManager.sendWebSocketCommand("upload_chunk", chunkPayload);
+                if (chunkResponse && chunkResponse.code === 0) {
+                    chunkUploadSuccess = true;
+                    // UIManager.showToast(`Uploaded ${fileType} chunk ${i + 1}/${total_chunks}`, "info", 2000); // Short duration
+                } else {
+                    UIManager.showToast(`Error uploading ${fileType} chunk ${i + 1} (attempt ${attempt}/3): ${chunkResponse.error || 'Unknown error'}`, "warning", 3000);
+                    if (attempt >= 3) {
+                        UIManager.showToast(`Failed to upload ${fileType} chunk ${i + 1} after 3 attempts. Aborting.`, "error");
+                        return { success: false, error: `Chunk ${fileType} upload failed for chunk ${i + 1}.` };
+                    }
+                    // Wait a bit before retrying (optional)
+                    await new Promise(resolve => setTimeout(resolve, 1000)); 
+                }
+            }
+            if (!chunkUploadSuccess) { // Should have been caught by the attempt limit, but as a safeguard
+                 return { success: false, error: `Critical error in ${fileType} chunk upload logic for chunk ${i + 1}.` };
+            }
+        }
+
+        // UIManager.showToast(`All ${fileType} chunks uploaded. Finalizing...`, "info");
+        const finalizePayload = {
+            upload_session_id,
+            filename: file.name,
+            total_chunks
+        };
+
+        if (fileType === "audio") {
+            finalizePayload.metadata = metadataForInit; 
+        } else if (fileType === "cover" && associatedMusicId) {
+            // For cover, the key 'music_id' is used to associate with existing track.
+            // 'metadataForInit' for cover ( { music_id_for_cover: associatedMusicId } ) was used for initiation.
+            // The finalize command for cover might just need the music_id.
+            finalizePayload.music_id = associatedMusicId; 
+        }
+
+        const finalResponse = await webSocketManager.sendWebSocketCommand("finalize_chunked_upload", finalizePayload);
+        if (!finalResponse || finalResponse.code !== 0) {
+            UIManager.showToast(`Failed to finalize ${fileType} upload: ${finalResponse.error || 'Unknown error'}`, "error");
+            return { success: false, error: `Finalization of ${fileType} upload failed.` };
+        }
+
+        UIManager.showToast(`${fileType} upload finalized successfully!`, "success");
+        return { success: true, data: finalResponse.data };
+
+    } catch (error) {
+        console.error(`Error during ${fileType} chunked upload process:`, error);
+        UIManager.showToast(`A critical error occurred during ${fileType} upload: ${error.message || 'Unknown error'}`, "error");
+        return { success: false, error: `Critical error in ${fileType} upload process.` };
+    }
+  }
 
   if (themeSwitcher) {
     themeSwitcher.addEventListener("click", () => {
@@ -184,63 +324,63 @@ document.addEventListener("DOMContentLoaded", () => {
     "update-track": `
             <div id="update-track-page">
                 <h2>Update Track Information</h2>
-                <form id="update-track-form">
-                    <div class="track-details-form-column">
-                        <input type="hidden" id="update-music-id" name="music_id">
-                        <div class="form-section">
-                            <h3>Track Metadata</h3>
-                            <div>
-                                <label for="update-title">Title:</label>
-                                <input type="text" id="update-title" name="title" required>
+                <div id="update-track-form"> 
+                    <input type="hidden" id="update-music-id" name="music_id">
+                    <div class="form-columns-wrapper" style="display: flex; gap: 20px;width:100%;">
+                        <div class="form-column-left" style="flex: 1;">
+                            <div class="form-section">
+                                <h3>Track Metadata</h3>
+                                <div>
+                                    <label for="update-title">Title:</label>
+                                    <input type="text" id="update-title" name="title" required>
+                                </div>
+                                <div>
+                                    <label for="update-artist">Artist:</label>
+                                    <input type="text" id="update-artist" name="artist" required>
+                                </div>
+                                <div>
+                                    <label for="update-album">Album:</label>
+                                    <input type="text" id="update-album" name="album">
+                                </div>
                             </div>
-                            <div>
-                                <label for="update-artist">Artist:</label>
-                                <input type="text" id="update-artist" name="artist" required>
+                            <div class="form-section">
+                                <h3>Cover Art</h3>
+                                <div class="cover-upload-area">
+                                    <input type="file" id="update-cover-file-input" name="cover_file" accept="image/*" style="display: none;">
+                                    <input type="hidden" id="update-cover-ext" name="cover_ext">
+                                    <button type="button" id="update-cover-upload-button" class="cover-upload-button">
+                                        <span class="material-icons initial-icon">add_photo_alternate</span>
+                                        <img src="#" alt="Cover Preview" class="cover-preview-image" style="display: none;">
+                                    </button>
+                                    <p class="cover-upload-hint">Click to upload new cover image.</p>
+                                </div>
                             </div>
-                            <div>
-                                <label for="update-album">Album:</label>
-                                <input type="text" id="update-album" name="album">
-                            </div>
-                        </div>
-                        <div class="form-section">
-                            <h3>Categorization & Details</h3>
-                            <div>
-                                <label for="update-genre">Genre:</label>
-                                <input type="text" id="update-genre" name="genre">
-                            </div>
-                            <div>
-                                <label for="update-year">Year:</label>
-                                <input type="text" id="update-year" name="year">
-                            </div>
-                        </div>
-                        <div class="form-section">
-                            <h3>Cover Art</h3>
-                            <div class="cover-upload-area">
-                                <input type="file" id="update-cover-file-input" name="cover_file" accept="image/*" style="display: none;">
-                                <button type="button" id="update-cover-upload-button" class="cover-upload-button">
-                                    <span class="material-icons initial-icon">add_photo_alternate</span>
-                                    <img src="#" alt="Cover Preview" class="cover-preview-image" style="display: none;">
-                                </button>
-                                <p class="cover-upload-hint">Click to upload new cover image. Current cover path:</p>
-                                <input type="text" id="update-cover-path" name="cover_path" placeholder="Existing cover path or new URL" style="margin-top: 5px; font-size: 0.8em;">
+                            <div class="form-section">
+                                <h3>Description</h3>
+                                <div>
+                                    <label for="update-description">Track Description:</label>
+                                    <textarea id="update-description" name="description" rows="4"></textarea>
+                                </div>
                             </div>
                         </div>
-                        <div class="form-section">
-                            <h3>Description</h3>
-                            <div>
-                                <label for="update-description">Track Description:</label>
-                                <textarea id="update-description" name="description" rows="4"></textarea>
+                        <div class="form-column-right" style="flex: 1;">
+                            <div class="lyrics-tool-container-wrapper"> <!-- Wrapper for consistent styling if needed -->
+                                ${lyricsToolHtml} 
+                            </div>
+                            <div class="form-section">
+                                <h3>Categorization & Details</h3>
+                                <div>
+                                    <label for="update-genre">Genre:</label>
+                                    <input type="text" id="update-genre" name="genre">
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <div class="lyrics-tool-container-wrapper"> <!-- Wrapper for consistent styling if needed -->
-                        ${lyricsToolHtml} 
                     </div>
                     <div class="form-actions">
-                        <button type="submit" id="save-track-update-button" class="dialog-button primary">Save Changes</button>
+                        <button type="button" id="save-track-update-button" class="dialog-button primary">Save Changes</button>
                         <button type="button" id="cancel-track-update-button" class="dialog-button secondary">Cancel</button>
                     </div>
-                </form>
+                </div> 
             </div>
         `,
     "upload-track": `
@@ -249,60 +389,65 @@ document.addEventListener("DOMContentLoaded", () => {
                 <div id="upload-file-info" style="margin-bottom:15px; padding:10px; background-color: var(--primary-bg-color); border-radius: 5px;">
                     Audio file: <span id="upload-filename-placeholder">No file selected</span>
                 </div>
-                <form id="upload-track-form">
-                    <div class="track-details-form-column">
-                        <input type="hidden" id="upload-original-filepath" name="original_filepath">
-                        <div class="form-section">
-                            <h3>Track Metadata</h3>
-                            <div>
-                                <label for="upload-title">Title:</label>
-                                <input type="text" id="upload-title" name="title" required>
+                <div id="upload-track-form"> 
+                    <input type="hidden" id="upload-original-filepath" name="original_filepath">
+                    <div class="form-columns-wrapper" style="display: flex; gap: 20px;width:100%;">
+                        <div class="form-column-left" style="flex: 1;">
+                            <div class="form-section">
+                                <h3>Track Metadata</h3>
+                                <div>
+                                    <label for="upload-title">Title:</label>
+                                    <input type="text" id="upload-title" name="title" required>
+                                </div>
+                                <div>
+                                    <label for="upload-artist">Artist:</label>
+                                    <input type="text" id="upload-artist" name="artist" required>
+                                </div>
+                                <div>
+                                    <label for="upload-album">Album:</label>
+                                    <input type="text" id="upload-album" name="album">
+                                </div>
                             </div>
-                            <div>
-                                <label for="upload-artist">Artist:</label>
-                                <input type="text" id="upload-artist" name="artist" required>
+                            <div class="form-section">
+                                <h3>Cover Art</h3>
+                                <div class="cover-upload-area">
+                                    <label for="upload-cover-file-input">Cover Image (Optional):</label>
+                                    <input type="file" id="upload-cover-file-input" name="cover_file" accept="image/*" style="display: none;">
+                                    <input type="hidden" id="upload-cover-ext" name="cover_ext">
+                                    <button type="button" id="upload-cover-upload-button" class="cover-upload-button">
+                                        <span class="material-icons initial-icon">add_photo_alternate</span>
+                                        <img src="#" alt="Cover Preview" class="cover-preview-image" style="display: none;">
+                                    </button>
+                                    <p class="cover-upload-hint">Click to upload or drag & drop cover image</p>
+                                </div>
                             </div>
-                            <div>
-                                <label for="upload-album">Album:</label>
-                                <input type="text" id="upload-album" name="album">
-                            </div>
-                        </div>
-                        <div class="form-section">
-                            <h3>Categorization & Cover Art</h3>
-                            <div>
-                                <label for="upload-genre">Genre:</label>
-                                <input type="text" id="upload-genre" name="genre">
-                            </div>
-                            <div>
-                                <label for="upload-year">Year:</label>
-                                <input type="text" id="upload-year" name="year">
-                            </div>
-                            <div class="cover-upload-area">
-                                <label for="upload-cover-file-input">Cover Image (Optional):</label>
-                                <input type="file" id="upload-cover-file-input" name="cover_file" accept="image/*" style="display: none;">
-                                <button type="button" id="upload-cover-upload-button" class="cover-upload-button">
-                                    <span class="material-icons initial-icon">add_photo_alternate</span>
-                                    <img src="#" alt="Cover Preview" class="cover-preview-image" style="display: none;">
-                                </button>
-                                <p class="cover-upload-hint">Click to upload or drag & drop cover image</p>
-                            </div>
-                        </div>
-                        <div class="form-section">
-                            <h3>Description</h3>
-                            <div>
-                                <label for="upload-description">Track Description:</label>
-                                <textarea id="upload-description" name="description" rows="4"></textarea>
+                            <div class="form-section">
+                                <h3>Description</h3>
+                                <div>
+                                    <label for="upload-description">Track Description:</label>
+                                    <textarea id="upload-description" name="description" rows="4"></textarea>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <div class="lyrics-tool-container-wrapper"> <!-- Wrapper for consistent styling -->
-                        ${lyricsToolHtml}
+                        <div class="form-column-right" style="flex: 1;">
+                            <div class="lyrics-tool-container-wrapper"> <!-- Wrapper for consistent styling -->
+                                ${lyricsToolHtml}
+                            </div>
+                            <div class="form-section"> 
+                                <h3>Categorization</h3>
+                                <div>
+                                    <label for="upload-genre">Genre:</label>
+                                    <input type="text" id="upload-genre" name="genre">
+                                </div>
+                            </div>
+
+                        </div>
                     </div>
                     <div class="form-actions">
-                        <button type="submit" id="submit-upload-button" class="dialog-button primary">Upload Track</button>
+                        <button type="button" id="submit-upload-button" class="dialog-button primary">Upload Track</button>
                         <button type="button" id="cancel-upload-button" class="dialog-button secondary">Cancel</button>
                     </div>
-                </form>
+                </div> 
             </div>
         `,
   };
@@ -419,12 +564,39 @@ document.addEventListener("DOMContentLoaded", () => {
                         iconElement.style.display = 'none';
                     }
                 }
-                window.appState.selectedCoverBase64 = e.target.result;
+                window.appState.selectedCoverBase64 = e.target.result; // Full Data URL for preview
+                const extension = getFileExtension(file.name); // Extension without dot, lowercase
+                window.appState.selectedCoverFileObject = file; // Store the File object
+
+                window.appState.selectedCoverExt = extension;
+
+                if (isUpdatePage) {
+                    window.appState.newCoverSelectedForUpdate = true;
+                    const updateCoverExtInput = document.getElementById('update-cover-ext');
+                    if (updateCoverExtInput) {
+                        updateCoverExtInput.value = extension;
+                    }
+                } else { // Upload page
+                    const uploadCoverExtInput = document.getElementById('upload-cover-ext');
+                    if (uploadCoverExtInput) {
+                        uploadCoverExtInput.value = extension;
+                    }
+                }
             };
             reader.readAsDataURL(file);
-        } else if (file) {
+        } else if (file) { // File selected but not an image
             UIManager.showToast("Please select an image file for the cover.", "error");
             window.appState.selectedCoverBase64 = null;
+            window.appState.selectedCoverExt = null;
+            window.appState.selectedCoverFileObject = null; // Clear File object
+            if (isUpdatePage) {
+                window.appState.newCoverSelectedForUpdate = false;
+                const updateCoverExtInput = document.getElementById('update-cover-ext');
+                if (updateCoverExtInput) updateCoverExtInput.value = '';
+            } else { // Upload page
+                const uploadCoverExtInput = document.getElementById('upload-cover-ext');
+                if (uploadCoverExtInput) uploadCoverExtInput.value = '';
+            }
             if (previewButton) {
                 const imgElement = previewButton.querySelector('.cover-preview-image');
                 const iconElement = previewButton.querySelector('.initial-icon');
@@ -665,16 +837,21 @@ document.addEventListener("DOMContentLoaded", () => {
     const cancelUpdateButton = event.target.closest("#cancel-track-update-button");
     const submitUploadButton = event.target.closest("#submit-upload-button");
     const cancelUploadButton = event.target.closest("#cancel-upload-button");
-    // const lyricsSimulatePlayButton = event.target.closest("#lyrics-simulate-play"); // Now handled by LyricsEditor.js
-    // const lyricsResetSimulationButton = event.target.closest("#lyrics-reset-simulation"); // Now handled by LyricsEditor.js
     const lrcPreviewArea = event.target.closest("#lrc-preview-area");
 
 
     if (saveUpdateButton) {
-        event.preventDefault(); 
-        const form = saveUpdateButton.closest("form");
-        if (form) {
-            const musicId = form.querySelector("#update-music-id").value;
+        event.preventDefault();
+        console.log("Save Changes button clicked - handler entered");
+        const form = document.getElementById("update-track-form");
+        if (!form) {
+            console.error("Update form (#update-track-form) not found in the DOM!");
+            UIManager.showToast("Critical error: Update form not found.", "error");
+            return;
+        }
+        // The original 'if (form)' is now handled by the explicit check above.
+        // Proceeding with form processing logic directly.
+        const musicId = form.querySelector("#update-music-id").value;
             const title = form.querySelector("#update-title").value.trim();
             const artist = form.querySelector("#update-artist").value.trim();
 
@@ -683,121 +860,261 @@ document.addEventListener("DOMContentLoaded", () => {
                 return;
             }
 
-            const payload = {
-                music_id: musicId,
-                title: title,
-                author: artist, 
-                album: form.querySelector("#update-album").value.trim(),
-                genre: form.querySelector("#update-genre").value.trim(),
-                year: form.querySelector("#update-year").value.trim(),
-                cover_path: form.querySelector("#update-cover-path").value.trim(),
-                description: form.querySelector("#update-description").value.trim(),
-                lyrics: form.querySelector("#lrc-input-area")?.value.trim() || null, 
-            };
+            const initialData = window.appState.editingTrackInitialData || {};
+            const payload = { music_id: musicId };
+            let hasChanges = false;
+
+            // Define fields to check and their form element IDs and initial data keys
+            const fieldsToCompare = [
+                { formId: "#update-title", payloadKey: "title", initialKey: "title" },
+                { formId: "#update-artist", payloadKey: "author", initialKey: "author" }, // Backend expects 'author'
+                { formId: "#update-album", payloadKey: "album", initialKey: "album_name", altInitialKey: "album" },
+                { formId: "#update-genre", payloadKey: "genre", initialKey: "genre" },
+                { formId: "#update-description", payloadKey: "description", initialKey: "description" },
+                { formId: "#lrc-input-area", payloadKey: "lyrics", initialKey: "lyrics" }
+            ];
+
+            fieldsToCompare.forEach(field => {
+                const formElement = form.querySelector(field.formId);
+                if (formElement) {
+                    const currentValue = formElement.value.trim();
+                    let initialValue = initialData[field.initialKey];
+                    if (field.altInitialKey && initialValue === undefined) {
+                        initialValue = initialData[field.altInitialKey];
+                    }
+                    initialValue = initialValue || ""; // Treat null/undefined initial values as empty string for comparison
+
+                    if (currentValue !== initialValue) {
+                        payload[field.payloadKey] = currentValue;
+                        hasChanges = true;
+                    }
+                }
+            });
+            
+            // Always include title and author if they are not empty, even if not "changed" from an empty initial state
+            // This ensures they are sent if they were initially null/empty but now have values.
+            if (title && !payload.title) payload.title = title;
+            if (artist && !payload.author) payload.author = artist;
+
+            // Cover image handling
+            if (window.appState.newCoverSelectedForUpdate && window.appState.selectedCoverBase64 && window.appState.selectedCoverExt) {
+                const base64Parts = window.appState.selectedCoverBase64.split(',');
+                if (base64Parts.length === 2) {
+                    payload.cover_binary = base64Parts[1];
+                    payload.cover_ext = window.appState.selectedCoverExt;
+                    hasChanges = true;
+                    // Optionally populate the hidden form field, though not strictly needed if sending in payload
+                    const coverExtInput = form.querySelector("#update-cover-ext");
+                    if (coverExtInput) coverExtInput.value = window.appState.selectedCoverExt;
+                } else {
+                    console.warn("Invalid base64 string format for cover image.");
+                }
+            }
+
+            if (!hasChanges) {
+                UIManager.showToast("No changes detected to save.", "info");
+                return;
+            }
+            
+            // Ensure mandatory fields (title, author) are in payload if they have values,
+            // even if not strictly "changed" from an empty initial state but were filled by user.
+            if (!payload.title && title) payload.title = title;
+            if (!payload.author && artist) payload.author = artist;
+
 
             webSocketManager.sendWebSocketCommand("update_track_info", payload)
                 .then((response) => {
-                    if (response.success || response.status === "success" || (response.data && response.data.success)) { 
+                    if (response.code === 0) {
                         UIManager.showToast("Track updated successfully!", "success");
+                        
+                        // Create an updated track object based on payload for local state update
+                        const updatedTrackDataForState = { ...initialData }; // Start with initial
+                        for (const key in payload) {
+                            if (key === "author") updatedTrackDataForState["author"] = payload[key];
+                            else if (key === "album") updatedTrackDataForState["album_name"] = payload[key]; // Assuming store uses album_name
+                            else if (key !== "music_id" && key !== "cover_binary" && key !== "cover_ext") { // Don't store binary in appState
+                                updatedTrackDataForState[key] = payload[key];
+                            }
+                        }
+                        // If cover was updated, backend will provide new cover_path. We might need to refresh or use a placeholder.
+                        // For now, if a cover was sent, we can anticipate the detail page might need to show it.
+                        // The navigation to song-detail should ideally handle fetching the latest track details or use current appState.
+
                         if (window.appState && window.appState.library) {
                             const index = window.appState.library.findIndex(track => String(track.music_id || track.id) === String(musicId));
                             if (index !== -1) {
-                                window.appState.library[index] = { ...window.appState.library[index], ...payload };
+                                // Merge changes. If new cover was uploaded, cover_path might change,
+                                // so a full refresh or specific update of cover_path would be ideal.
+                                // For now, merge known fields. Backend response might include full updated track.
+                                window.appState.library[index] = { ...window.appState.library[index], ...updatedTrackDataForState };
+                                if (payload.cover_ext) { // If a new cover was sent
+                                    // We don't know the new path yet from frontend alone.
+                                    // A full re-fetch or response from backend is needed for cover_path.
+                                    // Forcing a refresh on song-detail might be an option or rely on backend sending full object.
+                                    // For now, let's assume backend response would be used if it contained the full object.
+                                    // Or, we can mark it to be reloaded.
+                                }
                             }
                         }
                         if (window.appState && window.appState.currentSongDetail && String(window.appState.currentSongDetail.music_id || window.appState.currentSongDetail.id) === String(musicId)) {
-                            window.appState.currentSongDetail = { ...window.appState.currentSongDetail, ...payload };
+                            window.appState.currentSongDetail = { ...window.appState.currentSongDetail, ...updatedTrackDataForState };
+                             if (payload.cover_ext && response.data && response.data.cover_path) { // Example: if backend sends back new path
+                                window.appState.currentSongDetail.cover_path = response.data.cover_path;
+                            }
                         }
-                        navigationManager.navigateTo("song-detail", payload.title, "#song-detail/" + musicId, false, musicId);
+                        // NavigationManager will clear editingTrackInitialData, etc. on successful navigation
+                        navigationManager.navigateTo("song-detail", updatedTrackDataForState.title || "Track Detail", "#song-detail/" + musicId, false, musicId);
                     } else {
                         UIManager.showToast(response.message || "Failed to update track.", "error");
                     }
                 })
-                .catch(error => {
+                .catch(error => { // Only one .catch block needed for the promise chain
                     UIManager.showToast("Error updating track: " + (error.message || "Unknown error"), "error");
                 });
-        }
     } else if (cancelUpdateButton) {
-        history.back();
+        history.back(); // NavigationManager will handle clearing update-track state
     }
 
     if (submitUploadButton) {
-        event.preventDefault();
-        const form = submitUploadButton.closest("form");
-        if (form) {
-            const audioFile = window.appState.droppedFile;
-            if (!audioFile) {
-                UIManager.showToast("No audio file has been selected or dropped.", "error");
-                return;
-            }
-            const title = form.querySelector("#upload-title").value.trim();
-            const artist = form.querySelector("#upload-artist").value.trim();
-            if (!title || !artist) {
-                UIManager.showToast("Title and Artist fields are required.", "error");
-                return;
-            }
+      event.preventDefault();
+      const form = document.getElementById("upload-track-form");
+      if (!form) {
+        UIManager.showToast("Critical error: Upload form not found.", "error");
+        return;
+      }
 
-            const payload = {
-                title: title,
-                author: artist,
-                album_name: form.querySelector("#upload-album").value.trim(),
-                genre: form.querySelector("#upload-genre").value.trim(),
-                year: form.querySelector("#upload-year").value.trim(),
-                description: form.querySelector("#upload-description").value.trim(),
-                original_filename: audioFile.name,
-                original_filepath: form.querySelector("#upload-original-filepath")?.value.trim() || audioFile.name,
-                cover_image_base64: window.appState.selectedCoverBase64 || null,
-                lyrics: form.querySelector("#lrc-input-area")?.value.trim() || null, 
-            };
-            
-            webSocketManager.sendWebSocketCommand("upload_track", payload)
-                .then(response => {
-                    console.log("Upload track response:", response);
-                    if (response.success || (response.data && response.data.success)) {
-                        UIManager.showToast("Track upload process started successfully!", "success");
-                        window.appState.droppedFile = null;
-                        window.appState.parsedMetadata = null;
-                        window.appState.selectedCoverBase64 = null;
-                        form.reset();
-                        const preview = document.getElementById('upload-cover-preview');
-                        if (preview) {
-                            preview.src = "#";
-                            preview.style.display = 'none';
-                        }
-                        document.getElementById('upload-filename-placeholder').textContent = "No file selected";
-                        const lrcInput = document.getElementById('lrc-input-area');
-                        if(lrcInput) lrcInput.value = '';
-                        const lrcPreview = document.getElementById('lrc-preview-area');
-                        if(lrcPreview) lrcPreview.innerHTML = 'Lyrics preview will appear here.';
+      (async () => {
+        try {
+          // 1. 校验音频文件和表单字段
+          const audioFile = window.appState.droppedFile;
+          if (!audioFile) {
+            UIManager.showToast("No audio file has been selected or dropped.", "error");
+            return;
+          }
+          const title = form.querySelector("#upload-title").value.trim();
+          const artist = form.querySelector("#upload-artist").value.trim();
+          if (!title || !artist) {
+            UIManager.showToast("Title and Artist fields are required.", "error");
+            return;
+          }
 
-                        navigationManager.navigateTo("home", "Home", "#home"); 
-                    } else {
-                        UIManager.showToast(response.message || "Upload failed. Please check server logs.", "error");
-                    }
-                })
-                .catch(error => {
-                    console.error("Error uploading track:", error);
-                    UIManager.showToast("Upload failed: " + (error.message || "Unknown error"), "error");
-                });
+          // 2. 禁用按钮防止重复提交
+          submitUploadButton.disabled = true;
+          submitUploadButton.textContent = "Uploading...";
+
+          // 3. 构建音频元数据
+          const audioMetadata = {
+            title,
+            author: artist,
+            album_name: form.querySelector("#upload-album").value.trim(),
+            genre: form.querySelector("#upload-genre").value.trim(),
+            description: form.querySelector("#upload-description").value.trim(),
+            lyrics: form.querySelector("#lrc-input-area")?.value.trim() || null,
+            original_filename: audioFile.name
+          };
+
+          // 4. 上传音频文件（分片）
+          const audioUploadResult = await startChunkedUploadProcess(
+            audioFile, "audio", audioMetadata, webSocketManager, UIManager
+          );
+          if (!audioUploadResult?.success) {
+            UIManager.showToast(audioUploadResult.error || "Audio upload failed.", "error");
+            return;
+          }
+
+          // 5. 处理音乐ID和封面
+          let finalTrackData = audioUploadResult.data?.track_data || null;
+          const newMusicId = finalTrackData?.music_id || null;
+
+          // 5.1 如果标签中有图片，转为File对象
+          const tagPic = window.appState.parsedMetadata?.picture;
+          if (tagPic?.data && tagPic?.format) {
+            const ext = tagPic.format.split('/')[1] || 'jpg';
+            const file = new File([new Uint8Array(tagPic.data)], `cover_from_tag.${ext}`, { type: tagPic.format });
+            window.appState.selectedCoverFileObject = file;
+            window.appState.selectedCoverExt = ext;
+            const reader = new FileReader();
+            reader.onload = e => window.appState.selectedCoverBase64 = e.target.result;
+            reader.readAsDataURL(file);
+          }
+
+          // 5.2 上传封面（如果有）
+          if (window.appState.selectedCoverFileObject && newMusicId && !audioMetadata.cover_binary_on_finalize) {
+            const coverUploadResult = await startChunkedUploadProcess(
+              window.appState.selectedCoverFileObject, "cover", {}, webSocketManager, UIManager, newMusicId
+            );
+            if (!coverUploadResult?.success) {
+              UIManager.showToast(coverUploadResult.error || "Cover upload failed. Audio was saved.", "warning");
+            } else if (coverUploadResult.data?.cover_path && finalTrackData) {
+              finalTrackData.cover_path = coverUploadResult.data.cover_path;
+              UIManager.showToast("Cover uploaded successfully!", "success");
+            }
+          } else if (newMusicId && audioMetadata.cover_binary_on_finalize) {
+            UIManager.showToast("Audio and initial cover uploaded successfully!", "success");
+          } else if (!newMusicId && window.appState.selectedCoverFileObject) {
+            UIManager.showToast("Audio upload succeeded but could not get Music ID to attach cover.", "warning");
+          } else {
+            UIManager.showToast("Audio uploaded successfully!", "success");
+          }
+
+          // 6. 清理状态和UI
+          window.appState.droppedFile = null;
+          window.appState.parsedMetadata = null;
+          window.appState.selectedCoverBase64 = null;
+          window.appState.selectedCoverExt = null;
+          window.appState.selectedCoverFileObject = null;
+
+          const previewButton = document.getElementById('upload-cover-upload-button');
+          if (previewButton) {
+            const imgElement = previewButton.querySelector('.cover-preview-image');
+            const iconElement = previewButton.querySelector('.initial-icon');
+            if (imgElement) { imgElement.src = "#"; imgElement.style.display = 'none'; }
+            if (iconElement) iconElement.style.display = 'block';
+          }
+          const uploadCoverExtInput = document.getElementById('upload-cover-ext');
+          if (uploadCoverExtInput) uploadCoverExtInput.value = '';
+          const filenamePlaceholder = document.getElementById('upload-filename-placeholder');
+          if (filenamePlaceholder) filenamePlaceholder.textContent = "No file selected";
+          const lrcInput = document.getElementById('lrc-input-area');
+          if (lrcInput) lrcInput.value = '';
+          const lrcPreview = document.getElementById('lrc-preview-area');
+          if (lrcPreview) lrcPreview.innerHTML = 'Lyrics preview will appear here.';
+
+          // 7. 恢复按钮状态并跳转
+          submitUploadButton.disabled = false;
+          submitUploadButton.textContent = "Upload Track";
+          navigationManager.navigateTo("home", "Home", "#home");
+
+        } catch (error) {
+          UIManager.showToast("Upload failed: " + (error.message || "Unknown error"), "error");
+          submitUploadButton.disabled = false;
+          submitUploadButton.textContent = "Upload Track";
         }
+      })();
+
     } else if (cancelUploadButton) {
-        window.appState.droppedFile = null;
-        window.appState.parsedMetadata = null;
-        window.appState.selectedCoverBase64 = null;
-        const form = document.getElementById('upload-track-form');
-        if(form) form.reset();
-        const preview = document.getElementById('upload-cover-preview');
-        if (preview) {
-            preview.src = "#";
-            preview.style.display = 'none';
-        }
-        const filenamePlaceholder = document.getElementById('upload-filename-placeholder');
-        if(filenamePlaceholder) filenamePlaceholder.textContent = "No file selected";
-        const lrcInput = document.getElementById('lrc-input-area');
-        if(lrcInput) lrcInput.value = '';
-        const lrcPreview = document.getElementById('lrc-preview-area');
-        if(lrcPreview) lrcPreview.innerHTML = 'Lyrics preview will appear here.';
-        history.back(); 
+      // 清理状态和UI
+      window.appState.droppedFile = null;
+      window.appState.parsedMetadata = null;
+      window.appState.selectedCoverBase64 = null;
+      window.appState.selectedCoverExt = null;
+      window.appState.selectedCoverFileObject = null;
+      const form = document.getElementById('upload-track-form');
+      if (form) form.reset();
+      const previewButton = document.getElementById('upload-cover-upload-button');
+      if (previewButton) {
+        const imgElement = previewButton.querySelector('.cover-preview-image');
+        const iconElement = previewButton.querySelector('.initial-icon');
+        if (imgElement) { imgElement.src = "#"; imgElement.style.display = 'none'; }
+        if (iconElement) iconElement.style.display = 'block';
+      }
+      const filenamePlaceholder = document.getElementById('upload-filename-placeholder');
+      if (filenamePlaceholder) filenamePlaceholder.textContent = "No file selected";
+      const lrcInput = document.getElementById('lrc-input-area');
+      if (lrcInput) lrcInput.value = '';
+      const lrcPreview = document.getElementById('lrc-preview-area');
+      if (lrcPreview) lrcPreview.innerHTML = 'Lyrics preview will appear here.';
+      history.back();
     }
 
     // Removed lyricsSimulatePlayButton and lyricsResetSimulationButton listeners,

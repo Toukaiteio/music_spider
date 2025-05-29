@@ -442,6 +442,13 @@ showTrackDetailsDialog(track) {
 
     // 用新内容替换原HTML插入
     document.body.appendChild(dialogContent.firstElementChild);
+    const closeButton = document.querySelector("#track-details-dialog .close-dialog-button");
+    if (closeButton) {
+      closeButton.addEventListener("click", () => {
+        const dialog = document.getElementById("track-details-dialog");
+        if (dialog) dialog.remove();
+      });
+    }
     return;
 
 }

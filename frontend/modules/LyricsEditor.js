@@ -615,7 +615,13 @@ function updateCursorHighlight(
 
 function drawWaveform(audioBuffer, canvas, ctx, currentTime) {
   if (!canvas || !ctx) return;
-
+  const style = getComputedStyle(canvas);
+  const styleWidth = parseInt(style.width, 10);
+  const styleHeight = parseInt(style.height, 10);
+  if (canvas.width !== styleWidth || canvas.height !== styleHeight) {
+    canvas.width = styleWidth;
+    canvas.height = styleHeight;
+  }
   const width = canvas.width;
   const height = canvas.height;
   ctx.clearRect(0, 0, width, height);
@@ -666,7 +672,7 @@ function drawWaveform(audioBuffer, canvas, ctx, currentTime) {
   const startSample = Math.floor(startTime * sampleRate);
   const endSample = Math.floor(endTime * sampleRate);
   const totalSamples = endSample - startSample;
-  const sampleCount = 300; // Fixed number of sample points
+  const sampleCount = 350; // Fixed number of sample points
   const step = Math.max(1, Math.floor(totalSamples / sampleCount));
   
   const spacing = width / sampleCount;

@@ -267,6 +267,11 @@ class PlayerManager {
       };
     }
   }
+  getCurrentTime(){
+    if(this.audio && this.audio.currentTime) {
+      return this.audio.currentTime;
+    }
+  }
   setPlayList(playlist) {
     this.playlist = playlist;
     this.currentIndex = 0;

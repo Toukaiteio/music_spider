@@ -141,6 +141,7 @@ body {
     border: 1px solid var(--border-color);
     border-radius: 5px;
     background-color: var(--secondary-bg-color); 
+    margin-bottom: 20px;
 }
 .lyrics-tool-container h4 {
     margin-top: 0;
@@ -786,7 +787,9 @@ body {
 .search-result-download-button,.add-to-collection-button .material-icons, .delete-track-button .material-icons, .detail-update-button .material-icons {
     font-size: 22px; /* Consistent icon sizing, can be overridden if .detail-update-button needs larger icon */
 }
-
+.material-icons {
+    user-select: none;
+}
 
 /* No Songs Message */
 #no-songs-message {
@@ -1684,7 +1687,11 @@ body {
 .player-track-info {
     overflow: hidden;
 }
-
+#lyrics-display-area {
+    height: 100%;
+    width: 100%;
+    padding: 50px 0;
+}
 .player-track-info h4, .player-track-info p {
     margin: 0;
     white-space: nowrap;
@@ -1729,31 +1736,11 @@ body {
 
 #player-progress-bar {
     flex-grow: 1;
-    height: 6px;
     margin: 0 10px;
-    -webkit-appearance: none;
-    appearance: none;
-    background: var(--border-color);
-    border-radius: 3px;
     cursor: pointer;
 }
-#player-progress-bar::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 12px;
-    height: 12px;
-    background: var(--accent-color);
-    border-radius: 50%;
-    cursor: pointer;
-}
-#player-progress-bar::-moz-range-thumb {
-    width: 12px;
-    height: 12px;
-    background: var(--accent-color);
-    border-radius: 50%;
-    border: none;
-    cursor: pointer;
-}
+
+
 
 #player-current-time, #player-duration {
     font-size: 0.75em;
@@ -1773,29 +1760,10 @@ body {
 
 #player-volume-slider {
     width: 80px; /* Adjust as needed */
-    height: 4px;
-    -webkit-appearance: none;
-    appearance: none;
-    background: var(--border-color);
-    border-radius: 2px;
     cursor: pointer;
     margin: 0 10px;
 }
-#player-volume-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 10px;
-    height: 10px;
-    background: var(--accent-color);
-    border-radius: 50%;
-}
-#player-volume-slider::-moz-range-thumb {
-    width: 10px;
-    height: 10px;
-    background: var(--accent-color);
-    border-radius: 50%;
-    border: none;
-}
+
 
 
 /* General Player Control Button Style */

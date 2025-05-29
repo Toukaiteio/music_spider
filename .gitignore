@@ -1,4 +1,5 @@
 /downloads
+/temp_uploads
 *.pyc
 /util/__pycache__
 *.txt

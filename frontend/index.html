@@ -8,6 +8,258 @@
     <script src="./third_party/color-thief.min.js"></script>
     <script src="./third_party/jsmediatags.min.js"></script>
   </head>
+<script>
+  class DysRange extends HTMLElement {
+    static get observedAttributes() {
+      return ['min', 'max', 'value', 'step', 'disabled'];
+    }
+
+    constructor() {
+      super();
+      this.attachShadow({ mode: 'open' });
+      
+      // Create main elements
+      const container = document.createElement('div');
+      container.style.position = 'relative';
+      container.style.width = '100%';
+      container.style.height = '24px';
+      container.style.display = 'flex';
+      container.style.alignItems = 'center';
+      
+      // Track element (background)
+      this.track = document.createElement('div');
+      this.track.style.position = 'relative';
+      this.track.style.width = '100%';
+      this.track.style.height = '5px';
+      this.track.style.backgroundColor = 'var(--border-color, #e5e7eb)';
+      this.track.style.borderRadius = '5px';
+      this.track.style.overflow = 'hidden';
+      
+      // Progress element (filled part)
+      this.progress = document.createElement('div');
+      this.progress.style.position = 'absolute';
+      this.progress.style.left = '0';
+      this.progress.style.top = '0';
+      this.progress.style.height = '100%';
+      this.progress.style.backgroundColor = 'var(--icon-color, #4f46e5)';
+      
+      // Thumb element
+      this.thumb = document.createElement('div');
+      this.thumb.style.position = 'absolute';
+      this.thumb.style.width = '10px';
+      this.thumb.style.height = '10px';
+      this.thumb.style.backgroundColor = 'var(--icon-color, #4f46e5)';
+      this.thumb.style.borderRadius = '50%';
+      // this.thumb.style.border = '2px solid var(--icon-color, #4f46e5)';
+      this.thumb.style.boxShadow = '0 0 2px rgba(0,0,0,0.3)';
+      this.thumb.style.cursor = 'pointer';
+      this.thumb.style.transform = 'translateX(-50%)';
+      this.thumb.style.transition = 'background-color 0.2s';
+      
+      // Assemble the elements
+      this.track.appendChild(this.progress);
+      container.appendChild(this.track);
+      container.appendChild(this.thumb);
+      
+      // Add styles
+      const style = document.createElement('style');
+      style.textContent = `
+        :host {
+          display: inline-block;
+          width: 100%;
+          touch-action: none;
+        }
+        :host([disabled]) {
+          opacity: 0.6;
+          pointer-events: none;
+        }
+      `;
+      
+      this.shadowRoot.append(style, container);
+      
+      // Initialize properties
+      this._min = 0;
+      this._max = 100;
+      this._value = 50;
+      this._step = 1;
+      this._disabled = false;
+      this._isDragging = false;
+      
+      // Add event listeners
+      this._addEventListeners();
+    }
+
+    connectedCallback() {
+      this._upgradeProperty('value');
+      this._upgradeProperty('min');
+      this._upgradeProperty('max');
+      this._upgradeProperty('step');
+      this._upgradeProperty('disabled');
+      this._updateUI();
+    }
+
+    _addEventListeners() {
+      const handleStart = (e) => {
+        if (this.disabled) return;
+        this._isDragging = true;
+        document.addEventListener('mousemove', handleMove);
+        document.addEventListener('mouseup', handleEnd);
+        document.addEventListener('touchmove', handleMove, { passive: false });
+        document.addEventListener('touchend', handleEnd);
+        this._handleInteraction(e);
+      };
+
+      const handleMove = (e) => {
+        if (!this._isDragging) return;
+        e.preventDefault();
+        this._handleInteraction(e);
+      };
+
+      const handleEnd = () => {
+        this._isDragging = false;
+        document.removeEventListener('mousemove', handleMove);
+        document.removeEventListener('mouseup', handleEnd);
+        document.removeEventListener('touchmove', handleMove);
+        document.removeEventListener('touchend', handleEnd);
+      };
+
+      this.thumb.addEventListener('mousedown', handleStart);
+      this.thumb.addEventListener('touchstart', handleStart);
+      
+      this.track.addEventListener('click', (e) => {
+        if (this.disabled) return;
+        this._handleInteraction(e);
+      });
+    }
+
+    _handleInteraction(e) {
+      const rect = this.track.getBoundingClientRect();
+      let clientX;
+      
+      if (e.type.includes('touch')) {
+        clientX = e.touches[0].clientX;
+      } else {
+        clientX = e.clientX;
+      }
+      
+      let posX = clientX - rect.left;
+      posX = Math.max(0, Math.min(rect.width, posX));
+      const percentage = posX / rect.width;
+      
+      let newValue = this.min + (this.max - this.min) * percentage;
+      newValue = this._roundToStep(newValue);
+      
+      this.value = newValue;
+      this._updateUI();
+      this._dispatchEvents();
+    }
+
+    _roundToStep(value) {
+      if (this.step <= 0) return value;
+      const steps = Math.round((value - this.min) / this.step);
+      return this.min + steps * this.step;
+    }
+
+    _updateUI() {
+      const percentage = (this.value - this.min) / (this.max - this.min) * 100;
+      this.progress.style.width = `${percentage}%`;
+      this.thumb.style.left = `${percentage}%`;
+      
+      // Update ARIA attributes
+      this.setAttribute('role', 'slider');
+      this.setAttribute('aria-valuenow', this.value);
+      this.setAttribute('aria-valuemin', this.min);
+      this.setAttribute('aria-valuemax', this.max);
+    }
+
+    _dispatchEvents() {
+      this.dispatchEvent(new Event('input', { bubbles: true }));
+      if (!this._isDragging) {
+        this.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    }
+
+    _upgradeProperty(prop) {
+      if (this.hasOwnProperty(prop)) {
+        let value = this[prop];
+        delete this[prop];
+        this[prop] = value;
+      }
+    }
+
+    attributeChangedCallback(name, oldValue, newValue) {
+      if (oldValue === newValue) return;
+      
+      switch (name) {
+        case 'min':
+          this.min = parseFloat(newValue) || 0;
+          break;
+        case 'max':
+          this.max = parseFloat(newValue) || 100;
+          break;
+        case 'value':
+          this.value = parseFloat(newValue) || 0;
+          break;
+        case 'step':
+          this.step = parseFloat(newValue) || 1;
+          break;
+        case 'disabled':
+          this.disabled = newValue !== null;
+          break;
+      }
+    }
+
+    get min() {
+      return this._min;
+    }
+    set min(val) {
+      this._min = val;
+      this.setAttribute('min', val);
+      this._updateUI();
+    }
+
+    get max() {
+      return this._max;
+    }
+    set max(val) {
+      this._max = val;
+      this.setAttribute('max', val);
+      this._updateUI();
+    }
+
+    get value() {
+      return this._value;
+    }
+    set value(val) {
+      const clamped = Math.max(this.min, Math.min(this.max, val));
+      this._value = clamped;
+      this.setAttribute('value', clamped);
+      this._updateUI();
+    }
+
+    get step() {
+      return this._step;
+    }
+    set step(val) {
+      this._step = val;
+      this.setAttribute('step', val);
+    }
+
+    get disabled() {
+      return this._disabled;
+    }
+    set disabled(val) {
+      this._disabled = val;
+      if (val) {
+        this.setAttribute('disabled', '');
+      } else {
+        this.removeAttribute('disabled');
+      }
+    }
+  }
+
+  customElements.define('dys-range', DysRange);
+</script>
   <body>
     <div id="app-container">
       <div id="background-effects">
@@ -178,8 +430,7 @@
             </div>
             <div class="player-progress-bar-container">
               <span id="player-current-time">0:00</span>
-              <input
-                type="range"
+              <dys-range
                 id="player-progress-bar"
                 value="0"
                 min="0"
@@ -204,8 +455,7 @@
             >
               <span class="material-icons">volume_up</span>
             </button>
-            <input
-              type="range"
+            <dys-range
               id="player-volume-slider"
               value="100"
               min="0"

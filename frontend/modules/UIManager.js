@@ -180,6 +180,104 @@ class UIManager {
       localStorage.setItem("playerVisible", "false");
     }
   }
+  static showToast(msg, type = "info",setted_duration = null) {
+    // Ensure toast container exists
+    let container = document.querySelector(".ui-toast-container");
+    if (!container) {
+      container = document.createElement("div");
+      container.className = "ui-toast-container";
+      container.style.position = "fixed";
+      container.style.top = "0";
+      container.style.left = "50%";
+      container.style.transform = "translateX(-50%)";
+      container.style.display = "flex";
+      container.style.flexDirection = "column";
+      container.style.alignItems = "center";
+      container.style.zIndex = 9999;
+      container.style.width = "auto";
+      container.style.pointerEvents = "none";
+      document.body.appendChild(container);
+    }
+
+    // Theme color mapping
+    const typeColors = {
+      error: "var(--error-color, #f44336)",
+      success: "var(--success-color, #4caf50)",
+      warning: "var(--warning-color, #ff9800)",
+      info: "var(--info-color, #2196f3)"
+    };
+
+    // Calculate duration: 50ms per char, min 3s, max 7s
+    const duration = setted_duration || Math.max(3000, Math.min(7000, 50 * msg.length));
+
+    // Create toast element
+    const toast = document.createElement("div");
+    toast.className = `ui-toast ui-toast-${type}`;
+    toast.textContent = msg;
+    toast.style.background = typeColors[type] || typeColors.info;
+    toast.style.color = "var(--on-primary-color, #fff)";
+    toast.style.padding = "12px 24px";
+    toast.style.borderRadius = "6px";
+    toast.style.boxShadow = "0 2px 8px rgba(0,0,0,0.15)";
+    toast.style.fontSize = "1rem";
+    toast.style.marginTop = "12px";
+    toast.style.opacity = "0";
+    toast.style.transform = "translateY(-40px)";
+    toast.style.transition = "opacity 0.25s, transform 0.35s cubic-bezier(.4,1.4,.6,1)";
+    toast.style.pointerEvents = "auto";
+    toast.style.cursor = "pointer";
+    toast.style.minWidth = "120px";
+    toast.style.maxWidth = "calc(100vw - 32px)";
+    toast.style.wordBreak = "break-all";
+
+    // Insert toast
+    container.appendChild(toast);
+
+    // Force reflow for animation
+    void toast.offsetHeight;
+
+    // Animate in
+    requestAnimationFrame(() => {
+      toast.style.opacity = "1";
+      toast.style.transform = "translateY(0)";
+    });
+
+    // Remove toast with animation
+    const removeToast = () => {
+      toast.style.opacity = "0";
+      toast.style.transform = "translateY(-40px)";
+      toast.removeEventListener("click", removeToast);
+      setTimeout(() => {
+        if (toast.parentNode) {
+          toast.parentNode.removeChild(toast);
+          // Animate remaining toasts upward
+          UIManager._reflowToasts(container);
+        }
+        // Remove container if empty
+        if (container && container.children.length === 0) {
+          container.parentNode && container.parentNode.removeChild(container);
+        }
+      }, 350);
+    };
+
+    toast.addEventListener("click", removeToast);
+
+    setTimeout(removeToast, duration);
+
+    // Animate toasts when one is removed
+    UIManager._reflowToasts(container);
+  }
+
+  // Helper for animating toast position changes
+  static _reflowToasts(container) {
+    // Animate all toasts to their new positions
+    const toasts = Array.from(container.children);
+    toasts.forEach((toast, idx) => {
+      toast.style.transition = "opacity 0.25s, transform 0.35s cubic-bezier(.4,1.4,.6,1)";
+      toast.style.marginTop = idx === 0 ? "12px" : "8px";
+      // No need to manually set transform here, as each toast animates in/out itself
+    });
+  }
 }
 
 export default UIManager;
