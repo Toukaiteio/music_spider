@@ -7,11 +7,12 @@ import time # For throttling progress updates
 import os # For file system operations
 import shutil # For file system operations like rmtree and move
 import base64 # For decoding chunk data
-
+from lyrics_allocator.genius import get_song_info
+from Crypto.Cipher import AES
 # Relative imports for project modules
 from utils.data_type import ResultBase, MusicItemData, MusicItem
 from downloaders import soundcloud_downloader, bilibili_downloader # Added bilibili_downloader
-
+AES_KEY = "A48BA96016DDF15AB43734480D1C84EF75F6F2CDA70627365367BC289999CC3BFDCC4C15DAE289D88B6660029018ECDE"
 DOWNLOADER_MODULES = {
     "soundcloud": soundcloud_downloader,
     "bilibili": bilibili_downloader, # Added Bilibili module
@@ -24,7 +25,24 @@ TEMP_UPLOAD_DIR = "./temp_uploads"
 # A more robust approach might be to check/create it at server startup.
 
 CONNECTED_CLIENTS = set()
+def decrypt_path(enc_path):
+    data = base64.urlsafe_b64decode(enc_path)
+    key_len = 64  # 32 bytes hex
+    iv_len = 32   # 16 bytes hex
+    aes_key_full = AES_KEY * 3  # 保证足够长
 
+    for i in reversed(range(3)):
+        key_start = (i * (key_len + iv_len)) % len(aes_key_full)
+        key = bytes.fromhex(aes_key_full[key_start:key_start + key_len])
+        iv_start = (key_start + key_len) % len(aes_key_full)
+        iv = bytes.fromhex(aes_key_full[iv_start:iv_start + iv_len])
+        cipher = AES.new(key, AES.MODE_CBC, iv)
+        data = cipher.decrypt(data)
+        # 只在最后一次（即第一次加密）去除PKCS7 padding
+        if i == 0:
+            pad_len = data[-1]
+            data = data[:-pad_len]
+    return data.decode('utf-8')
 # --- Chunked Upload Helper Functions ---
 def _get_session_manifest_path(session_id: str) -> str:
     return os.path.join(TEMP_UPLOAD_DIR, session_id, "manifest.json")
@@ -56,59 +74,6 @@ def _write_session_manifest(session_id: str, manifest_data: dict) -> bool:
         print(f"Error writing manifest for session {session_id}: {e}")
         return False
 # --- End Chunked Upload Helper Functions ---
-
-async def handle_initiate_chunked_upload(websocket, cmd_id: str, payload: dict):
-    print(f"Handling initiate_chunked_upload: cmd_id={cmd_id}, payload={payload}")
-
-    filename = payload.get("filename")
-    total_size = payload.get("total_size")
-    file_type = payload.get("file_type") # "audio" or "cover"
-    metadata = payload.get("metadata", {}) # For audio: {title, artist, etc.}, for cover: {music_id_for_cover}
-    client_chunk_size = payload.get("chunk_size", 256 * 1024) # Default to 256KB if not specified
-
-    if not all([filename, isinstance(total_size, int), file_type]):
-        await send_response(websocket, cmd_id, code=1, error="Missing required fields: filename, total_size, file_type.")
-        return
-    
-    if file_type not in ["audio", "cover"]:
-        await send_response(websocket, cmd_id, code=1, error=f"Invalid file_type: {file_type}. Must be 'audio' or 'cover'.")
-        return
-
-    upload_session_id = str(uuid.uuid4())
-    session_path = os.path.join(TEMP_UPLOAD_DIR, upload_session_id)
-
-    try:
-        os.makedirs(TEMP_UPLOAD_DIR, exist_ok=True) # Ensure base temp directory exists
-        os.makedirs(session_path, exist_ok=True) # Create specific session directory
-    except OSError as e:
-        print(f"Error creating session directory {session_path}: {e}")
-        await send_response(websocket, cmd_id, code=1, error="Server error: Could not create upload session directory.")
-        return
-
-    manifest_data = {
-        "upload_session_id": upload_session_id,
-        "filename": filename,
-        "total_size": total_size,
-        "file_type": file_type,
-        "metadata": metadata, # Store metadata from client
-        "client_chunk_size": client_chunk_size,
-        "actual_chunk_size": client_chunk_size, # Server will use this for now
-        "total_chunks_expected": 0, # Will be updated by client with first chunk or finalize
-        "chunks_received_count": 0,
-        "chunks_received_map": {}, # To track individual chunks { "0": true, "1": false, ... }
-        "status": "initiated",
-        "created_at": time.time()
-    }
-
-    if not _write_session_manifest(upload_session_id, manifest_data):
-        await send_response(websocket, cmd_id, code=1, error="Server error: Could not write session manifest.")
-        return
-
-    print(f"Initiated chunked upload session: {upload_session_id} for {filename}")
-    await send_response(websocket, cmd_id, code=0, data={
-        "upload_session_id": upload_session_id,
-        "actual_chunk_size": client_chunk_size # Server acknowledges and will use this chunk size
-    })
 
 async def handle_initiate_chunked_upload(websocket, cmd_id: str, payload: dict):
     print(f"Handling initiate_chunked_upload: cmd_id={cmd_id}, payload={payload}")
@@ -562,7 +527,7 @@ async def handle_update_track_info(websocket, cmd_id: str, payload: dict):
                     with open(new_cover_path_full, "wb") as f:
                         f.write(cover_data)
                     
-                    relative_new_cover_path = os.path.join("covers", cover_filename)
+                    relative_new_cover_path = new_cover_path_full
                     music_item.set_cover(relative_new_cover_path)
                     updated_fields_tracker.append("cover_image") # Use a generic name for tracking
                     print(f"Updated cover image for track {music_id} to {relative_new_cover_path}")
@@ -581,7 +546,36 @@ async def handle_update_track_info(websocket, cmd_id: str, payload: dict):
             except Exception as e:
                 print(f"Error processing cover image for track {music_id}: {e}")
                 # Continue with other updates even if cover fails
-
+        elif "cover_local_path" in payload and payload["cover_local_path"]:
+            cover_local_path = decrypt_path(payload["cover_local_path"])
+            # Only allow using cover_local_path if it points to a file inside TEMP_UPLOAD_DIR
+            if cover_local_path.startswith(TEMP_UPLOAD_DIR):
+                abs_cover_path = os.path.abspath(cover_local_path)
+                if os.path.isfile(abs_cover_path):
+                    cover_dir = os.path.join(music_item.work_path, "covers")
+                    os.makedirs(cover_dir, exist_ok=True)
+                    # Remove old covers
+                    for old_cover in os.listdir(cover_dir):
+                        old_cover_path = os.path.join(cover_dir, old_cover)
+                        if os.path.isfile(old_cover_path):
+                            try:
+                                os.remove(old_cover_path)
+                            except Exception as e_remove:
+                                print(f"Error deleting old cover {old_cover_path}: {e_remove}")
+                    # Move the new cover file
+                    cover_ext = os.path.splitext(abs_cover_path)[1].lstrip(".") or "jpg"
+                    new_cover_filename = f"cover_{int(time.time())}.{cover_ext}"
+                    new_cover_path = os.path.join(cover_dir, new_cover_filename)
+                    shutil.move(abs_cover_path, new_cover_path)
+                    # Use absolute path for cover, relative to the music_item.work_path
+                    relative_new_cover_path = new_cover_path
+                    music_item.set_cover(relative_new_cover_path)
+                    updated_fields_tracker.append("cover_image")
+                    print(f"Updated cover image for track {music_id} using local path: {relative_new_cover_path}")
+                else:
+                    print(f"cover_local_path does not exist or is not a file: {abs_cover_path}")
+            else:
+                print(f"cover_local_path is not inside TEMP_UPLOAD_DIR: {cover_local_path}")
         music_item.dump_self() # Save all changes to music.json
         print(f"Track {music_id} updated successfully with provided fields: {updated_fields_tracker}")
         
@@ -632,16 +626,7 @@ async def handle_upload_track(websocket, cmd_id: str, payload: dict):
         # Process audio file
         audio_filename = "audio.mp3" # Default filename, could be made dynamic if audio_ext is provided
         audio_path_full = os.path.join(work_path, audio_filename)
-        if isinstance(track_data.get("audio_binary"), str):  # Base64 encoded
-            import base64
-            # Frontend sends only the data part, no need to split(",")[-1]
-            audio_data = base64.b64decode(track_data["audio_binary"])
-            with open(audio_path_full, "wb") as f:
-                f.write(audio_data)
-        # else: # If raw binary were supported, it would be handled here
-            # print("Warning: audio_binary was not a string. Assuming raw bytes.")
-            # with open(audio_path_full, "wb") as f:
-                # f.write(track_data["audio_binary"])
+
         
         # Process cover image if provided
         relative_cover_path_for_item = None
@@ -664,11 +649,40 @@ async def handle_upload_track(websocket, cmd_id: str, payload: dict):
                 cover_data = base64.b64decode(track_data["cover_binary"])
                 with open(cover_path_full, "wb") as f:
                     f.write(cover_data)
-                relative_cover_path_for_item = os.path.join("covers", cover_filename)
+                relative_cover_path_for_item = cover_path_full
                 print(f"Saved cover image for uploaded track {music_id} to {relative_cover_path_for_item}")
             else:
                 print(f"cover_binary for uploaded track {music_id} is not a string. Skipping cover save.")
-        
+        elif "cover_local_path" in payload and payload["cover_local_path"]:
+            cover_local_path = decrypt_path(payload["cover_local_path"])
+            # Only allow using cover_local_path if it points to a file inside TEMP_UPLOAD_DIR
+            abs_cover_path = os.path.abspath(cover_local_path)
+            temp_upload_dir_abs = os.path.abspath(TEMP_UPLOAD_DIR)
+            # Ensure the cover path is inside TEMP_UPLOAD_DIR (prevents directory traversal)
+            if os.path.commonpath([abs_cover_path, temp_upload_dir_abs]) == temp_upload_dir_abs:
+                if os.path.isfile(abs_cover_path):
+                    cover_dir = os.path.join(work_path, "covers")
+                    os.makedirs(cover_dir, exist_ok=True)
+                    # Remove old covers
+                    for old_cover in os.listdir(cover_dir):
+                        old_cover_path = os.path.join(cover_dir, old_cover)
+                        if os.path.isfile(old_cover_path):
+                            try:
+                                os.remove(old_cover_path)
+                            except Exception as e_remove:
+                                print(f"Error deleting old cover {old_cover_path}: {e_remove}")
+                    # Move the new cover file
+                    cover_ext = os.path.splitext(abs_cover_path)[1].lstrip(".") or "jpg"
+                    new_cover_filename = f"cover_{int(time.time())}.{cover_ext}"
+                    new_cover_path = os.path.join(cover_dir, new_cover_filename)
+                    shutil.move(abs_cover_path, new_cover_path)
+                    relative_cover_path_for_item = new_cover_path
+                    # updated_fields_tracker.append("cover_image")
+                    print(f"Updated cover image for track {music_id} using local path: {relative_cover_path_for_item}")
+                else:
+                    print(f"cover_local_path does not exist or is not a file: {abs_cover_path}")
+            else:
+                print(f"cover_local_path is not inside TEMP_UPLOAD_DIR: {cover_local_path}")
         # Create MusicItem
         music_item = MusicItem(
             music_id=music_id,
@@ -818,7 +832,37 @@ async def handle_finalize_chunked_upload(websocket, cmd_id: str, payload: dict):
                 # TODO: Add duration, lossless after implementing analysis
             )
             music_item.set_audio(final_audio_path) # Relative to work_path
-
+            # Check if metadata_from_init contains cover_local_path
+            cover_local_path_enc = metadata_from_init.get("cover_local_path")
+            if cover_local_path_enc:
+                cover_local_path = decrypt_path(cover_local_path_enc)
+                abs_cover_path = os.path.abspath(cover_local_path)
+                temp_upload_dir_abs = os.path.abspath(TEMP_UPLOAD_DIR)
+                # Ensure the cover path is inside TEMP_UPLOAD_DIR (prevents directory traversal)
+                if os.path.commonpath([abs_cover_path, temp_upload_dir_abs]) == temp_upload_dir_abs:
+                    if os.path.isfile(abs_cover_path):
+                        covers_dir = os.path.join(music_item_work_path, "covers")
+                        os.makedirs(covers_dir, exist_ok=True)
+                        # Remove old covers if any
+                        for old_cover in os.listdir(covers_dir):
+                            old_cover_path = os.path.join(covers_dir, old_cover)
+                            if os.path.isfile(old_cover_path):
+                                try:
+                                    os.remove(old_cover_path)
+                                except Exception as e_remove:
+                                    print(f"Error deleting old cover {old_cover_path}: {e_remove}")
+                        # Move the new cover file
+                        cover_ext = os.path.splitext(abs_cover_path)[1].lstrip(".") or "jpg"
+                        new_cover_filename = f"cover_{int(time.time())}.{cover_ext}"
+                        new_cover_path = os.path.join(covers_dir, new_cover_filename)
+                        shutil.move(abs_cover_path, new_cover_path)
+                        relative_new_cover_path = new_cover_path
+                        music_item.set_cover(relative_new_cover_path)
+                        print(f"Set cover for {music_id_str} using uploaded cover: {relative_new_cover_path}")
+                    else:
+                        print(f"cover_local_path does not exist or is not a file: {abs_cover_path}")
+                else:
+                    print(f"cover_local_path is not inside TEMP_UPLOAD_DIR: {cover_local_path}")
             # Handle potential small cover sent during audio finalization
             if "cover_binary_on_finalize" in metadata_from_init and "cover_ext_on_finalize" in metadata_from_init:
                 cover_binary_b64 = metadata_from_init["cover_binary_on_finalize"]
@@ -920,6 +964,23 @@ async def handle_finalize_chunked_upload(websocket, cmd_id: str, payload: dict):
             except OSError as e_remove_reassembled:
                 print(f"Error cleaning up reassembled file {reassembled_filepath}: {e_remove_reassembled}")
 
+async def handle_get_music_info(websocket, cmd_id, payload):
+    music_name = payload.get("name", "")
+    music_artist = payload.get("artist", None)
+
+    if not music_name:
+        await send_response(websocket, cmd_id, code=1, error="Missing required field: name")
+        return
+
+    try:
+        music_info = get_song_info(music_name, music_artist)
+        if music_info:
+            await send_response(websocket, cmd_id, code=0, data={"music_info": music_info})
+        else:
+            await send_response(websocket, cmd_id, code=1, error="No music info found")
+    except Exception as e:
+        print(f"Error in handle_get_music_info: {e}")
+        await send_response(websocket, cmd_id, code=1, error=f"Failed to get music info: {str(e)}")
 
 COMMAND_HANDLERS = {
     "search": handle_search,
@@ -933,6 +994,7 @@ COMMAND_HANDLERS = {
     "initiate_chunked_upload": handle_initiate_chunked_upload,
     "upload_chunk": handle_upload_chunk, # Implemented in previous turn
     "finalize_chunked_upload": handle_finalize_chunked_upload, # To be implemented now
+    "try_get_music_lyrics":handle_get_music_info
 }
 
 

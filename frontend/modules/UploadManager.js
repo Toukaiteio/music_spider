@@ -17,7 +17,7 @@ class UploadManager {
     this.webSocketManager = webSocketManager;
     this.navigationManager = navigationManager;
     this.uiManager = uiManager;
-    this.appState = appState;
+    window.appState = appState;
     this.CHUNK_SIZE = CHUNK_SIZE;
     this.dragOverlay = document.getElementById("drag-overlay"); // Get dragOverlay once
     UploadManager.#instance = this;
@@ -33,7 +33,7 @@ class UploadManager {
   initDragDrop() {
     window.addEventListener("dragenter", (event) => {
       event.preventDefault();
-      if (this.appState.isUploadPageActive) return;
+      if (window.appState.isUploadPageActive) return;
       if (this.dragOverlay) this.dragOverlay.style.display = "flex";
     });
 
@@ -50,7 +50,7 @@ class UploadManager {
     window.addEventListener("drop", (event) => {
       event.preventDefault();
       if (this.dragOverlay) this.dragOverlay.style.display = "none";
-      if (this.appState.isUploadPageActive) {
+      if (window.appState.isUploadPageActive) {
         console.log(
           "Global drop event ignored: Upload page is active (likely for cover art)."
         );
@@ -61,11 +61,11 @@ class UploadManager {
       if (files.length > 0) {
         const file = files[0];
         if (file.type.startsWith("audio/")) {
-          this.appState.droppedFile = file;
+          window.appState.droppedFile = file;
           window.jsmediatags.read(file, {
             onSuccess: (tag) => {
               const tags = tag.tags;
-              this.appState.parsedMetadata = {
+              window.appState.parsedMetadata = {
                 title: tags.title || "",
                 artist: tags.artist || "",
                 album: tags.album || "",
@@ -86,7 +86,7 @@ class UploadManager {
             },
             onError: (error) => {
               console.warn("jsmediatags error:", error);
-              this.appState.parsedMetadata = {
+              window.appState.parsedMetadata = {
                 title: file.name.replace(/\.[^/.]+$/, ""),
               };
               this.navigationManager.navigateTo(
@@ -128,11 +128,14 @@ class UploadManager {
             iconElement.style.display = "none";
           }
         }
-        this.appState.selectedCoverBase64 = e.target.result; // Full Data URL for preview
+        window.appState.selectedCoverBase64 = e.target.result; // Full Data URL for preview
         const extension = getFileExtension(file.name); // Use imported getFileExtension
-        this.appState.selectedCoverFileObject = file;
-        this.appState.selectedCoverExt = extension;
-
+        window.appState.selectedCoverFileObject = file;
+        window.appState.selectedCoverExt = extension;
+        const coverLocalPathInput = document.getElementById("cover-local-path");
+        if (coverLocalPathInput) {
+          coverLocalPathInput.value = "";
+        }
         if (coverExtInput) {
           coverExtInput.value = extension;
         }
@@ -144,9 +147,9 @@ class UploadManager {
         "Please select an image file for the cover.",
         "error"
       );
-      this.appState.selectedCoverBase64 = null;
-      this.appState.selectedCoverExt = null;
-      this.appState.selectedCoverFileObject = null;
+      window.appState.selectedCoverBase64 = null;
+      window.appState.selectedCoverExt = null;
+      window.appState.selectedCoverFileObject = null;
 
       if (coverExtInput) {
         coverExtInput.value = "";
@@ -168,7 +171,7 @@ class UploadManager {
 
   async handleUploadFormSubmit(form, submitButtonElement) {
     try {
-      const audioFile = this.appState.droppedFile;
+      const audioFile = window.appState.droppedFile;
       if (!audioFile) {
         this.uiManager.showToast(
           "No audio file has been selected or dropped.",
@@ -222,9 +225,14 @@ class UploadManager {
       let finalTrackData = audioUploadResult.data?.track_data || null;
       const newMusicId = finalTrackData?.music_id || null;
 
+      const coverLocalPathInput = document.getElementById("cover-local-path");
+      const coverLocalPathValue = coverLocalPathInput && coverLocalPathInput.value.trim();
+      if (coverLocalPathValue) {
+        audioMetadata.cover_local_path = coverLocalPathValue;
+      }
       // Check for cover from ID3 tags ONLY if no user-selected cover exists
-      if (!this.appState.selectedCoverFileObject) {
-        const tagPic = this.appState.parsedMetadata?.picture;
+      if (!audioMetadata.cover_local_path && !window.appState.selectedCoverFileObject) {
+        const tagPic = window.appState.parsedMetadata?.picture;
         if (tagPic?.data && tagPic?.format) {
           const ext = tagPic.format.split("/")[1] || "jpg";
           const fileFromTag = new File(
@@ -232,13 +240,13 @@ class UploadManager {
             `cover_from_tag.${ext}`,
             { type: tagPic.format }
           );
-          this.appState.selectedCoverFileObject = fileFromTag;
+          window.appState.selectedCoverFileObject = fileFromTag;
         }
       }
-
-      if (this.appState.selectedCoverFileObject && newMusicId) {
+      if(!audioMetadata.cover_local_path)
+      if ((window.appState.selectedCoverFileObject) && newMusicId) {
         const coverUploadResult = await this.startChunkedUploadProcess(
-          this.appState.selectedCoverFileObject,
+          window.appState.selectedCoverFileObject,
           "cover",
           {},
           newMusicId
@@ -257,7 +265,7 @@ class UploadManager {
           "Audio and initial cover uploaded successfully!",
           "success"
         );
-      } else if (!newMusicId && this.appState.selectedCoverFileObject) {
+      } else if (!newMusicId && window.appState.selectedCoverFileObject) {
         this.uiManager.showToast(
           "Audio upload succeeded but could not get Music ID to attach cover.",
           "warning"
@@ -266,11 +274,11 @@ class UploadManager {
         this.uiManager.showToast("Audio uploaded successfully!", "success");
       }
 
-      this.appState.droppedFile = null;
-      this.appState.parsedMetadata = null;
-      this.appState.selectedCoverBase64 = null;
-      this.appState.selectedCoverExt = null;
-      this.appState.selectedCoverFileObject = null;
+      window.appState.droppedFile = null;
+      window.appState.parsedMetadata = null;
+      window.appState.selectedCoverBase64 = null;
+      window.appState.selectedCoverExt = null;
+      window.appState.selectedCoverFileObject = null;
 
       const previewButton = document.getElementById(
         "upload-cover-upload-button"
@@ -295,7 +303,7 @@ class UploadManager {
       if (lrcInput) lrcInput.value = "";
       const lrcPreview = document.getElementById("lrc-preview-area");
       if (lrcPreview) lrcPreview.innerHTML = "Lyrics preview will appear here.";
-
+      if (coverLocalPathInput) coverLocalPathInput.value = "";
       if (submitButtonElement) {
         submitButtonElement.disabled = false;
         submitButtonElement.textContent = "Upload Track";
@@ -465,11 +473,11 @@ class UploadManager {
 
   handleUploadCancel() {
     // Clear appState properties
-    this.appState.droppedFile = null;
-    this.appState.parsedMetadata = null;
-    this.appState.selectedCoverBase64 = null;
-    this.appState.selectedCoverExt = null;
-    this.appState.selectedCoverFileObject = null;
+    window.appState.droppedFile = null;
+    window.appState.parsedMetadata = null;
+    window.appState.selectedCoverBase64 = null;
+    window.appState.selectedCoverExt = null;
+    window.appState.selectedCoverFileObject = null;
 
     // Reset the form
     const form = document.getElementById("upload-track-form");
@@ -532,11 +540,11 @@ class UploadManager {
             iconElement.style.display = "none";
           }
         }
-        this.appState.selectedCoverBase64 = e.target.result; // Full Data URL for preview
+        window.appState.selectedCoverBase64 = e.target.result; // Full Data URL for preview
         const extension = getFileExtension(file.name); // Use imported getFileExtension
-        this.appState.selectedCoverFileObject = file;
-        this.appState.selectedCoverExt = extension;
-        this.appState.newCoverSelectedForUpdate = true;
+        window.appState.selectedCoverFileObject = file;
+        window.appState.selectedCoverExt = extension;
+        window.appState.newCoverSelectedForUpdate = true;
 
         // Optionally update hidden form field if it exists, though payload is built from appState
         const updateCoverExtFormInput =
@@ -545,6 +553,10 @@ class UploadManager {
           updateCoverExtFormInput.value = extension;
         }
       };
+      const coverLocalPathInput = document.getElementById("cover-local-path");
+        if (coverLocalPathInput) {
+          coverLocalPathInput.value = "";
+        }
       reader.readAsDataURL(file);
     } else if (file) {
       // File selected but not an image
@@ -552,10 +564,10 @@ class UploadManager {
         "Please select an image file for the cover.",
         "error"
       );
-      this.appState.selectedCoverBase64 = null;
-      this.appState.selectedCoverExt = null;
-      this.appState.selectedCoverFileObject = null;
-      this.appState.newCoverSelectedForUpdate = false;
+      window.appState.selectedCoverBase64 = null;
+      window.appState.selectedCoverExt = null;
+      window.appState.selectedCoverFileObject = null;
+      window.appState.newCoverSelectedForUpdate = false;
 
       const updateCoverExtFormInput =
         document.getElementById("update-cover-ext");
@@ -595,7 +607,7 @@ class UploadManager {
       return;
     }
 
-    const initialData = this.appState.editingTrackInitialData || {};
+    const initialData = window.appState.editingTrackInitialData || {};
     const payload = { music_id: musicId };
     let hasChanges = false;
 
@@ -643,20 +655,37 @@ class UploadManager {
       hasChanges = true;
     }
 
-    if (
-      this.appState.newCoverSelectedForUpdate &&
-      this.appState.selectedCoverBase64 &&
-      this.appState.selectedCoverExt
+    // 优先判断 input#cover-local-path 是否有值
+    const coverLocalPathInput = document.getElementById("cover-local-path");
+    const coverLocalPathValue = coverLocalPathInput && coverLocalPathInput.value.trim();
+    if (coverLocalPathValue) {
+      payload.cover_local_path = coverLocalPathValue;
+      hasChanges = true;
+    } else if (
+      window.appState.newCoverSelectedForUpdate &&
+      window.appState.selectedCoverBase64 &&
+      window.appState.selectedCoverExt
     ) {
-      const base64Parts = this.appState.selectedCoverBase64.split(",");
-      if (base64Parts.length === 2) {
-        payload.cover_binary = base64Parts[1];
-        payload.cover_ext = this.appState.selectedCoverExt;
-        hasChanges = true;
-      } else {
-        console.warn(
-          "Invalid base64 string format for cover image during update."
+      // Use chunked upload for cover image update
+      const coverFile = window.appState.selectedCoverFileObject;
+      if (coverFile) {
+        const coverUploadResult = await this.startChunkedUploadProcess(
+          coverFile,
+          "cover",
+          {},
+          musicId
         );
+        if (coverUploadResult?.success && coverUploadResult.data?.cover_path) {
+          payload.cover_path = coverUploadResult.data.cover_path;
+          payload.cover_ext = window.appState.selectedCoverExt;
+          hasChanges = true;
+        } else {
+          this.uiManager.showToast(
+        coverUploadResult?.error || "Cover upload failed.",
+        "error"
+          );
+          return;
+        }
       }
     }
 
@@ -693,33 +722,37 @@ class UploadManager {
             updatedTrackDataForState[key] = payload[key];
           }
         }
-        if (payload.cover_ext && response.data && response.data.cover_path) {
-          updatedTrackDataForState.cover_path = response.data.cover_path;
+        if ((payload.cover_local_path || payload.cover_ext) && response.data && response.data.track_data && response.data.track_data.cover_path) {
+          updatedTrackDataForState.cover_path = response.data.track_data.cover_path;
         }
 
-        if (this.appState.library) {
-          const index = this.appState.library.findIndex(
+        if (window.appState.library) {
+          const index = window.appState.library.findIndex(
             (track) => String(track.music_id || track.id) === String(musicId)
           );
           if (index !== -1) {
-            this.appState.library[index] = {
-              ...this.appState.library[index],
+            window.appState.library[index] = {
+              ...window.appState.library[index],
               ...updatedTrackDataForState,
             };
           }
         }
         if (
-          this.appState.currentSongDetail &&
+          window.appState.currentSongDetail &&
           String(
-            this.appState.currentSongDetail.music_id ||
-              this.appState.currentSongDetail.id
+            window.appState.currentSongDetail.music_id ||
+              window.appState.currentSongDetail.id
           ) === String(musicId)
         ) {
-          this.appState.currentSongDetail = {
-            ...this.appState.currentSongDetail,
+          window.appState.currentSongDetail = {
+            ...window.appState.currentSongDetail,
             ...updatedTrackDataForState,
           };
         }
+        // const refreshed = await this.webSocketManager.sendWebSocketCommand("get_downloaded_music", {});
+        // if (refreshed && refreshed.code === 0 && Array.isArray(refreshed.data.library)) {
+        //   window.appState.library = refreshed.data.library;
+        // }
         return ["song-detail",
                 updatedTrackDataForState.title || "Track Detail",
                 `#song-detail/${musicId}`,
@@ -759,8 +792,8 @@ class UploadManager {
         songCardToRemove.remove();
       }
 
-      if (this.appState && this.appState.library) {
-        this.appState.library = this.appState.library.filter(
+      if (window.appState && window.appState.library) {
+        window.appState.library = window.appState.library.filter(
           (track) => String(track.music_id || track.id) !== String(musicId)
         );
       }
@@ -769,7 +802,7 @@ class UploadManager {
         this.playerManager &&
         typeof this.playerManager.setPlayList === "function"
       ) {
-        this.playerManager.setPlayList(this.appState.library);
+        this.playerManager.setPlayList(window.appState.library);
       }
 
       if (

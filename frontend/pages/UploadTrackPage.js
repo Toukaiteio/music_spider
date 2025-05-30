@@ -54,6 +54,7 @@ class UploadTrackPage {
                                         <img src="#" alt="Cover Preview" class="cover-preview-image" style="display: none;">
                                     </button>
                                     <p class="cover-upload-hint">Click to upload or drag & drop cover image</p>
+                                    <input type="hidden" id="cover-local-path" name="cover_local_path">
                                 </div>
                             </div>
                             <div class="form-section">

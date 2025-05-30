@@ -449,7 +449,7 @@ class PlayerManager {
     }
   }
   getCurrentTrack() {
-    return this.playlist[this.currentIndex] || null;
+    return this.currentLoadedTrack || null;
   }
   extractCoverColor() {
     if (!this.coverImgElement.complete) return;

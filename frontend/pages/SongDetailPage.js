@@ -16,8 +16,8 @@ class SongDetailPage {
                 <button id="song-detail-back-button" class="icon-button" aria-label="Go Back" style="position: absolute; top: 0px; left: 0px; z-index: 10;"><span class="material-icons">arrow_back</span></button>
                 <div class="song-detail-left">
                     <img src="placeholder_album_art.png" alt="Album Art" id="detail-cover-art">
-                    <h2 id="detail-title">Track Title</h2>
-                    <p id="detail-artist">Artist Name</p>
+                    <h2 id="detail-title" style="margin-bottom:0px;">Track Title</h2>
+                    <p id="detail-artist" style="margin-bottom:0px;margin-top:0px;">Artist Name</p>
                     <p id="detail-description">Full song description here...</p>
                     <div id="detail-action-buttons">
                         <button class="detail-play-button icon-button"><span class="material-icons">play_arrow</span></button>
@@ -43,8 +43,19 @@ class SongDetailPage {
         const track = appState.currentSongDetail;
 
         if (!track) {
-            mainContentElement.innerHTML = '<p style="color:red; text-align:center; padding:20px;">Error: Song details not found. Please go back and try again.</p>';
-            return;
+            // If not found, try to find in appState.library by subPageId (which may be song id)
+            let foundTrack = null;
+            if (subPageId && appState.library && Array.isArray(appState.library)) {
+                foundTrack = appState.library.find(item => 
+                    String(item.music_id || item.id) === String(subPageId)
+                );
+            }
+            if (foundTrack) {
+                appState.currentSongDetail = foundTrack;
+            } else {
+                mainContentElement.innerHTML = '<p style="color:red; text-align:center; padding:20px;">Error: Song details not found. Please go back and try again.</p>';
+                return;
+            }
         }
 
         // Apply enter animation for song-detail page
