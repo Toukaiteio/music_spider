@@ -3,9 +3,13 @@ import functools
 import json
 import websockets
 import uuid # For generating cmd_id if needed, or client sends it
-import time # For throttling progress updates
+import time # For throttling progress updates, and for network speed calculation
 import os # For file system operations
 import shutil # For file system operations like rmtree and move
+import psutil
+import platform # For OS-specific logic
+import subprocess # For running external commands like nvidia-smi
+import re # For parsing command output
 import base64 # For decoding chunk data
 from lyrics_allocator.genius import get_song_info
 from Crypto.Cipher import AES
@@ -25,6 +29,36 @@ TEMP_UPLOAD_DIR = "./temp_uploads"
 # A more robust approach might be to check/create it at server startup.
 
 CONNECTED_CLIENTS = set()
+
+# Global state for network I/O calculation
+previous_net_io = psutil.net_io_counters(pernic=True)
+time_of_previous_net_io = time.time()
+
+
+def format_bytes(bytes_val, precision=2):
+    """Converts bytes to a human-readable string (KB, MB, GB, TB)."""
+    if bytes_val < 1024:
+        return f"{bytes_val} B"
+    elif bytes_val < 1024**2:
+        return f"{round(bytes_val / 1024, precision)} KB"
+    elif bytes_val < 1024**3:
+        return f"{round(bytes_val / (1024**2), precision)} MB"
+    elif bytes_val < 1024**4:
+        return f"{round(bytes_val / (1024**3), precision)} GB"
+    else:
+        return f"{round(bytes_val / (1024**4), precision)} TB"
+
+def format_speed(bits_per_second, precision=2):
+    """Converts bits per second to a human-readable string (Kbps, Mbps, Gbps)."""
+    if bits_per_second < 1000:
+        return f"{round(bits_per_second, precision)} bps"
+    elif bits_per_second < 1000**2:
+        return f"{round(bits_per_second / 1000, precision)} Kbps"
+    elif bits_per_second < 1000**3:
+        return f"{round(bits_per_second / (1000**2), precision)} Mbps"
+    else:
+        return f"{round(bits_per_second / (1000**3), precision)} Gbps"
+
 def decrypt_path(enc_path):
     data = base64.urlsafe_b64decode(enc_path)
     key_len = 64  # 32 bytes hex
@@ -994,8 +1028,352 @@ COMMAND_HANDLERS = {
     "initiate_chunked_upload": handle_initiate_chunked_upload,
     "upload_chunk": handle_upload_chunk, # Implemented in previous turn
     "finalize_chunked_upload": handle_finalize_chunked_upload, # To be implemented now
-    "try_get_music_lyrics":handle_get_music_info
+    "try_get_music_lyrics":handle_get_music_info,
+    "get_system_overview": None, # Placeholder, will be assigned next
 }
+# Placeholder for handle_get_system_overview - will be defined below
+async def handle_get_system_overview(websocket, cmd_id: str, payload: dict):
+    global previous_net_io, time_of_previous_net_io
+    overview_data = {}
+
+    # System Info
+    try:
+        boot_time_timestamp = psutil.boot_time()
+        uptime_seconds = time.time() - boot_time_timestamp
+        uptime_days = int(uptime_seconds // (24 * 3600))
+        uptime_hours = int((uptime_seconds % (24 * 3600)) // 3600)
+        uptime_minutes = int((uptime_seconds % 3600) // 60)
+        uptime_str = f"{uptime_days}d {uptime_hours}h {uptime_minutes}m"
+        overview_data["systemInfo"] = {
+            "os": platform.system(),
+            "hostname": platform.node(),
+            "uptime": uptime_str,
+        }
+    except Exception as e:
+        print(f"Error getting system info: {e}")
+        overview_data["systemInfo"] = {"os": "N/A", "hostname": "N/A", "uptime": "N/A"}
+
+    # Disk Usage
+    disk_usage_data = []
+    try:
+        partitions = psutil.disk_partitions()
+        for p in partitions:
+            try:
+                usage = psutil.disk_usage(p.mountpoint)
+                disk_usage_data.append({
+                    "filesystem": p.device,
+                    "total": format_bytes(usage.total),
+                    "used": format_bytes(usage.used),
+                    "free": format_bytes(usage.free),
+                    "mountPoint": p.mountpoint,
+                })
+            except Exception as e_disk: # Catch error for specific partition
+                print(f"Error getting disk usage for {p.mountpoint}: {e_disk}")
+                disk_usage_data.append({
+                    "filesystem": p.device, "total": "N/A", "used": "N/A",
+                    "free": "N/A", "mountPoint": p.mountpoint, "error": str(e_disk)
+                })
+        overview_data["diskUsage"] = disk_usage_data
+    except Exception as e:
+        print(f"Error getting disk partitions: {e}")
+        overview_data["diskUsage"] = []
+
+
+    # CPU Usage
+    try:
+        # Ensure interval is not 0 for the first call or after a long pause
+        # psutil.cpu_percent(interval=None) returns usage since last call or module import.
+        # For a snapshot, a small interval is good. For continuous monitoring, frontend calls periodically.
+        # The first call to cpu_percent with interval should be non-blocking or very short.
+        # Subsequent calls benefit from the interval.
+        # For a single snapshot API, interval=0.1 or 0.5 seems reasonable.
+        # Let's use 0.5 for a bit more accuracy than a very tiny interval.
+        overall_cpu_load = psutil.cpu_percent(interval=0.5) # Returns a float
+        per_core_load_floats = psutil.cpu_percent(interval=None, percpu=True) # Returns list of floats
+
+        per_core_load = [{"core": i + 1, "load": load} for i, load in enumerate(per_core_load_floats)]
+
+        overview_data["cpuUsage"] = {
+            "currentLoad": overall_cpu_load, # Single float value
+            "cores": per_core_load, # List of {core: int, load: float}
+            "logicalCores": psutil.cpu_count(logical=True),
+            "physicalCores": psutil.cpu_count(logical=False),
+        }
+    except Exception as e:
+        print(f"Error getting CPU usage: {e}")
+        overview_data["cpuUsage"] = {"currentLoad": "N/A", "cores": [], "logicalCores": "N/A", "physicalCores": "N/A"}
+
+    # GPU Usage
+    gpu_info_list = []
+    system = platform.system()
+
+    try:
+        if system == "Windows":
+            # Try nvidia-smi first on Windows
+            try:
+                result = subprocess.run(
+                    ["nvidia-smi", "--query-gpu=name,utilization.gpu,memory.total,memory.used,temperature.gpu,power.draw", "--format=csv,noheader,nounits"],
+                    capture_output=True, text=True, check=True, timeout=5
+                )
+                gpus_output = result.stdout.strip().split('\n')
+                for i, line in enumerate(gpus_output):
+                    if not line.strip(): continue
+                    parts = [p.strip() for p in line.split(',')]
+                    if len(parts) == 6:
+                        gpu_info_list.append({
+                            "id": f"NVIDIA GPU {i}", "name": parts[0],
+                            "utilization": float(parts[1]) if parts[1] != "[Not Supported]" else "N/A",
+                            "memoryTotal": f"{parts[2]} MiB", "memoryUsed": f"{parts[3]} MiB",
+                            "temperature": float(parts[4]) if parts[4] != "[Not Supported]" else "N/A",
+                            "powerDraw": float(parts[5]) if parts[5] != "[Not Supported]" else "N/A",
+                        })
+            except FileNotFoundError:
+                print("nvidia-smi not found on Windows. Will try WMIC.")
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired, Exception) as e_nvidia_win:
+                print(f"Nvidia-smi error on Windows: {e_nvidia_win}. Will try WMIC.")
+
+            # If nvidia-smi failed or found no GPUs, try WMIC as a fallback
+            if not gpu_info_list:
+                try:
+                    wmic_result = subprocess.run(
+                        ["wmic", "path", "Win32_VideoController", "get", "Name,AdapterRAM,DriverVersion"],
+                        capture_output=True, text=True, check=True, timeout=5, creationflags=subprocess.CREATE_NO_WINDOW # Prevents console window from popping up
+                    )
+                    output_lines = wmic_result.stdout.strip().split('\n')
+                    if len(output_lines) > 1: # Header + data lines
+                        header = [h.strip() for h in re.split(r'\s{2,}', output_lines[0])] # Split header by multiple spaces
+                        # Find indices of relevant columns, robust to order changes
+                        try:
+                            name_idx = header.index("Name")
+                            ram_idx = header.index("AdapterRAM")
+                            # driver_idx = header.index("DriverVersion") # Example if needed later
+                        except ValueError:
+                            print("WMIC output header format unexpected. Could not find required columns (Name, AdapterRAM).")
+                        else:
+                            for i, line in enumerate(output_lines[1:]):
+                                if not line.strip(): continue
+                                parts = [p.strip() for p in re.split(r'\s{2,}', line)] # Split data lines similarly
+                                if len(parts) >= max(name_idx, ram_idx) +1 : # Ensure enough parts based on found indices
+                                    adapter_ram_bytes = int(parts[ram_idx]) if parts[ram_idx].isdigit() else 0
+                                    gpu_info_list.append({
+                                        "id": f"GPU {i} (WMIC)", "name": parts[name_idx],
+                                        "utilization": "N/A",
+                                        "memoryTotal": format_bytes(adapter_ram_bytes) if adapter_ram_bytes > 0 else "N/A",
+                                        "memoryUsed": "N/A", "temperature": "N/A", "powerDraw": "N/A",
+                                    })
+                except FileNotFoundError:
+                    print("WMIC not found on Windows.")
+                except (subprocess.CalledProcessError, subprocess.TimeoutExpired, Exception) as e_wmic:
+                    print(f"WMIC error on Windows: {e_wmic}")
+
+        elif system == "Linux":
+            # Try nvidia-smi first on Linux
+            try:
+                result = subprocess.run(
+                    ["nvidia-smi", "--query-gpu=name,utilization.gpu,memory.total,memory.used,temperature.gpu,power.draw", "--format=csv,noheader,nounits"],
+                    capture_output=True, text=True, check=True, timeout=5
+                )
+                gpus_output = result.stdout.strip().split('\n')
+                for i, line in enumerate(gpus_output):
+                    if not line.strip(): continue
+                    parts = [p.strip() for p in line.split(',')]
+                    if len(parts) == 6:
+                        gpu_info_list.append({
+                            "id": f"NVIDIA GPU {i}", "name": parts[0],
+                            "utilization": float(parts[1]) if parts[1] != "[Not Supported]" else "N/A",
+                            "memoryTotal": f"{parts[2]} MiB", "memoryUsed": f"{parts[3]} MiB",
+                            "temperature": float(parts[4]) if parts[4] != "[Not Supported]" else "N/A",
+                            "powerDraw": float(parts[5]) if parts[5] != "[Not Supported]" else "N/A",
+                        })
+            except FileNotFoundError:
+                print("nvidia-smi not found on Linux. Will check for AMD.")
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired, Exception) as e_nvidia_linux:
+                print(f"Nvidia-smi error on Linux: {e_nvidia_linux}. Will check for AMD.")
+
+            # If no NVIDIA GPUs found or nvidia-smi failed, try AMD specific paths
+            if not gpu_info_list:
+                try:
+                    drm_path = "/sys/class/drm/"
+                    gpu_idx_amd = 0
+                    for card_dir in os.listdir(drm_path):
+                        if card_dir.startswith("card"):
+                            device_path = os.path.join(drm_path, card_dir, "device")
+                            hwmon_path_base = os.path.join(device_path, "hwmon")
+
+                            vendor_path = os.path.join(device_path, "vendor")
+                            if os.path.exists(vendor_path):
+                                with open(vendor_path, 'r') as f:
+                                    vendor_id = f.read().strip()
+                                if vendor_id != "0x1002": # AMD's PCI Vendor ID
+                                    continue
+                            else: # Fallback if no vendor ID, check uevent for amdgpu
+                                uevent_path = os.path.join(device_path, "uevent")
+                                if os.path.exists(uevent_path):
+                                    with open(uevent_path, 'r') as f:
+                                        if "amdgpu" not in f.read():
+                                            continue
+                                else: # If neither vendor nor uevent, skip this card for AMD check
+                                    continue
+
+                            amd_gpu_data = {"id": f"AMD GPU {gpu_idx_amd}", "name": "AMD GPU", "utilization": "N/A", "memoryTotal": "N/A", "memoryUsed": "N/A", "temperature": "N/A", "powerDraw": "N/A"}
+
+                            # Try to find hwmon for temperature and power
+                            if os.path.exists(hwmon_path_base):
+                                for hwmon_dir in os.listdir(hwmon_path_base): # e.g., hwmon0, hwmon1
+                                    current_hwmon_path = os.path.join(hwmon_path_base, hwmon_dir)
+                                    # Temperature (common names: temp1_input, temp2_input)
+                                    for temp_file in ["temp1_input", "temp2_input", "temp3_input"]:
+                                        temp_path = os.path.join(current_hwmon_path, temp_file)
+                                        if os.path.exists(temp_path):
+                                            with open(temp_path, 'r') as f_temp:
+                                                amd_gpu_data["temperature"] = float(f_temp.read().strip()) / 1000.0 # Celsius
+                                            break
+                                    # Power (common name: power1_average)
+                                    power_path = os.path.join(current_hwmon_path, "power1_average")
+                                    if os.path.exists(power_path):
+                                        with open(power_path, 'r') as f_power:
+                                            amd_gpu_data["powerDraw"] = float(f_power.read().strip()) / 1000000.0 # Watts
+                                    if amd_gpu_data["temperature"] != "N/A": # Found data in this hwmon
+                                        break
+
+                            # Utilization (gpu_busy_percent)
+                            util_path = os.path.join(device_path, "gpu_busy_percent")
+                            if os.path.exists(util_path):
+                                with open(util_path, 'r') as f_util:
+                                    amd_gpu_data["utilization"] = float(f_util.read().strip())
+
+                            # Memory (meminfo_vram_total, meminfo_vram_used)
+                            vram_total_path = os.path.join(device_path, "mem_info_vram_total") # Older path
+                            if not os.path.exists(vram_total_path): vram_total_path = os.path.join(device_path, "meminfo_vram_total") # Newer path
+
+                            vram_used_path = os.path.join(device_path, "mem_info_vram_used") # Older path
+                            if not os.path.exists(vram_used_path): vram_used_path = os.path.join(device_path, "meminfo_vram_used") # Newer path
+
+                            if os.path.exists(vram_total_path):
+                                with open(vram_total_path, 'r') as f_mem_total:
+                                    amd_gpu_data["memoryTotal"] = format_bytes(int(f_mem_total.read().strip()))
+                            if os.path.exists(vram_used_path):
+                                with open(vram_used_path, 'r') as f_mem_used:
+                                    amd_gpu_data["memoryUsed"] = format_bytes(int(f_mem_used.read().strip()))
+
+                            # Try to get a more specific name using lspci if possible (requires lspci to be installed)
+                            try:
+                                lspci_path = os.path.join(device_path, "pci_id") # Not standard, but for concept
+                                pci_slot_name = ""
+                                # This part is complex: requires mapping cardX to PCI bus ID, then calling lspci.
+                                # For simplicity, we'll skip specific lspci naming for now.
+                                # Example: if card0's device is a symlink like ../../devices/pci0000:00/0000:00:02.0/0000:03:00.0/drm/card0
+                                # The PCI slot could be 03:00.0
+                                # cmd = f"lspci -vmmks {pci_slot_name} | grep -i DeviceName"
+                                # result_lspci = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=2)
+                                # if result_lspci.returncode == 0 and result_lspci.stdout.strip():
+                                #    amd_gpu_data["name"] = result_lspci.stdout.strip().split(":")[-1].strip()
+                                pass # Placeholder for lspci name detection
+                            except Exception as e_lspci:
+                                print(f"Could not get detailed name for AMD GPU {gpu_idx_amd} using lspci: {e_lspci}")
+
+
+                            gpu_info_list.append(amd_gpu_data)
+                            gpu_idx_amd += 1
+                except Exception as e_amd:
+                    print(f"Error getting AMD GPU info on Linux: {e_amd}")
+
+            # Placeholder for Intel GPU specific logic (very basic)
+            if not gpu_info_list: # If still no GPUs found
+                try:
+                    # A very simple check, could be expanded
+                    temps = psutil.sensors_temperatures()
+                    for name, entries in temps.items():
+                        if 'i915' in name or 'intel' in name.lower(): # Common kernel module/name for Intel iGPUs
+                             for entry in entries:
+                                if 'temp' in entry.label.lower() or entry.label == '': # Generic temp
+                                    gpu_info_list.append({
+                                        "id": f"Intel GPU {len(gpu_info_list)}", "name": f"Intel GPU ({name})",
+                                        "utilization": "N/A", "memoryTotal": "N/A", "memoryUsed": "N/A",
+                                        "temperature": entry.current, "powerDraw": "N/A",
+                                    })
+                                    break
+                             break # Found an Intel-like device
+                except Exception as e_intel:
+                    print(f"Error getting Intel GPU info on Linux: {e_intel}")
+
+    except Exception as e_gpu_main:
+        print(f"Overall error in GPU data collection: {e_gpu_main}")
+
+    overview_data["gpuUsage"] = gpu_info_list
+
+    # Network Usage
+    try:
+        current_net_io = psutil.net_io_counters(pernic=True)
+        current_time = time.time()
+        time_delta = current_time - time_of_previous_net_io
+
+        total_upload_bits_ps = 0
+        total_download_bits_ps = 0
+        interface_details = []
+
+        for if_name, current_stats in current_net_io.items():
+            prev_stats = previous_net_io.get(if_name)
+            upload_bps = 0
+            download_bps = 0
+
+            if prev_stats and time_delta > 0:
+                upload_diff = current_stats.bytes_sent - prev_stats.bytes_sent
+                download_diff = current_stats.bytes_recv - prev_stats.bytes_recv
+                # Ensure non-negative differences (counters might reset or wrap, though psutil handles wrap)
+                upload_diff = max(0, upload_diff)
+                download_diff = max(0, download_diff)
+
+                upload_bps = (upload_diff * 8) / time_delta
+                download_bps = (download_diff * 8) / time_delta
+
+            total_upload_bits_ps += upload_bps
+            total_download_bits_ps += download_bps
+
+            interface_details.append({
+                "name": if_name,
+                "uploadSpeed": format_speed(upload_bps), # Per interface speed
+                "downloadSpeed": format_speed(download_bps), # Per interface speed
+                "dataSent": format_bytes(current_stats.bytes_sent),
+                "dataReceived": format_bytes(current_stats.bytes_recv)
+            })
+
+        # Update global state for next call
+        previous_net_io = current_net_io
+        time_of_previous_net_io = current_time
+
+        overview_data["networkUsage"] = {
+            "uploadSpeed": round(total_upload_bits_ps / (1000**2), 2), # Overall speed in Mbps
+            "downloadSpeed": round(total_download_bits_ps / (1000**2), 2), # Overall speed in Mbps
+            "interfaces": interface_details
+        }
+    except Exception as e:
+        print(f"Error getting network usage: {e}")
+        overview_data["networkUsage"] = {"uploadSpeed": "N/A", "downloadSpeed": "N/A", "interfaces": []}
+
+
+    # User & Task Stats
+    try:
+        overview_data["userAndTaskStats"] = {
+            "onlineUsers": len(CONNECTED_CLIENTS),
+            "totalTasksExecuted": 0,  # Placeholder
+            "successfulTasks": 0,  # Placeholder
+            "failedTasks": 0,  # Placeholder
+            "runningTasks": 0,  # Placeholder
+        }
+    except Exception as e:
+        print(f"Error getting user/task stats: {e}")
+        overview_data["userAndTaskStats"] = {"onlineUsers": 0, "totalTasksExecuted": 0, "successfulTasks": 0, "failedTasks": 0, "runningTasks": 0}
+
+    # Download Task History
+    overview_data["downloadTaskHistory"] = [] # Placeholder as per plan
+
+    await send_response(websocket, cmd_id, code=0, data=overview_data)
+
+COMMAND_HANDLERS["get_system_overview"] = handle_get_system_overview
+
+
+async def send_response(websocket, cmd_id: str, code: int, data: dict = None, error: str = None):
 
 
 async def send_response(websocket, cmd_id: str, code: int, data: dict = None, error: str = None):

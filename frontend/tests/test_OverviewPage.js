@@ -1,45 +1,286 @@
-async function runOverviewPageTests() {
-    console.log("Starting OverviewPage tests...");
-
-    // Ensure window.test.navigateTo is available
-    if (!window.test || typeof window.test.navigateTo !== 'function') {
-        console.error("FAIL: window.test.navigateTo is not defined. Ensure TestUtils.js is loaded and initialized.");
-        return;
+// --- Test Utilities (Keep these as they are useful) ---
+function assertEquals(actual, expected, message) {
+    if (actual !== expected) {
+        throw new Error(`${message} - Expected: '${expected}', Found: '${actual}'`);
     }
+}
+function assertIncludes(collection, item, message) {
+    if (!collection || !collection.includes(item)) { // Added check for collection being defined
+        throw new Error(`${message} - Expected collection to include: '${item}'`);
+    }
+}
+function assertNotNull(element, message) {
+    if (!element) {
+        throw new Error(message);
+    }
+}
+function assertTableHasNRows(tableSelector, expectedRows, message) {
+    const table = document.querySelector(tableSelector);
+    assertNotNull(table, `Table ${tableSelector} not found.`);
+    const bodyRows = table.querySelectorAll('tbody tr');
+    assertEquals(bodyRows.length, expectedRows, message || `Table ${tableSelector} row count mismatch.`);
+}
+function getCellContent(tableSelector, rowIndex, cellIndex, message) {
+    const table = document.querySelector(tableSelector);
+    assertNotNull(table, `Table ${tableSelector} not found for getCellContent.`);
+    const rows = table.querySelectorAll('tbody tr');
+    if (rowIndex >= rows.length) {
+        throw new Error(`Row index ${rowIndex} out of bounds for table ${tableSelector}. ${message || ''}`);
+    }
+    const cells = rows[rowIndex].querySelectorAll('td');
+    if (cellIndex >= cells.length) {
+        throw new Error(`Cell index ${cellIndex} out of bounds for row ${rowIndex} in table ${tableSelector}. ${message || ''}`);
+    }
+    return cells[cellIndex].textContent.trim();
+}
 
+
+// --- Mock WebSocketManager ---
+let mockSendWebSocketCommand; // To be configured by each test scenario
+
+// Ensure WebSocketManager is part of window for global access if not using modules
+if (!window.WebSocketManager) {
+    window.WebSocketManager = {
+        getInstance: () => ({
+            sendWebSocketCommand: mockSendWebSocketCommand // This will be our mock function
+        })
+    };
+} else {
+    // If it exists, attempt to monkey-patch it carefully.
+    // This is less ideal than proper module mocking but necessary for browser script tests.
+    const originalGetInstance = window.WebSocketManager.getInstance;
+    window.WebSocketManager.getInstance = () => {
+        const originalInstance = originalGetInstance.call(window.WebSocketManager);
+        return {
+            ...originalInstance, // Spread original methods if any are needed
+            sendWebSocketCommand: mockSendWebSocketCommand // Override with our mock
+        };
+    };
+}
+
+
+// --- Sample Data for Tests ---
+const SAMPLE_OVERVIEW_DATA_FULL = {
+    systemInfo: { os: "TestOS", hostname: "TestHost", uptime: "1d 2h 3m" },
+    diskUsage: [
+        { filesystem: "/dev/sda1", total: "100GB", used: "50GB", free: "50GB", mountPoint: "/" },
+        { filesystem: "/dev/sdb1", total: "1TB", used: "250GB", free: "750GB", mountPoint: "/data" },
+    ],
+    cpuUsage: {
+        currentLoad: 45.5,
+        cores: [ { core: 1, load: 60 }, { core: 2, load: 30 } ],
+        logicalCores: 4,
+        physicalCores: 2,
+    },
+    gpuUsage: [
+        { id: "GPU 0", name: "NVIDIA Test RTX 4090", utilization: 75.2, memoryTotal: "24GB", memoryUsed: "8GB", temperature: 65, powerDraw: 200 },
+        { id: "GPU 1", name: "AMD Test RX 7900XTX", utilization: 50.1, memoryTotal: "20GB", memoryUsed: "6GB", temperature: 55, powerDraw: 180 },
+    ],
+    networkUsage: {
+        uploadSpeed: 15.6, // Mbps
+        downloadSpeed: 100.2, // Mbps
+        interfaces: [
+            { name: "eth0", uploadSpeed: "10.0 Mbps", downloadSpeed: "80.0 Mbps", dataSent: "5GB", dataReceived: "50GB" },
+            { name: "wlan0", uploadSpeed: "5.0 Mbps", downloadSpeed: "20.0 Mbps", dataSent: "1GB", dataReceived: "10GB" },
+        ],
+    },
+    userAndTaskStats: {
+        onlineUsers: 5,
+        totalTasksExecuted: 1500,
+        successfulTasks: 1400,
+        failedTasks: 50,
+        runningTasks: 50,
+    },
+    downloadTaskHistory: [
+        { id: "task1", fileName: "file1.zip", source: "HTTP", status: "Completed", timestamp: "2023-01-01 10:00", size: "1GB", progress: 100 },
+        { id: "task2", fileName: "file2.iso", source: "FTP", status: "Failed", timestamp: "2023-01-01 11:00", size: "2GB", progress: 0 },
+    ],
+};
+
+const SAMPLE_OVERVIEW_DATA_NO_GPU = {
+    ...SAMPLE_OVERVIEW_DATA_FULL,
+    gpuUsage: [],
+};
+
+const SAMPLE_OVERVIEW_DATA_MINIMAL = {
+    systemInfo: { os: "MinOS", hostname: "MinHost", uptime: "0d 0h 1m" },
+    diskUsage: [ { filesystem: "/root", total: "10GB", used: "1GB", free: "9GB", mountPoint: "/" } ],
+    cpuUsage: { currentLoad: 10, cores: [ { core: 1, load: 10 } ], logicalCores: 1, physicalCores: 1 },
+    gpuUsage: [],
+    networkUsage: { uploadSpeed: 1, downloadSpeed: 5, interfaces: [ { name: "lo", uploadSpeed: "0 Mbps", downloadSpeed: "0 Mbps", dataSent: "1MB", dataReceived: "1MB" } ] },
+    userAndTaskStats: { onlineUsers: 1, totalTasksExecuted: 10, successfulTasks: 8, failedTasks: 1, runningTasks: 1 },
+    downloadTaskHistory: [],
+};
+
+
+async function runOverviewPageTests() {
+    console.log("Starting OverviewPage tests with WebSocket mocking...");
+
+    // Test 1: Full data scenario
+    console.log("Test Scenario 1: Full Data Load");
+    mockSendWebSocketCommand = jest.fn().mockResolvedValue(SAMPLE_OVERVIEW_DATA_FULL);
+
+    // Navigate and allow page to load/render with mocked data
     try {
         await window.test.navigateTo('overview', 'System Overview', '#overview');
-        // Simple delay to allow page to render. In a real test framework, use element presence/visibility checks.
-        await new Promise(resolve => setTimeout(resolve, 1500)); // Increased delay slightly
-        console.log("Navigated to Overview Page.");
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for async updates
+        console.log("Navigated to Overview Page (Full Data).");
+
+        // --- Assertions for Full Data ---
+        // System Info
+        assertEquals(document.querySelector('#sysinfo-os').textContent, SAMPLE_OVERVIEW_DATA_FULL.systemInfo.os, "OS info mismatch");
+        assertEquals(document.querySelector('#sysinfo-hostname').textContent, SAMPLE_OVERVIEW_DATA_FULL.systemInfo.hostname, "Hostname info mismatch");
+        assertEquals(document.querySelector('#sysinfo-uptime').textContent, SAMPLE_OVERVIEW_DATA_FULL.systemInfo.uptime, "Uptime info mismatch");
+        console.log("PASS: System Info (Full Data) correct.");
+
+        // Disk Usage
+        assertTableHasNRows('#disk-usage-table', SAMPLE_OVERVIEW_DATA_FULL.diskUsage.length, "Disk usage row count");
+        assertEquals(getCellContent('#disk-usage-table', 0, 0), SAMPLE_OVERVIEW_DATA_FULL.diskUsage[0].filesystem, "Disk 0 filesystem");
+        assertEquals(getCellContent('#disk-usage-table', 1, 4), SAMPLE_OVERVIEW_DATA_FULL.diskUsage[1].mountPoint, "Disk 1 mountpoint");
+        console.log("PASS: Disk Usage (Full Data) correct.");
+
+        // CPU Usage (core bars and counts)
+        const coreBarContainers = document.querySelectorAll('#cpu-core-bars-container .progress-bar-container');
+        assertEquals(coreBarContainers.length, SAMPLE_OVERVIEW_DATA_FULL.cpuUsage.cores.length, "CPU core bar count");
+        if (coreBarContainers.length > 0) {
+            assertEquals(coreBarContainers[0].title, `Core ${SAMPLE_OVERVIEW_DATA_FULL.cpuUsage.cores[0].core}: ${SAMPLE_OVERVIEW_DATA_FULL.cpuUsage.cores[0].load}%`, "CPU core 0 title");
+        }
+        assertEquals(document.querySelector('#cpu-logical-cores').textContent, String(SAMPLE_OVERVIEW_DATA_FULL.cpuUsage.logicalCores), "CPU Logical Cores");
+        assertEquals(document.querySelector('#cpu-physical-cores').textContent, String(SAMPLE_OVERVIEW_DATA_FULL.cpuUsage.physicalCores), "CPU Physical Cores");
+        console.log("PASS: CPU Usage (Full Data) correct.");
+
+        // GPU Usage
+        const gpuTables = document.querySelectorAll('#gpu-usage-tables-container .data-table.gpu-specific-table');
+        assertEquals(gpuTables.length, SAMPLE_OVERVIEW_DATA_FULL.gpuUsage.length, "GPU table count");
+        if (gpuTables.length > 0) {
+            assertIncludes(gpuTables[0].querySelector('caption').textContent, SAMPLE_OVERVIEW_DATA_FULL.gpuUsage[0].name, "GPU 0 name in caption");
+            // Check one data point, e.g., temperature
+             const tempCell = Array.from(gpuTables[0].querySelectorAll('tbody td')).find(td => td.textContent === 'Temperature').nextElementSibling;
+             assertEquals(tempCell.textContent, `${SAMPLE_OVERVIEW_DATA_FULL.gpuUsage[0].temperature}°C`, "GPU 0 Temperature");
+        }
+        console.log("PASS: GPU Usage (Full Data) correct.");
+
+        // Network Interfaces
+        assertTableHasNRows('#network-interfaces-table', SAMPLE_OVERVIEW_DATA_FULL.networkUsage.interfaces.length, "Network interface row count");
+        assertEquals(getCellContent('#network-interfaces-table', 0, 0), SAMPLE_OVERVIEW_DATA_FULL.networkUsage.interfaces[0].name, "Net I/F 0 Name");
+        assertEquals(getCellContent('#network-interfaces-table', 1, 3), SAMPLE_OVERVIEW_DATA_FULL.networkUsage.interfaces[1].dataSent, "Net I/F 1 Data Sent");
+        console.log("PASS: Network Interfaces (Full Data) correct.");
+
+        // Download History
+        assertTableHasNRows('#download-history-table', SAMPLE_OVERVIEW_DATA_FULL.downloadTaskHistory.length, "Download history row count");
+        if (SAMPLE_OVERVIEW_DATA_FULL.downloadTaskHistory.length > 0) {
+            assertEquals(getCellContent('#download-history-table', 0, 1), SAMPLE_OVERVIEW_DATA_FULL.downloadTaskHistory[0].fileName, "Download 0 Filename");
+            const progressCell = document.querySelector('#download-history-table tbody tr:first-child td:last-child .progress-bar');
+            assertNotNull(progressCell, "Download 0 progress bar not found");
+            assertEquals(progressCell.style.width, `${SAMPLE_OVERVIEW_DATA_FULL.downloadTaskHistory[0].progress}%`, "Download 0 progress width");
+        }
+        console.log("PASS: Download History (Full Data) correct.");
+
+        // User & Task Stats
+        assertEquals(document.querySelector('#total-tasks-executed').textContent, String(SAMPLE_OVERVIEW_DATA_FULL.userAndTaskStats.totalTasksExecuted), "Total tasks executed");
+        console.log("PASS: User & Task Stats (Full Data) correct.");
+
+        // Verify chart elements were at least created (difficult to check data without framework)
+        verifyChartElements(SAMPLE_OVERVIEW_DATA_FULL.gpuUsage.length); // Pass expected GPU count
+
     } catch (e) {
-        console.error("FAIL: Navigation to Overview Page failed.", e.message);
-        return; // Stop tests if navigation fails
+        console.error("FAIL: Test Scenario 1 (Full Data) failed.", e.message, e.stack);
+    }
+
+    // Test 2: No GPU Data Scenario
+    console.log("\nTest Scenario 2: No GPU Data");
+    mockSendWebSocketCommand = jest.fn().mockResolvedValue(SAMPLE_OVERVIEW_DATA_NO_GPU);
+    // Navigate again or force re-load/re-render if OverviewPage doesn't re-fetch on simple navigate
+    // For this test, let's assume re-navigation triggers onLoad and thus new data fetch
+    try {
+        await window.test.navigateTo('overview', 'System Overview - No GPU', '#overview');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        console.log("Navigated to Overview Page (No GPU Data).");
+
+        const gpuContainer = document.querySelector('#gpu-charts-container');
+        assertNotNull(gpuContainer, "GPU charts container not found (No GPU).");
+        assertEquals(gpuContainer.textContent.trim(), "No GPU data available.", "No GPU data message mismatch.");
+
+        const gpuTablesContainer = document.querySelector('#gpu-usage-tables-container');
+        assertNotNull(gpuTablesContainer, "GPU tables container not found (No GPU).");
+        assertEquals(gpuTablesContainer.innerHTML.trim(), "", "GPU tables container should be empty when no GPU data.");
+        console.log("PASS: No GPU Data scenario handled correctly.");
+
+    } catch (e) {
+        console.error("FAIL: Test Scenario 2 (No GPU Data) failed.", e.message, e.stack);
+    }
+
+    // Test 3: WebSocket Error Scenario
+    console.log("\nTest Scenario 3: WebSocket Error");
+    mockSendWebSocketCommand = jest.fn().mockRejectedValue(new Error("Simulated WebSocket Error"));
+    try {
+        await window.test.navigateTo('overview', 'System Overview - WS Error', '#overview');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        console.log("Navigated to Overview Page (WebSocket Error).");
+
+        // Check for error message display (assuming it's put in #system-info-os or similar)
+        const errorDisplay = document.querySelector('#sysinfo-os'); // As per OverviewPage error handling
+        assertNotNull(errorDisplay, "Error display element not found (WS Error).");
+        assertIncludes(errorDisplay.textContent, "Error fetching system data", "Error message not displayed correctly for WS Error.");
+        console.log("PASS: WebSocket Error scenario handled correctly.");
+
+    } catch (e) {
+        console.error("FAIL: Test Scenario 3 (WebSocket Error) failed.", e.message, e.stack);
+    }
+
+    // Test 4: Minimal Data Scenario (e.g. empty tables should show "no data" messages)
+    console.log("\nTest Scenario 4: Minimal Data Load");
+    mockSendWebSocketCommand = jest.fn().mockResolvedValue(SAMPLE_OVERVIEW_DATA_MINIMAL);
+    try {
+        await window.test.navigateTo('overview', 'System Overview - Minimal Data', '#overview');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        console.log("Navigated to Overview Page (Minimal Data).");
+
+        // System Info
+        assertEquals(document.querySelector('#sysinfo-os').textContent, SAMPLE_OVERVIEW_DATA_MINIMAL.systemInfo.os, "OS info mismatch (Minimal)");
+        // Disk Usage
+        assertTableHasNRows('#disk-usage-table', SAMPLE_OVERVIEW_DATA_MINIMAL.diskUsage.length, "Disk usage row count (Minimal)");
+        // CPU
+        assertEquals(document.querySelectorAll('#cpu-core-bars-container .progress-bar-container').length, SAMPLE_OVERVIEW_DATA_MINIMAL.cpuUsage.cores.length, "CPU core bar count (Minimal)");
+        // GPU (should show no data message)
+        assertEquals(document.querySelector('#gpu-charts-container').textContent.trim(), "No GPU data available.", "No GPU message (Minimal)");
+        // Network Interfaces (check for "no data" if interfaces array was empty, or single row for 'lo')
+        if (SAMPLE_OVERVIEW_DATA_MINIMAL.networkUsage.interfaces.length === 0) {
+             assertEquals(getCellContent('#network-interfaces-table', 0, 0), "No network interface data available.", "Network 'no data' message (Minimal)");
+        } else {
+            assertTableHasNRows('#network-interfaces-table', SAMPLE_OVERVIEW_DATA_MINIMAL.networkUsage.interfaces.length, "Network interface row count (Minimal)");
+        }
+        // Download History (should show no data message)
+        assertEquals(getCellContent('#download-history-table', 0, 0), "No download task history available.", "Download history 'no data' message (Minimal)");
+
+        console.log("PASS: Minimal Data scenario handled correctly.");
+
+    } catch (e) {
+        console.error("FAIL: Test Scenario 4 (Minimal Data) failed.", e.message, e.stack);
     }
 
 
-    // Mock data checks should align with the mockData in OverviewPage.js
-    // Note: The provided MOCK_DATA_CHECKS in the prompt had some values (e.g., cpuLoad, onlineUsers)
-    // that differ from the mockData in OverviewPage.js. I'll use values consistent with OverviewPage.js.
+    // --- Original MOCK_DATA_CHECKS based tests (will likely fail or need removal) ---
+    // These are now largely superseded by the WebSocket mock driven tests.
+    // I will comment them out as they test the old static mock data behavior.
+    /*
     const MOCK_DATA_CHECKS = {
         diskUsageRows: 2,
         diskUsageHeaders: ["Filesystem", "Total", "Used", "Free", "Mount Point"],
-        // cpuLoad: "45%", // This is dynamic, so direct check might be flaky. Chart display is more important.
-        cpuCores: 2, // Number of cores for progress bars
-        gpuUsageGpus: 2, // From OverviewPage.js mockData (two GPUs)
-        // gpuUsageHeaders: ["Metric", "Value"], // Headers for the GPU property table (still relevant for the details table)
+        cpuCores: 2,
+        gpuUsageGpus: 2,
         networkInterfacesRows: 2,
-        networkInterfacesHeaders: ["Interface", "Total Upload", "Total Download", "Data Sent", "Data Received"], // Adjusted for chart changes
+        networkInterfacesHeaders: ["Interface", "Total Upload", "Total Download", "Data Sent", "Data Received"],
         downloadHistoryRows: 3,
         downloadHistoryHeaders: ["ID", "File Name", "Source", "Status", "Timestamp", "Size", "Progress"],
-        onlineUsers: 5,
+        onlineUsers: 5, // These specific value checks are less relevant now.
         totalTasksExecuted: 1500,
         successfulTasks: 1450,
         failedTasks: 40,
         runningTasks: 10,
     };
 
-    // Helper function for assertions
+    // Helper function for assertions (already defined above)
     function assertEquals(actual, expected, message) {
         if (actual !== expected) {
             throw new Error(`${message} - Expected: '${expected}', Found: '${actual}'`);
