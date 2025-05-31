@@ -41,7 +41,9 @@ class OverviewPage {
                 ]
             },
             userAndTaskStats: {
-                onlineUsers: 5,
+                onlineUsers: 5, // This will be the initial display value, history will populate chart
+                onlineUsersHistory: [], // Added for chart data
+                onlineUsersTimeLabels: [], // Added for chart labels
                 totalTasksExecuted: 1500,
                 successfulTasks: 1450,
                 failedTasks: 40,
@@ -81,6 +83,17 @@ class OverviewPage {
 
             networkDownloadLineColor: 'rgba(153, 102, 255, 1)', // Purple
             networkDownloadFillColor: 'rgba(153, 102, 255, 0.2)',
+
+            onlineUsersLineColor: isDark ? 'rgba(173, 122, 255, 1)' : 'rgba(153, 102, 255, 0.8)',
+            onlineUsersFillColor: isDark ? 'rgba(173, 122, 255, 0.3)' : 'rgba(153, 102, 255, 0.2)',
+
+            taskSuccessfulColor: isDark ? 'rgba(40, 167, 69, 0.85)' : 'rgba(40, 167, 69, 0.7)',   // Darker Green
+            taskFailedColor: isDark ? 'rgba(220, 53, 69, 0.85)' : 'rgba(220, 53, 69, 0.7)',       // Darker Red
+            taskRunningColor: isDark ? 'rgba(23, 162, 184, 0.85)' : 'rgba(23, 162, 184, 0.7)',    // Darker Info Blue/Teal
+
+            taskSuccessfulBorderColor: isDark ? 'rgba(40, 167, 69, 1)' : 'rgba(40, 167, 69, 1)',
+            taskFailedBorderColor: isDark ? 'rgba(220, 53, 69, 1)' : 'rgba(220, 53, 69, 1)',
+            taskRunningBorderColor: isDark ? 'rgba(23, 162, 184, 1)' : 'rgba(23, 162, 184, 1)',
         };
     }
 
@@ -124,13 +137,29 @@ class OverviewPage {
             // Simulate running tasks fluctuation
             this.dynamicMockData.userAndTaskStats.runningTasks = Math.max(0, this.dynamicMockData.userAndTaskStats.runningTasks + (Math.floor(Math.random() * 3) -1)); // +-1 or 0
 
+            // Online Users History Update
+            let currentOnlineUsers = this.dynamicMockData.userAndTaskStats.onlineUsersHistory.length > 0 ? this.dynamicMockData.userAndTaskStats.onlineUsersHistory[this.dynamicMockData.userAndTaskStats.onlineUsersHistory.length - 1] : 50;
+            currentOnlineUsers += Math.floor(Math.random() * 11) - 5; // Fluctuate by -5 to +5
+            currentOnlineUsers = Math.max(5, Math.min(currentOnlineUsers, 150)); // Keep within a reasonable range (e.g., 5-150)
 
-            // Update UI elements (basic example, full re-render or chart updates would be more complex)
-            this.updateCpuDisplay();
-            this.updateCpuChart(); // Update CPU chart
-            this.updateGpuCharts(); // Update GPU charts
-            this.updateNetworkChart(); // Update Network chart
-            this.updateStatsDisplay(); // User & Task stats still direct DOM
+            this.dynamicMockData.userAndTaskStats.onlineUsersHistory.push(currentOnlineUsers);
+            this.dynamicMockData.userAndTaskStats.onlineUsersTimeLabels.push(new Date().toLocaleTimeString().split(" ")[0]); // hh:mm:ss
+
+            if (this.dynamicMockData.userAndTaskStats.onlineUsersHistory.length > this.maxChartDataPoints) {
+                this.dynamicMockData.userAndTaskStats.onlineUsersHistory.shift();
+                this.dynamicMockData.userAndTaskStats.onlineUsersTimeLabels.shift();
+            }
+            this.dynamicMockData.userAndTaskStats.onlineUsers = currentOnlineUsers; // Update the single display value too
+
+
+            // Update UI elements
+            // this.updateCpuDisplay(); // Original direct DOM update for CPU load, now handled by chart logic
+            this.updateCpuChart();
+            this.updateGpuCharts();
+            this.updateNetworkChart();
+            this.updateOnlineUsersChart();
+            this.updateTaskExecutionChart(); // Added call to update new chart
+            this.updateStatsDisplay();
         }, 2500); // Update every 2.5 seconds
 
         this.updateIntervals.push(generalUpdateInterval);
@@ -173,7 +202,7 @@ class OverviewPage {
         this.updateIntervals = [];
 
         // Destroy general charts
-        ['cpuUsageChart', 'networkUsageChart'].forEach(chartName => {
+        ['cpuUsageChart', 'networkUsageChart', 'onlineUsersChart', 'taskExecutionChart'].forEach(chartName => {
             if (this.charts[chartName] && typeof this.charts[chartName].destroy === 'function') {
                 this.charts[chartName].destroy();
             }
@@ -285,8 +314,8 @@ class OverviewPage {
     updateStatsDisplay() { // This one remains as direct DOM update
         if (!this.mainContentElement) return;
         const stats = this.dynamicMockData.userAndTaskStats;
-        const onlineUsersEl = this.mainContentElement.querySelector('#online-users-count');
-        if (onlineUsersEl) onlineUsersEl.textContent = stats.onlineUsers;
+        // const onlineUsersEl = this.mainContentElement.querySelector('#online-users-count'); // Removed as it's now a chart
+        // if (onlineUsersEl) onlineUsersEl.textContent = stats.onlineUsers; // Removed
         const totalTasksEl = this.mainContentElement.querySelector('#total-tasks-executed');
         if (totalTasksEl) totalTasksEl.textContent = stats.totalTasksExecuted;
         const successfulTasksEl = this.mainContentElement.querySelector('#successful-tasks-count');
@@ -376,11 +405,22 @@ class OverviewPage {
 
                 <div class="overview-section" id="stats-section">
                     <h3>User & Task Statistics</h3>
-                    <p>Online Users: <span id="online-users-count">N/A</span></p>
-                    <p>Total Tasks Executed: <span id="total-tasks-executed">N/A</span></p>
+
+                    <div class="chart-container" style="height: 250px; margin-bottom: 15px;">
+                        <canvas id="onlineUsersChart"></canvas>
+                    </div>
+
+                    <h4>Task Breakdown</h4>
+                    <div class="chart-container" style="height: 300px; max-width: 300px; margin: 15px auto;">
+                        <canvas id="taskExecutionChart"></canvas>
+                    </div>
+
+                    <p style="text-align: center; margin-top: 5px;">Total Tasks Executed: <span id="total-tasks-executed">N/A</span></p>
+                    {/*
                     <p>Successful Tasks: <span id="successful-tasks-count">N/A</span></p>
                     <p>Failed Tasks: <span id="failed-tasks-count">N/A</span></p>
                     <p>Running Tasks: <span id="running-tasks-count">N/A</span></p>
+                    */}
                 </div>
 
                 <div class="overview-section" id="download-history-section">
@@ -399,6 +439,25 @@ class OverviewPage {
         this.dynamicMockData = this._deepCopy(this.mockData); // Initial data load from dynamic copy
         window.overviewPageModuleInstance = this; // Expose instance for testing
 
+        // Pre-fill online users history for initial chart display
+        if (this.dynamicMockData.userAndTaskStats.onlineUsersHistory.length === 0) {
+            const baseTime = Date.now() - (this.maxChartDataPoints * 2500); // Simulate past data points
+            for (let i = 0; i < this.maxChartDataPoints; i++) {
+                let randomUsers = Math.floor(Math.random() * 100) + 20; // Initial random data (20-119)
+                if (i > 0) { // Make it somewhat continuous
+                    const prevUsers = this.dynamicMockData.userAndTaskStats.onlineUsersHistory[i-1];
+                    randomUsers = Math.max(5, Math.min(prevUsers + (Math.floor(Math.random()*21)-10) , 150));
+                }
+                this.dynamicMockData.userAndTaskStats.onlineUsersHistory.push(randomUsers);
+                this.dynamicMockData.userAndTaskStats.onlineUsersTimeLabels.push(new Date(baseTime + i * 2500).toLocaleTimeString().split(" ")[0]);
+            }
+            // Set the current displayed onlineUsers to the last pre-filled value
+            if (this.dynamicMockData.userAndTaskStats.onlineUsersHistory.length > 0) {
+                this.dynamicMockData.userAndTaskStats.onlineUsers = this.dynamicMockData.userAndTaskStats.onlineUsersHistory[this.dynamicMockData.userAndTaskStats.onlineUsersHistory.length -1];
+            }
+        }
+
+
         // Populate Disk Usage (Disk usage is static in this example, so use dynamicMockData or mockData)
         const diskUsageTableBody = mainContentElement.querySelector('#disk-usage-table tbody');
         this.dynamicMockData.diskUsage.forEach(disk => {
@@ -414,6 +473,9 @@ class OverviewPage {
         this._initCpuChart(mainContentElement);
         this._initGpuCharts(mainContentElement);
         this._initNetworkChart(mainContentElement);
+        this._initOnlineUsersChart(mainContentElement);
+        this._initTaskExecutionChart(mainContentElement); // Initialize the new chart
+
 
         // Populate static or less frequently updated parts of CPU (core bars)
         const cpuCoreBarsContainer = mainContentElement.querySelector('#cpu-core-bars-container');
@@ -482,11 +544,13 @@ class OverviewPage {
         });
 
         // Populate User & Task Statistics (remains direct DOM update)
-        mainContentElement.querySelector('#online-users-count').textContent = this.dynamicMockData.userAndTaskStats.onlineUsers;
+        // The single onlineUsers value is now updated dynamically from history, so this will reflect the latest pre-filled or generated value.
+        // mainContentElement.querySelector('#online-users-count').textContent = this.dynamicMockData.userAndTaskStats.onlineUsers;
         mainContentElement.querySelector('#total-tasks-executed').textContent = this.dynamicMockData.userAndTaskStats.totalTasksExecuted;
-        mainContentElement.querySelector('#successful-tasks-count').textContent = this.dynamicMockData.userAndTaskStats.successfulTasks;
-        mainContentElement.querySelector('#failed-tasks-count').textContent = this.dynamicMockData.userAndTaskStats.failedTasks;
-        mainContentElement.querySelector('#running-tasks-count').textContent = this.dynamicMockData.userAndTaskStats.runningTasks;
+        // The following are now represented in the donut chart
+        // mainContentElement.querySelector('#successful-tasks-count').textContent = this.dynamicMockData.userAndTaskStats.successfulTasks;
+        // mainContentElement.querySelector('#failed-tasks-count').textContent = this.dynamicMockData.userAndTaskStats.failedTasks;
+        // mainContentElement.querySelector('#running-tasks-count').textContent = this.dynamicMockData.userAndTaskStats.runningTasks;
 
         // Populate Download Task History - initial population
         this.updateDownloadHistoryDisplay(); // Initial population of download history table
@@ -619,5 +683,134 @@ class OverviewPage {
                 }
             }
         });
+    }
+
+    // New method to initialize the Online Users Chart
+    _initOnlineUsersChart(mainContentElement) {
+        const onlineUsersCtx = mainContentElement.querySelector('#onlineUsersChart').getContext('2d');
+        this.charts.onlineUsersChart = new Chart(onlineUsersCtx, {
+            type: 'line',
+            data: {
+                labels: [...this.dynamicMockData.userAndTaskStats.onlineUsersTimeLabels],
+                datasets: [{
+                    label: 'Online Users',
+                    data: [...this.dynamicMockData.userAndTaskStats.onlineUsersHistory],
+                    borderColor: this.chartThemeColors.onlineUsersLineColor,
+                    backgroundColor: this.chartThemeColors.onlineUsersFillColor,
+                    fill: true,
+                    tension: 0.2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: true, labels: { color: this.chartThemeColors.legendColor } },
+                    tooltip: {
+                        backgroundColor: this.chartThemeColors.tooltipBackgroundColor,
+                        titleColor: this.chartThemeColors.tooltipTitleColor,
+                        bodyColor: this.chartThemeColors.tooltipBodyColor,
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: this.chartThemeColors.gridColor },
+                        ticks: { color: this.chartThemeColors.ticksColor, stepSize: 10 } // Adjust stepSize as needed
+                    },
+                    x: {
+                        grid: { color: this.chartThemeColors.gridColor },
+                        ticks: { color: this.chartThemeColors.ticksColor }
+                    }
+                }
+            }
+        });
+    }
+
+    // New method to update the Online Users Chart
+    updateOnlineUsersChart() {
+        if (this.charts.onlineUsersChart) {
+            this.charts.onlineUsersChart.data.labels = [...this.dynamicMockData.userAndTaskStats.onlineUsersTimeLabels];
+            this.charts.onlineUsersChart.data.datasets[0].data = [...this.dynamicMockData.userAndTaskStats.onlineUsersHistory];
+            this.charts.onlineUsersChart.update('none');
+        }
+    }
+
+    // New method to initialize the Task Execution Donut Chart
+    _initTaskExecutionChart(mainContentElement) {
+        const taskCtx = mainContentElement.querySelector('#taskExecutionChart').getContext('2d');
+        const stats = this.dynamicMockData.userAndTaskStats;
+        this.charts.taskExecutionChart = new Chart(taskCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Successful', 'Failed', 'Running'],
+                datasets: [{
+                    label: 'Task Status',
+                    data: [stats.successfulTasks, stats.failedTasks, stats.runningTasks],
+                    backgroundColor: [
+                        this.chartThemeColors.taskSuccessfulColor,
+                        this.chartThemeColors.taskFailedColor,
+                        this.chartThemeColors.taskRunningColor
+                    ],
+                    borderColor: [
+                        this.chartThemeColors.taskSuccessfulBorderColor,
+                        this.chartThemeColors.taskFailedBorderColor,
+                        this.chartThemeColors.taskRunningBorderColor
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: {
+                    animateScale: true,
+                    animateRotate: true
+                },
+                plugins: {
+                    legend: { display: true, position: 'bottom', labels: { color: this.chartThemeColors.legendColor } },
+                    tooltip: {
+                        backgroundColor: this.chartThemeColors.tooltipBackgroundColor,
+                        titleColor: this.chartThemeColors.tooltipTitleColor,
+                        bodyColor: this.chartThemeColors.tooltipBodyColor,
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed !== null) {
+                                    label += context.parsed;
+                                    const total = context.dataset.data.reduce((acc, value) => acc + value, 0);
+                                    if (total > 0) {
+                                        const percentage = ((context.parsed / total) * 100).toFixed(1) + '%';
+                                        label += ` (${percentage})`;
+                                    }
+                                }
+                                return label;
+                            }
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: () => `Total Tasks: ${this.dynamicMockData.userAndTaskStats.totalTasksExecuted}`,
+                        color: this.chartThemeColors.legendColor,
+                        font: { size: 16 }
+                    }
+                }
+            }
+        });
+    }
+
+    // New method to update the Task Execution Donut Chart
+    updateTaskExecutionChart() {
+        if (this.charts.taskExecutionChart) {
+            const stats = this.dynamicMockData.userAndTaskStats;
+            this.charts.taskExecutionChart.data.datasets[0].data = [stats.successfulTasks, stats.failedTasks, stats.runningTasks];
+            if (this.charts.taskExecutionChart.options.plugins.title) {
+                 this.charts.taskExecutionChart.options.plugins.title.text = () => `Total Tasks: ${stats.totalTasksExecuted}`;
+            }
+            this.charts.taskExecutionChart.update('none');
+        }
     }
 }
