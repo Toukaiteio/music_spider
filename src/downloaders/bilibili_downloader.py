@@ -17,6 +17,8 @@ from utils.data_type import MusicItem
 from html import unescape
 import re
 import asyncio
+import functools # Added for functools.partial
+
 bili_account = {
     "web_location":"333.1007",
 }
@@ -301,7 +303,53 @@ def get_buvid3():
             bili_account["cookie"] = "; ".join(cookie_items)
     return bili_account["buvid3"]
 
-def fetch_ext_from_url(url: str) -> str:
+async def get_buvid3_async(): # Async version
+    loop = asyncio.get_event_loop()
+    api = "https://api.bilibili.com/x/web-frontend/getbuvid"
+
+    def _get_buvid(): # Synchronous part
+        res = requests.get(api, headers=get_headers())
+        res.raise_for_status()
+        return res.json()['data']['buvid']
+
+    buvid = await loop.run_in_executor(None, _get_buvid)
+
+    if "buvid3" in bili_account:
+        bili_account["cookie"] = bili_account["cookie"].replace(bili_account["buvid3"], buvid) # Ensure cookie is a string
+        bili_account["buvid3"] = buvid
+    else:
+        bili_account["buvid3"] = buvid
+        cookie_items = [f"buvid3={buvid}"] # Corrected list creation
+        if "cookie" in bili_account and bili_account["cookie"]:
+            bili_account["cookie"] += "; " + "; ".join(cookie_items)
+        else:
+            bili_account["cookie"] = "; ".join(cookie_items)
+    return bili_account["buvid3"]
+
+async def refresh_wbi_async(): # Async version
+    loop = asyncio.get_event_loop()
+    api = "https://api.bilibili.com/x/web-interface/nav"
+
+    def _get_nav(): # Synchronous part
+        res = requests.get(api, headers=get_headers())
+        res.raise_for_status()
+        return res.json()
+
+    data = await loop.run_in_executor(None, _get_nav)
+
+    if data["code"] == 0:
+        wbi_data = data.get("data", {}).get("wbi_img", {})
+        if wbi_data:
+            bili_account["img_url"] = os.path.splitext(os.path.basename(wbi_data.get("img_url", "")))[0]
+            bili_account["sub_url"] = os.path.splitext(os.path.basename(wbi_data.get("sub_url", "")))[0]
+            print("WBI refreshed successfully (async).")
+        else:
+            print("No WBI data found in the response (async).")
+    else:
+        print(f"Failed to refresh WBI (async): {data['message']}")
+
+
+def fetch_ext_from_url(url: str) -> str: # Stays synchronous utility
     """Extracts file extension from a URL, handling query parameters."""
     path = urllib.parse.urlparse(url).path
     ext = os.path.splitext(path)[1]
@@ -314,7 +362,7 @@ def strip_html_tags(text: str) -> str:
     clean = re.compile('<.*?>')
     return unescape(re.sub(clean, '', text))
 
-def parse_duration(duration_str: str) -> int:
+def parse_duration(duration_str: str) -> int: # Stays synchronous utility
     """Converts 'm:ss' or 'h:mm:ss' or 'mm:ss' from Bilibili to seconds as int."""
     if not duration_str:
         return 0
@@ -327,41 +375,43 @@ def parse_duration(duration_str: str) -> int:
         return parts[0]
     return 0
 
-def search_tracks(query: str, limit: int = 20) -> list[dict]:
+async def search_tracks_async(query: str, limit: int = 20) -> list[dict]: # Renamed to async
     """
-    Searches for tracks (videos) on Bilibili.
+    Asynchronously searches for tracks (videos) on Bilibili.
     Returns a list of dictionaries, each containing track metadata.
     """
+    loop = asyncio.get_event_loop()
     api_url = "https://api.bilibili.com/x/web-interface/wbi/search/type"
     
-    # Ensure WBI keys and buvid3 are available
+    # Ensure WBI keys and buvid3 are available, using async versions
     if not bili_account.get("img_url") or not bili_account.get("sub_url"):
-        refresh_wbi()
+        await refresh_wbi_async()
     if not bili_account.get("buvid3"):
-        get_buvid3()
+        await get_buvid3_async()
 
     # Check again after attempting refresh, critical for WBI signing
     if not bili_account.get("img_url") or not bili_account.get("sub_url"):
-        print("Error: Missing WBI keys even after refresh attempt. Cannot proceed with search.")
+        print("Error: Missing WBI keys even after async refresh attempt. Cannot proceed with search.")
         return []
 
     params = {
-        "search_type": "video", # Bilibili search type for videos
+        "search_type": "video",
         "keyword": query,
-        "page": 1, # Assuming we only fetch the first page for `limit`
-        # Bilibili API for search typically returns a fixed number of results per page (e.g., 20 for video).
-        # The `limit` parameter here is conceptual for how many results we process from the API response.
+        "page": 1,
     }
     
+    # encWbi is CPU bound (hashing), can be run in executor if it becomes a bottleneck,
+    # but it's likely fast enough for now.
     signed_params = encWbi(params, bili_account["img_url"], bili_account["sub_url"])
 
     try:
-        res = requests.get(api_url, headers=get_headers(), params=signed_params)
-        res.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
-        data = res.json()
+        # requests.get is blocking, run in executor
+        res = await loop.run_in_executor(None, functools.partial(requests.get, api_url, headers=get_headers(), params=signed_params))
+        res.raise_for_status()
+        data = await loop.run_in_executor(None, res.json) # res.json() can also be blocking
 
         if data.get("code") != 0:
-            print(f"Bilibili API error in search_tracks: {data.get('message', 'Unknown error')}")
+            print(f"Bilibili API error in search_tracks_async: {data.get('message', 'Unknown error')}")
             return []
 
         search_results = data.get("data", {}).get("result", [])
