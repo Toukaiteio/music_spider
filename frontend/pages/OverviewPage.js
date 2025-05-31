@@ -216,7 +216,8 @@ class OverviewPage {
   onLoad(mainContentElement, subPageId, appState, managers) {
     this.mainContentElement = mainContentElement;
     window.overviewPageModuleInstance = this; // Expose instance for testing
-
+    console.log(managers);
+    this.websocketManager = managers.webSocketManager;
     // Initialize charts with empty data
     this._initCpuChart(mainContentElement);
     this._initGpuCharts(mainContentElement, []); // Pass empty array for initial GPU data
@@ -238,9 +239,14 @@ class OverviewPage {
 
   // Chart Initialization Methods
   _initCpuChart(mainContentElement) {
-    const cpuCtx = mainContentElement
-      .querySelector("#cpuUsageChart")
+    const canvasElement = mainContentElement
+      .querySelector("#cpuUsageChart");
+    if (canvasElement.chartInstance) {
+      canvasElement.chartInstance.destroy(); // 销毁旧实例
+    }
+    const cpuCtx = canvasElement
       .getContext("2d");
+    if(this.charts.cpuUsageChart) this.charts.cpuUsageChart.destroy();
     this.charts.cpuUsageChart = new Chart(cpuCtx, {
       type: "line",
       data: {
@@ -283,9 +289,12 @@ class OverviewPage {
     });
   }
 
-  _initGpuCharts(mainContentElement, gpuDataArray) { // gpuDataArray for initial setup if needed, otherwise pass []
-    const gpuChartsContainer = mainContentElement.querySelector("#gpu-charts-container");
-    gpuChartsContainer.innerHTML = ''; // Clear previous charts if any during re-init or dynamic add/remove
+  _initGpuCharts(mainContentElement, gpuDataArray) {
+    // gpuDataArray for initial setup if needed, otherwise pass []
+    const gpuChartsContainer = mainContentElement.querySelector(
+      "#gpu-charts-container"
+    );
+    gpuChartsContainer.innerHTML = ""; // Clear previous charts if any during re-init or dynamic add/remove
     this.charts.gpuCharts = {}; // Reset
 
     gpuDataArray.forEach((gpu, index) => {
@@ -298,8 +307,7 @@ class OverviewPage {
         chartContainerDiv.style.marginBottom = "10px";
         // Set a fixed height for individual GPU chart containers for consistency.
         // This can also be done via CSS for `.gpu-charts-container .chart-container`
-        chartContainerDiv.style.height = '180px';
-
+        chartContainerDiv.style.height = "180px";
 
         canvas = document.createElement("canvas");
         canvas.id = canvasId;
@@ -314,7 +322,7 @@ class OverviewPage {
           labels: [], // Time labels - populated by updates
           datasets: [
             {
-              label: `${gpu.name || 'GPU ' + index} Utilization %`, // Use name if available
+              label: `${gpu.name || "GPU " + index} Utilization %`, // Use name if available
               data: [], // Utilization data - populated by updates
               borderColor: this.chartThemeColors.gpuLineColor,
               backgroundColor: this.chartThemeColors.gpuFillColor,
@@ -356,8 +364,9 @@ class OverviewPage {
         },
       });
     });
-     if (gpuDataArray.length === 0) {
-        gpuChartsContainer.innerHTML = '<p style="text-align:center; color: var(--text-secondary)">No GPU data available.</p>';
+    if (gpuDataArray.length === 0) {
+      gpuChartsContainer.innerHTML =
+        '<p style="text-align:center; color: var(--text-secondary)">No GPU data available.</p>';
     }
   }
 
@@ -365,6 +374,7 @@ class OverviewPage {
     const networkCtx = mainContentElement
       .querySelector("#networkUsageChart")
       .getContext("2d");
+    if(this.charts.networkUsageChart) this.charts.networkUsageChart.destroy();
     this.charts.networkUsageChart = new Chart(networkCtx, {
       type: "line",
       data: {
@@ -418,6 +428,7 @@ class OverviewPage {
     const onlineUsersCtx = mainContentElement
       .querySelector("#onlineUsersChart")
       .getContext("2d");
+    if ( this.charts.onlineUsersChart) this.charts.onlineUsersChart.destroy();
     this.charts.onlineUsersChart = new Chart(onlineUsersCtx, {
       type: "line",
       data: {
@@ -466,6 +477,7 @@ class OverviewPage {
     const taskCtx = mainContentElement
       .querySelector("#taskExecutionChart")
       .getContext("2d");
+    if(this.charts.taskExecutionChart)  this.charts.taskExecutionChart.destroy();
     this.charts.taskExecutionChart = new Chart(taskCtx, {
       type: "doughnut",
       data: {
@@ -537,21 +549,23 @@ class OverviewPage {
   // updateOnlineUsersChart and updateTaskExecutionChart will be effectively replaced by updateUIWithData logic.
 
   async fetchSystemOverviewData() {
-    if (!WebSocketManager.getInstance()) {
-      console.error("WebSocketManager not initialized");
+    if (!this.websocketManager) {
+      console.error("this.websocketManager not initialized");
       // Optionally, display an error to the user on the UI
       // For example, by setting a state that getHTML() can use to show an error message.
       return;
     }
     try {
-      const data = await WebSocketManager.getInstance().sendWebSocketCommand(
+      const data = await this.websocketManager.sendWebSocketCommand(
         "get_system_overview",
         {}
       );
       if (data) {
         this.updateUIWithData(data);
       } else {
-        console.warn("Received null or undefined data from get_system_overview");
+        console.warn(
+          "Received null or undefined data from get_system_overview"
+        );
         // Handle cases where data might be unexpectedly null/undefined
         // For example, show a "No data received" or "Error fetching data" message.
       }
@@ -570,26 +584,33 @@ class OverviewPage {
   }
 
   updateUIWithData(data) {
-    if (!this.mainContentElement || !data) {
-      console.warn("Skipping UI update: main content element or data not available.", { mainElement: this.mainContentElement, dataAvailable: !!data });
+    if (!this.mainContentElement || !data || data.code !== 0) {
+      console.warn(
+        "Skipping UI update: main content element or data not available.",
+        { mainElement: this.mainContentElement, dataAvailable: !!data }
+      );
       return;
     }
-
+    data = data.data;
     const now = new Date().toLocaleTimeString().split(" ")[0]; // hh:mm:ss for chart updates
 
     // System Info
     if (data.systemInfo) {
       const osEl = this.mainContentElement.querySelector("#sysinfo-os");
       if (osEl) osEl.textContent = data.systemInfo.os || "N/A";
-      const hostnameEl = this.mainContentElement.querySelector("#sysinfo-hostname");
-      if (hostnameEl) hostnameEl.textContent = data.systemInfo.hostname || "N/A";
+      const hostnameEl =
+        this.mainContentElement.querySelector("#sysinfo-hostname");
+      if (hostnameEl)
+        hostnameEl.textContent = data.systemInfo.hostname || "N/A";
       const uptimeEl = this.mainContentElement.querySelector("#sysinfo-uptime");
       if (uptimeEl) uptimeEl.textContent = data.systemInfo.uptime || "N/A";
     }
 
     // Disk Usage
     if (data.diskUsage) {
-      const diskUsageTableBody = this.mainContentElement.querySelector("#disk-usage-table tbody");
+      const diskUsageTableBody = this.mainContentElement.querySelector(
+        "#disk-usage-table tbody"
+      );
       if (diskUsageTableBody) {
         diskUsageTableBody.innerHTML = ""; // Clear existing rows
         data.diskUsage.forEach((disk) => {
@@ -606,113 +627,156 @@ class OverviewPage {
     // CPU Usage
     if (data.cpuUsage) {
       // Update CPU Load Chart
-      if (this.charts.cpuUsageChart && data.cpuUsage.currentLoad !== undefined) {
-        this._updateLineChart(this.charts.cpuUsageChart, now, data.cpuUsage.currentLoad);
+      if (
+        this.charts.cpuUsageChart &&
+        data.cpuUsage.currentLoad !== undefined
+      ) {
+        this._updateLineChart(
+          this.charts.cpuUsageChart,
+          now,
+          data.cpuUsage.currentLoad
+        );
       }
 
       // Update Per-Core Progress Bars
-      const cpuCoreBarsContainer = this.mainContentElement.querySelector("#cpu-core-bars-container");
+      const cpuCoreBarsContainer = this.mainContentElement.querySelector(
+        "#cpu-core-bars-container"
+      );
       if (cpuCoreBarsContainer) {
         cpuCoreBarsContainer.innerHTML = ""; // Clear existing bars
         if (data.cpuUsage.cores && data.cpuUsage.cores.length > 0) {
-            data.cpuUsage.cores.forEach((core) => {
-                const coreBarContainer = document.createElement("div");
-                coreBarContainer.className = "progress-bar-container";
-                coreBarContainer.title = `Core ${core.core}: ${core.load}%`;
-                const coreBar = document.createElement("div");
-                coreBar.className = "progress-bar";
-                coreBar.style.width = `${core.load}%`;
-                coreBar.textContent = `Core ${core.core}: ${core.load}%`;
-                coreBarContainer.appendChild(coreBar);
-                cpuCoreBarsContainer.appendChild(coreBarContainer);
-            });
+          data.cpuUsage.cores.forEach((core) => {
+            const coreBarContainer = document.createElement("div");
+            coreBarContainer.className = "progress-bar-container";
+            coreBarContainer.title = `Core ${core.core}: ${core.load}%`;
+            const coreBar = document.createElement("div");
+            coreBar.className = "progress-bar";
+            coreBar.style.width = `${core.load}%`;
+            coreBar.textContent = `Core ${core.core}: ${core.load}%`;
+            coreBarContainer.appendChild(coreBar);
+            cpuCoreBarsContainer.appendChild(coreBarContainer);
+          });
         } else {
-            cpuCoreBarsContainer.innerHTML = '<p style="text-align:center; color: var(--text-secondary)">No per-core data available.</p>';
+          cpuCoreBarsContainer.innerHTML =
+            '<p style="text-align:center; color: var(--text-secondary)">No per-core data available.</p>';
         }
       }
-      const logicalCoresEl = this.mainContentElement.querySelector('#cpu-logical-cores');
-      if (logicalCoresEl) logicalCoresEl.textContent = data.cpuUsage.logicalCores || 'N/A';
-      const physicalCoresEl = this.mainContentElement.querySelector('#cpu-physical-cores');
-      if (physicalCoresEl) physicalCoresEl.textContent = data.cpuUsage.physicalCores || 'N/A';
+      const logicalCoresEl =
+        this.mainContentElement.querySelector("#cpu-logical-cores");
+      if (logicalCoresEl)
+        logicalCoresEl.textContent = data.cpuUsage.logicalCores || "N/A";
+      const physicalCoresEl = this.mainContentElement.querySelector(
+        "#cpu-physical-cores"
+      );
+      if (physicalCoresEl)
+        physicalCoresEl.textContent = data.cpuUsage.physicalCores || "N/A";
     }
 
     // GPU Usage
-    const gpuChartsContainer = this.mainContentElement.querySelector("#gpu-charts-container");
-    const gpuUsageTablesContainer = this.mainContentElement.querySelector("#gpu-usage-tables-container");
+    const gpuChartsContainer = this.mainContentElement.querySelector(
+      "#gpu-charts-container"
+    );
+    const gpuUsageTablesContainer = this.mainContentElement.querySelector(
+      "#gpu-usage-tables-container"
+    );
 
     if (gpuChartsContainer) gpuChartsContainer.innerHTML = ""; // Clear previous content
     if (gpuUsageTablesContainer) gpuUsageTablesContainer.innerHTML = ""; // Clear previous content
 
     if (data.gpuUsage && data.gpuUsage.length > 0) {
-        // Re-initialize GPU charts with new data structure (if GPU count changes) or update existing ones.
-        // For simplicity, we can re-initialize if the number of GPUs has changed.
-        // A more optimized approach would be to match by ID if available.
-        if (Object.keys(this.charts.gpuCharts).length !== data.gpuUsage.length) {
-             this._initGpuCharts(this.mainContentElement, data.gpuUsage); // Re-init if count differs
+      // Re-initialize GPU charts with new data structure (if GPU count changes) or update existing ones.
+      // For simplicity, we can re-initialize if the number of GPUs has changed.
+      // A more optimized approach would be to match by ID if available.
+      if (Object.keys(this.charts.gpuCharts).length !== data.gpuUsage.length) {
+        this._initGpuCharts(this.mainContentElement, data.gpuUsage); // Re-init if count differs
+      }
+
+      data.gpuUsage.forEach((gpu, index) => {
+        const chartId = `gpuUsageChart_${index}`;
+        const chart = this.charts.gpuCharts[chartId];
+        if (chart && gpu.utilization !== undefined) {
+          this._updateLineChart(chart, now, gpu.utilization);
+        } else if (!chart) {
+          // If chart wasn't initialized (e.g. dynamic add), initialize it.
+          // This assumes _initGpuCharts can handle being called with a single GPU object or needs adjustment.
+          // For now, we rely on the check above that re-initializes all on count change.
+          console.warn(`GPU chart ${chartId} not found for update.`);
         }
 
-        data.gpuUsage.forEach((gpu, index) => {
-            const chartId = `gpuUsageChart_${index}`;
-            const chart = this.charts.gpuCharts[chartId];
-            if (chart && gpu.utilization !== undefined) {
-                this._updateLineChart(chart, now, gpu.utilization);
-            } else if (!chart) {
-                // If chart wasn't initialized (e.g. dynamic add), initialize it.
-                // This assumes _initGpuCharts can handle being called with a single GPU object or needs adjustment.
-                // For now, we rely on the check above that re-initializes all on count change.
-                console.warn(`GPU chart ${chartId} not found for update.`);
-            }
-
-            // Populate GPU Info Table
-            if (gpuUsageTablesContainer) {
-                const gpuTable = document.createElement("table");
-                gpuTable.className = "data-table gpu-specific-table";
-                gpuTable.innerHTML = `
-                    <caption>${gpu.name || `GPU ${index}`} (${gpu.id || 'N/A'}) - Details</caption>
+        // Populate GPU Info Table
+        if (gpuUsageTablesContainer) {
+          const gpuTable = document.createElement("table");
+          gpuTable.className = "data-table gpu-specific-table";
+          gpuTable.innerHTML = `
+                    <caption>${gpu.name || `GPU ${index}`} (${
+            gpu.id || "N/A"
+          }) - Details</caption>
                     <thead><tr><th>Metric</th><th>Value</th></tr></thead>
                     <tbody>
-                        <tr><td>Memory Total</td><td>${gpu.memoryTotal || 'N/A'}</td></tr>
-                        <tr><td>Memory Used</td><td>${gpu.memoryUsed || 'N/A'}</td></tr>
-                        <tr><td class="gpu-temperature-label">Temperature</td><td>${gpu.temperature !== undefined ? gpu.temperature + '°C' : 'N/A'}</td></tr>
-                        <tr><td>Power Draw</td><td>${gpu.powerDraw !== undefined ? gpu.powerDraw + 'W' : 'N/A'}</td></tr>
+                        <tr><td>Memory Total</td><td>${
+                          gpu.memoryTotal || "N/A"
+                        }</td></tr>
+                        <tr><td>Memory Used</td><td>${
+                          gpu.memoryUsed || "N/A"
+                        }</td></tr>
+                        <tr><td class="gpu-temperature-label">Temperature</td><td>${
+                          gpu.temperature !== undefined
+                            ? gpu.temperature + "°C"
+                            : "N/A"
+                        }</td></tr>
+                        <tr><td>Power Draw</td><td>${
+                          gpu.powerDraw !== undefined
+                            ? gpu.powerDraw + "W"
+                            : "N/A"
+                        }</td></tr>
                     </tbody>
                 `;
-                gpuUsageTablesContainer.appendChild(gpuTable);
-            }
-        });
+          gpuUsageTablesContainer.appendChild(gpuTable);
+        }
+      });
     } else {
-        if (gpuChartsContainer) gpuChartsContainer.innerHTML = '<p style="text-align:center; color: var(--text-secondary)">No GPU data available.</p>';
-        if (gpuUsageTablesContainer) gpuUsageTablesContainer.innerHTML = ""; // Clear if it had content
+      if (gpuChartsContainer)
+        gpuChartsContainer.innerHTML =
+          '<p style="text-align:center; color: var(--text-secondary)">No GPU data available.</p>';
+      if (gpuUsageTablesContainer) gpuUsageTablesContainer.innerHTML = ""; // Clear if it had content
     }
-
 
     // Network Usage
     if (data.networkUsage) {
-      if (this.charts.networkUsageChart && data.networkUsage.uploadSpeed !== undefined && data.networkUsage.downloadSpeed !== undefined) {
+      if (
+        this.charts.networkUsageChart &&
+        data.networkUsage.uploadSpeed !== undefined &&
+        data.networkUsage.downloadSpeed !== undefined
+      ) {
         this._updateMultiLineChart(this.charts.networkUsageChart, now, [
           data.networkUsage.uploadSpeed,
           data.networkUsage.downloadSpeed,
         ]);
       }
 
-      const networkInterfacesTableBody = this.mainContentElement.querySelector("#network-interfaces-table tbody");
+      const networkInterfacesTableBody = this.mainContentElement.querySelector(
+        "#network-interfaces-table tbody"
+      );
       if (networkInterfacesTableBody) {
         networkInterfacesTableBody.innerHTML = ""; // Clear existing rows
-        if (data.networkUsage.interfaces && data.networkUsage.interfaces.length > 0) {
-            data.networkUsage.interfaces.forEach((iface) => {
-                const row = networkInterfacesTableBody.insertRow();
-                row.insertCell().textContent = iface.name;
-                row.insertCell().textContent = `${iface.uploadSpeed} Mbps`; // Assuming speed is in Mbps from backend
-                row.insertCell().textContent = `${iface.downloadSpeed} Mbps`;
-                row.insertCell().textContent = iface.dataSent;
-                row.insertCell().textContent = iface.dataReceived;
-            });
-        } else {
+        if (
+          data.networkUsage.interfaces &&
+          data.networkUsage.interfaces.length > 0
+        ) {
+          data.networkUsage.interfaces.forEach((iface) => {
             const row = networkInterfacesTableBody.insertRow();
-            const cell = row.insertCell();
-            cell.colSpan = 5;
-            cell.textContent = "No network interface data available.";
-            cell.style.textAlign = "center";
+            row.insertCell().textContent = iface.name;
+            row.insertCell().textContent = `${iface.uploadSpeed} Mbps`; // Assuming speed is in Mbps from backend
+            row.insertCell().textContent = `${iface.downloadSpeed} Mbps`;
+            row.insertCell().textContent = iface.dataSent;
+            row.insertCell().textContent = iface.dataReceived;
+          });
+        } else {
+          const row = networkInterfacesTableBody.insertRow();
+          const cell = row.insertCell();
+          cell.colSpan = 5;
+          cell.textContent = "No network interface data available.";
+          cell.style.textAlign = "center";
         }
       }
     }
@@ -722,7 +786,11 @@ class OverviewPage {
       const stats = data.userAndTaskStats;
       // Update Online Users Chart
       if (this.charts.onlineUsersChart && stats.onlineUsers !== undefined) {
-        this._updateLineChart(this.charts.onlineUsersChart, now, stats.onlineUsers);
+        this._updateLineChart(
+          this.charts.onlineUsersChart,
+          now,
+          stats.onlineUsers
+        );
       }
 
       // Update Task Execution Donut Chart
@@ -735,47 +803,55 @@ class OverviewPage {
         this.charts.taskExecutionChart.update("none");
       }
 
-      const totalTasksEl = this.mainContentElement.querySelector("#total-tasks-executed");
-      if (totalTasksEl) totalTasksEl.textContent = stats.totalTasksExecuted || "0";
+      const totalTasksEl = this.mainContentElement.querySelector(
+        "#total-tasks-executed"
+      );
+      if (totalTasksEl)
+        totalTasksEl.textContent = stats.totalTasksExecuted || "0";
     }
 
     // Download Task History
     if (data.downloadTaskHistory) {
-      const downloadHistoryTableBody = this.mainContentElement.querySelector("#download-history-table tbody");
+      const downloadHistoryTableBody = this.mainContentElement.querySelector(
+        "#download-history-table tbody"
+      );
       if (downloadHistoryTableBody) {
         downloadHistoryTableBody.innerHTML = ""; // Clear existing rows
         if (data.downloadTaskHistory.length > 0) {
-            data.downloadTaskHistory.forEach((task) => {
-                const row = downloadHistoryTableBody.insertRow();
-                row.insertCell().textContent = task.id;
-                row.insertCell().textContent = task.fileName;
-                row.insertCell().textContent = task.source;
-                row.insertCell().textContent = task.status;
-                row.insertCell().textContent = task.timestamp; // Assuming timestamp is a string
-                row.insertCell().textContent = task.size;
-
-                const progressCell = row.insertCell();
-                const progressContainer = document.createElement("div");
-                progressContainer.className = "progress-bar-container";
-                const progressBar = document.createElement("div");
-                progressBar.className = "progress-bar";
-                const progressPercent = parseFloat(task.progress); // Assuming progress is a number 0-100
-                progressBar.style.width = `${progressPercent}%`;
-                progressBar.textContent = `${progressPercent}%`;
-
-                if (task.status === "Completed") progressBar.style.backgroundColor = "var(--success-color, #28a745)";
-                else if (task.status === "Failed") progressBar.style.backgroundColor = "var(--error-color, #dc3545)";
-                else progressBar.style.backgroundColor = "var(--accent-color)";
-
-                progressContainer.appendChild(progressBar);
-                progressCell.appendChild(progressContainer);
-            });
-        } else {
+          data.downloadTaskHistory.forEach((task) => {
             const row = downloadHistoryTableBody.insertRow();
-            const cell = row.insertCell();
-            cell.colSpan = 7; // Number of columns in the table
-            cell.textContent = "No download task history available.";
-            cell.style.textAlign = "center";
+            row.insertCell().textContent = task.id;
+            row.insertCell().textContent = task.fileName;
+            row.insertCell().textContent = task.source;
+            row.insertCell().textContent = task.status;
+            row.insertCell().textContent = task.timestamp; // Assuming timestamp is a string
+            row.insertCell().textContent = task.size;
+
+            const progressCell = row.insertCell();
+            const progressContainer = document.createElement("div");
+            progressContainer.className = "progress-bar-container";
+            const progressBar = document.createElement("div");
+            progressBar.className = "progress-bar";
+            const progressPercent = parseFloat(task.progress); // Assuming progress is a number 0-100
+            progressBar.style.width = `${progressPercent}%`;
+            progressBar.textContent = `${progressPercent}%`;
+
+            if (task.status === "Completed")
+              progressBar.style.backgroundColor =
+                "var(--success-color, #28a745)";
+            else if (task.status === "Failed")
+              progressBar.style.backgroundColor = "var(--error-color, #dc3545)";
+            else progressBar.style.backgroundColor = "var(--accent-color)";
+
+            progressContainer.appendChild(progressBar);
+            progressCell.appendChild(progressContainer);
+          });
+        } else {
+          const row = downloadHistoryTableBody.insertRow();
+          const cell = row.insertCell();
+          cell.colSpan = 7; // Number of columns in the table
+          cell.textContent = "No download task history available.";
+          cell.style.textAlign = "center";
         }
       }
     }

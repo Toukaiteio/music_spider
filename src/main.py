@@ -13,6 +13,7 @@ import re # For parsing command output
 import base64 # For decoding chunk data
 from lyrics_allocator.genius import get_song_info
 from Crypto.Cipher import AES
+import atexit
 # Relative imports for project modules
 from utils.data_type import ResultBase, MusicItemData, MusicItem
 from downloaders import soundcloud_downloader, bilibili_downloader # Added bilibili_downloader
@@ -22,7 +23,12 @@ DOWNLOADER_MODULES = {
     "bilibili": bilibili_downloader, # Added Bilibili module
     # "other_source": other_downloader, # Example for future downloaders
 }
-
+TASK_EXCUTION = {
+    "totalTasksExecuted": 0,
+    "successfulTasks": 0,
+    "failedTasks": 0,
+    "runningTasks": 0,
+}
 TEMP_UPLOAD_DIR = "./temp_uploads"
 # Ensure TEMP_UPLOAD_DIR exists (can also be done on first use in initiate_upload)
 # For simplicity here, we'll ensure it in initiate_chunked_upload.
@@ -987,6 +993,7 @@ async def handle_finalize_chunked_upload(websocket, cmd_id: str, payload: dict):
     except Exception as e_process:
         print(f"Error processing finalized file for session {upload_session_id}: {e_process}")
         import traceback
+
         traceback.print_exc()
         await send_response(websocket, cmd_id, code=1, error=f"Server error processing file: {str(e_process)}")
         # Clean up reassembled file if it exists and an error occurred during processing
@@ -1356,10 +1363,10 @@ async def handle_get_system_overview(websocket, cmd_id: str, payload: dict):
     try:
         overview_data["userAndTaskStats"] = {
             "onlineUsers": len(CONNECTED_CLIENTS),
-            "totalTasksExecuted": 0,  # Placeholder
-            "successfulTasks": 0,  # Placeholder
-            "failedTasks": 0,  # Placeholder
-            "runningTasks": 0,  # Placeholder
+            "totalTasksExecuted": TASK_EXCUTION.get("totalTasksExecuted", 0),
+            "successfulTasks": TASK_EXCUTION.get("successfulTasks", 0),
+            "failedTasks": TASK_EXCUTION.get("failedTasks", 0),
+            "runningTasks": TASK_EXCUTION.get("runningTasks", 0),
         }
     except Exception as e:
         print(f"Error getting user/task stats: {e}")
@@ -1372,8 +1379,6 @@ async def handle_get_system_overview(websocket, cmd_id: str, payload: dict):
 
 COMMAND_HANDLERS["get_system_overview"] = handle_get_system_overview
 
-
-async def send_response(websocket, cmd_id: str, code: int, data: dict = None, error: str = None):
 
 
 async def send_response(websocket, cmd_id: str, code: int, data: dict = None, error: str = None):
@@ -1396,6 +1401,8 @@ async def handler(websocket, path = None): # path is not used yet, but part of w
     CONNECTED_CLIENTS.add(websocket)
     try:
         async for message in websocket:
+            TASK_EXCUTION["totalTasksExecuted"] += 1
+            TASK_EXCUTION["runningTasks"] += 1
             try:
                 data = json.loads(message)
                 # print(f"Received message: {data}")
@@ -1405,27 +1412,33 @@ async def handler(websocket, path = None): # path is not used yet, but part of w
                 payload = data.get("payload", {}) # Payload might not exist for all commands initially
 
                 if not cmd_id or not command:
-                    # If cmd_id is missing, we can't include it in the response data directly as original_cmd_id
-                    error_data = {"error": "Missing cmd_id or command"}
-                    # error_data already includes original_cmd_id if cmd_id was present
+                    TASK_EXCUTION["failedTasks"] += 1
+                    TASK_EXCUTION["runningTasks"] -= 1
                     await send_response(websocket, cmd_id, code=1, error="Missing cmd_id or command") # Use helper
                     continue
 
                 if command_handler := COMMAND_HANDLERS.get(command):
-                    await command_handler(websocket, cmd_id, payload)
+                    try:
+                        await command_handler(websocket, cmd_id, payload)
+                        TASK_EXCUTION["successfulTasks"] += 1
+                    except Exception as e:
+                        TASK_EXCUTION["failedTasks"] += 1
+                        print(f"Error in command handler for {command}: {e}")
+                        await send_response(websocket, cmd_id, code=1, error=f"Server error: {str(e)}")
                 else:
+                    TASK_EXCUTION["failedTasks"] += 1
                     await send_response(websocket, cmd_id, code=1, error=f"Unknown command: {command}") # Use helper
-            
+
             except json.JSONDecodeError:
-                # cmd_id is not available if JSON is invalid, so pass None or a placeholder
-                # The send_response helper expects a cmd_id, so provide a placeholder.
+                TASK_EXCUTION["failedTasks"] += 1
                 await send_response(websocket, cmd_id="unknown_json_error_cmd_id", code=1, error="Invalid JSON message")
             except Exception as e:
+                TASK_EXCUTION["failedTasks"] += 1
                 print(f"Error processing message for cmd_id {cmd_id if 'cmd_id' in locals() else 'unknown'}: {e}")
-                # import traceback; traceback.print_exc() # For debugging
-                # Use cmd_id if available, otherwise use a placeholder.
                 current_cmd_id = locals().get("cmd_id", "unknown_error_cmd_id")
                 await send_response(websocket, current_cmd_id, code=1, error=f"Server error: {str(e)}")
+            finally:
+                TASK_EXCUTION["runningTasks"] -= 1
     finally:
         print(f"Client disconnected from {websocket.remote_address}")
         CONNECTED_CLIENTS.remove(websocket)
@@ -1437,10 +1450,36 @@ async def main():
     print(f"WebSocket server started on ws://{HOST}:{PORT}")
     await server.wait_closed() # Keep the server running until it's stopped
 
+TASK_EXECUTION_FILE = "task_execution_stats.json"
+
+def save_task_execution():
+    try:
+        with open(TASK_EXECUTION_FILE, "w") as f:
+            json.dump(TASK_EXCUTION, f, indent=4)
+        print("TASK_EXCUTION data saved.")
+    except Exception as e:
+        print(f"Failed to save TASK_EXCUTION: {e}")
+
+def load_task_execution():
+    global TASK_EXCUTION
+    if os.path.exists(TASK_EXECUTION_FILE):
+        try:
+            with open(TASK_EXECUTION_FILE, "r") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    TASK_EXCUTION.update(data)
+            print("TASK_EXCUTION data loaded.")
+        except Exception as e:
+            print(f"Failed to load TASK_EXCUTION: {e}")
+
 if __name__ == "__main__":
+    load_task_execution()
+    atexit.register(save_task_execution)
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
         print("Server shutting down...")
     except Exception as e:
         print(f"Server startup failed: {e}")
+    finally:
+        save_task_execution()
