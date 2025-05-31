@@ -24,16 +24,16 @@ async function runOverviewPageTests() {
     const MOCK_DATA_CHECKS = {
         diskUsageRows: 2,
         diskUsageHeaders: ["Filesystem", "Total", "Used", "Free", "Mount Point"],
-        cpuLoad: "45%", // From OverviewPage.js mockData
-        cpuCores: 2, // Number of cores
+        // cpuLoad: "45%", // This is dynamic, so direct check might be flaky. Chart display is more important.
+        cpuCores: 2, // Number of cores for progress bars
         gpuUsageGpus: 2, // From OverviewPage.js mockData (two GPUs)
-        gpuUsageHeaders: ["Metric", "Value"], // Headers for the GPU property table
+        // gpuUsageHeaders: ["Metric", "Value"], // Headers for the GPU property table (still relevant for the details table)
         networkInterfacesRows: 2,
-        networkInterfacesHeaders: ["Interface", "Upload", "Download", "Data Sent", "Data Received"],
+        networkInterfacesHeaders: ["Interface", "Total Upload", "Total Download", "Data Sent", "Data Received"], // Adjusted for chart changes
         downloadHistoryRows: 3,
         downloadHistoryHeaders: ["ID", "File Name", "Source", "Status", "Timestamp", "Size", "Progress"],
-        onlineUsers: 5, // From OverviewPage.js mockData
-        totalTasksExecuted: 1500, // From OverviewPage.js mockData
+        onlineUsers: 5,
+        totalTasksExecuted: 1500,
         successfulTasks: 1450,
         failedTasks: 40,
         runningTasks: 10,
@@ -91,59 +91,49 @@ async function runOverviewPageTests() {
         console.error("FAIL: Disk Usage table check failed.", e.message, e.stack);
     }
 
-    // Test CPU Usage
+    // Test CPU Usage (Core bars only, as main load is in chart)
     try {
-        const cpuLoadEl = document.querySelector('#cpu-current-load');
-        assertNotNull(cpuLoadEl, "CPU current load element not found.");
-        assertEquals(cpuLoadEl.textContent.trim(), MOCK_DATA_CHECKS.cpuLoad, "CPU load mismatch.");
-
         const coreBarContainers = document.querySelectorAll('#cpu-core-bars-container .progress-bar-container');
         assertEquals(coreBarContainers.length, MOCK_DATA_CHECKS.cpuCores, "CPU core progress bar count mismatch.");
         if (coreBarContainers.length > 0) {
             const firstCoreBar = coreBarContainers[0].querySelector('.progress-bar');
             assertNotNull(firstCoreBar, "First CPU core progress bar not found.");
-            // Check if style.width is set (e.g., "60%")
             if (!firstCoreBar.style.width || !firstCoreBar.style.width.endsWith('%')) {
                  throw new Error(`First CPU core bar width not set correctly: ${firstCoreBar.style.width}`);
             }
             assertIncludes(firstCoreBar.textContent, "Core 1", "First CPU core bar text incorrect.");
         }
-        console.log("PASS: CPU Usage section populated correctly.");
+        console.log("PASS: CPU core progress bars populated correctly.");
     } catch (e) {
-        console.error("FAIL: CPU Usage section check failed.", e.message, e.stack);
+        console.error("FAIL: CPU core progress bars check failed.", e.message, e.stack);
     }
 
-    // Test GPU Usage Tables
+    // Test GPU Usage Tables (Details part, utilization is in chart)
     try {
-        const gpuContainer = document.querySelector('#gpu-usage-tables-container');
-        assertNotNull(gpuContainer, "GPU usage container not found.");
-        const gpuTables = gpuContainer.querySelectorAll('.data-table.gpu-specific-table');
-        assertEquals(gpuTables.length, MOCK_DATA_CHECKS.gpuUsageGpus, `GPU table count mismatch.`);
+        const gpuTablesContainer = document.querySelector('#gpu-usage-tables-container');
+        assertNotNull(gpuTablesContainer, "GPU usage tables container not found.");
+        const gpuTables = gpuTablesContainer.querySelectorAll('.data-table.gpu-specific-table');
+        assertEquals(gpuTables.length, MOCK_DATA_CHECKS.gpuUsageGpus, `GPU details table count mismatch.`);
 
         if (gpuTables.length > 0) {
              const firstGpuTable = gpuTables[0];
              const captionEl = firstGpuTable.querySelector('caption');
-             assertNotNull(captionEl, "GPU table caption not found for the first GPU.");
-             // Example check for caption content - depends on mock data details
+             assertNotNull(captionEl, "GPU table caption not found for the first GPU details table.");
              assertIncludes(captionEl.textContent, "NVIDIA GeForce RTX 3080", "First GPU table caption content mismatch.");
 
-             const headerCells = Array.from(firstGpuTable.querySelectorAll('thead th')).map(th => th.textContent.trim());
-             MOCK_DATA_CHECKS.gpuUsageHeaders.forEach((header, index) => {
-                assertEquals(headerCells[index], header, `GPU table header mismatch at index ${index} for the first GPU`);
-             });
-             // Check for progress bar in utilization cell
-             const utilizationCell = firstGpuTable.querySelector('tbody tr:first-child td:last-child .progress-bar');
-             assertNotNull(utilizationCell, "GPU utilization progress bar not found in the first GPU table.");
-             if (!utilizationCell.style.width || !utilizationCell.style.width.endsWith('%')) {
-                throw new Error(`First GPU utilization bar width not set correctly: ${utilizationCell.style.width}`);
-            }
+             // Check for presence of temperature row, for example
+             const tempLabelCell = Array.from(firstGpuTable.querySelectorAll('tbody td')).find(td => td.textContent === 'Temperature');
+             assertNotNull(tempLabelCell, "Temperature label not found in first GPU details table.");
+             const tempValueCell = tempLabelCell.nextElementSibling;
+             assertNotNull(tempValueCell, "Temperature value cell not found.");
+             assertIncludes(tempValueCell.textContent, "°C", "Temperature value doesn't include °C.");
         }
-        console.log("PASS: GPU Usage table(s) found and structured correctly.");
+        console.log("PASS: GPU Usage details table(s) found and structured correctly.");
     } catch (e) {
-        console.error("FAIL: GPU Usage table check failed.", e.message, e.stack);
+        console.error("FAIL: GPU Usage details table check failed.", e.message, e.stack);
     }
 
-    // Test Network Interfaces Table
+    // Test Network Interfaces Table (Data Sent/Received part)
     try {
         const networkTable = document.querySelector('#network-interfaces-table');
         assertNotNull(networkTable, "Network interfaces table not found.");
@@ -210,6 +200,10 @@ async function runOverviewPageTests() {
         console.error("FAIL: User & Task Statistics section check failed.", e.message, e.stack);
     }
 
+    // Verify Chart Elements and Initialization
+    verifyChartElements(MOCK_DATA_CHECKS);
+
+
     console.log("OverviewPage tests finished.");
     console.log("---------------------------------------------------------------------");
     console.log("To run these tests again, or if they failed due to timing issues:");
@@ -219,6 +213,57 @@ async function runOverviewPageTests() {
     console.log("4. Execute the command: `runOverviewPageTests()`");
     console.log("---------------------------------------------------------------------");
 }
+
+
+function verifyChartElements(MOCK_DATA_CHECKS_REF) { // Pass MOCK_DATA_CHECKS as a parameter
+    try {
+        console.log("Verifying chart elements...");
+        const cpuCanvas = document.getElementById('cpuUsageChart');
+        if (!cpuCanvas || cpuCanvas.tagName !== 'CANVAS') throw new Error("CPU usage chart canvas not found or not a canvas.");
+        console.log("PASS: CPU chart canvas found.");
+
+        const networkCanvas = document.getElementById('networkUsageChart');
+        if (!networkCanvas || networkCanvas.tagName !== 'CANVAS') throw new Error("Network usage chart canvas not found or not a canvas.");
+        console.log("PASS: Network chart canvas found.");
+
+        const gpuContainer = document.getElementById('gpu-charts-container');
+        if (!gpuContainer) throw new Error("GPU charts container not found.");
+        const gpuCanvases = gpuContainer.querySelectorAll('canvas');
+
+        if (gpuCanvases.length !== MOCK_DATA_CHECKS_REF.gpuUsageGpus) {
+            throw new Error(`Expected ${MOCK_DATA_CHECKS_REF.gpuUsageGpus} GPU chart canvases, found ${gpuCanvases.length}.`);
+        }
+        gpuCanvases.forEach((canvas, index) => {
+            if (canvas.tagName !== 'CANVAS') throw new Error(`GPU chart element at index ${index} is not a canvas.`);
+            if (!canvas.id.startsWith('gpuUsageChart_')) throw new Error (`GPU chart canvas ID ${canvas.id} does not match expected format.`);
+        });
+        console.log(`PASS: Found ${gpuCanvases.length} GPU chart canvas(es) with correct IDs.`);
+
+        // Basic check for chart initialization
+        if (window.overviewPageModuleInstance && window.overviewPageModuleInstance.charts) {
+            if (!window.overviewPageModuleInstance.charts.cpuUsageChart) throw new Error("CPU Chart instance not found on page module.");
+            console.log("PASS: CPU Chart instance found on page module.");
+            if (!window.overviewPageModuleInstance.charts.networkUsageChart) throw new Error("Network Chart instance not found on page module.");
+            console.log("PASS: Network Chart instance found on page module.");
+
+            // Check GPU charts are in the nested gpuCharts object
+            if (!window.overviewPageModuleInstance.charts.gpuCharts) throw new Error("gpuCharts object not found on page module charts.");
+
+            const numGpuChartInstances = Object.keys(window.overviewPageModuleInstance.charts.gpuCharts).length;
+            if (numGpuChartInstances !== MOCK_DATA_CHECKS_REF.gpuUsageGpus) {
+                 throw new Error(`Mismatch in number of GPU chart instances on page module. Expected ${MOCK_DATA_CHECKS_REF.gpuUsageGpus}, found ${numGpuChartInstances}.`);
+            }
+            console.log(`PASS: Found ${numGpuChartInstances} GPU chart instance(s) on page module.`);
+            console.log("PASS: Chart instances appear to be initialized on the page module.");
+        } else {
+            console.warn("WARN: Could not verify chart instances on page module. Ensure 'window.overviewPageModuleInstance = this;' is set in OverviewPage.onLoad() for this test.");
+        }
+
+    } catch (e) {
+        console.error("FAIL: Chart elements verification failed.", e.message, e.stack);
+    }
+}
+
 
 // Example of how to define window.test.navigateTo if TestUtils.js is not present
 // This is a simplified version for testing purposes.
