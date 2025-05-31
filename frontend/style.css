@@ -145,7 +145,14 @@ body {
     font-size: 2em;
     color: var(--text-color-primary);
 }
-
+.overview-section-container {
+    display: flex;
+    width: 100%;
+    gap: 25px;
+}
+.overview-section-container .overview-section {
+    width: 100%;
+}
 .overview-section {
     background-color: var(--secondary-bg-color);
     padding: 20px;
@@ -154,7 +161,9 @@ body {
     box-shadow: 0 2px 8px var(--shadow-color);
     border: 1px solid var(--border-color);
 }
-
+.overview-section#task-section {
+    background-color: #121212;
+}
 .overview-section h3 {
     margin-top: 0;
     margin-bottom: 15px;
