@@ -202,13 +202,13 @@ class OverviewPage {
                     </div>
                 </div>
 
-                <div class="overview-section" id="download-history-section">
+                <!-- <div class="overview-section" id="download-history-section">
                     <h3>Download Task History</h3>
                     <table class="data-table" id="download-history-table">
                         <thead><tr><th>ID</th><th>File Name</th><th>Source</th><th>Status</th><th>Timestamp</th><th>Size</th><th>Progress</th></tr></thead>
-                        <tbody><!-- Data will be injected by updateUIWithData --></tbody>
+                        <tbody></tbody>
                     </table>
-                </div>
+                </div> -->
             </div>
         `;
   }

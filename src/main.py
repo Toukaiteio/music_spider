@@ -1454,6 +1454,7 @@ TASK_EXECUTION_FILE = "task_execution_stats.json"
 
 def save_task_execution():
     try:
+        TASK_EXCUTION["runningTasks"] = 0
         with open(TASK_EXECUTION_FILE, "w") as f:
             json.dump(TASK_EXCUTION, f, indent=4)
         print("TASK_EXCUTION data saved.")
