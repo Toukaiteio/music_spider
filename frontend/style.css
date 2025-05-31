@@ -134,9 +134,223 @@ body {
     color: var(--text-color-secondary);
 }
 
+/* Overview Page Specific Styles */
+#overview-page {
+    padding: 20px;
+}
+
+#overview-page h2 {
+    text-align: center;
+    margin-bottom: 30px;
+    font-size: 2em;
+    color: var(--text-color-primary);
+}
+.overview-section-container {
+    display: flex;
+    width: 100%;
+    gap: 25px;
+}
+.overview-section-container .overview-section {
+    width: 100%;
+}
+.overview-section {
+    background-color: var(--secondary-bg-color);
+    padding: 20px;
+    margin-bottom: 25px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px var(--shadow-color);
+    border: 1px solid var(--border-color);
+}
+.overview-section#task-section {
+    background-color: #121212;
+}
+.overview-section h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 1.5em;
+    color: var(--text-color-primary);
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 10px;
+}
+
+.overview-section p {
+    font-size: 1em;
+    color: var(--text-color-secondary);
+    margin-bottom: 10px;
+}
+.overview-section p span {
+    font-weight: 500;
+    color: var(--text-color-primary);
+}
+
+/* Data Table Styling */
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+
+.data-table th, .data-table td {
+    border: 1px solid var(--border-color);
+    padding: 12px 15px; /* Increased padding */
+    text-align: left;
+    font-size: 0.95em;
+}
+
+.data-table th {
+    background-color: var(--primary-bg-color); /* Use primary-bg for header */
+    color: var(--text-color-primary);
+    font-weight: 600; /* Bolder headers */
+}
+
+.data-table tbody tr:nth-child(even) {
+    background-color: var(--primary-bg-color); /* Subtle striping for rows */
+}
+.data-table tbody tr:hover {
+    background-color: var(--shadow-color); /* Hover effect for rows */
+}
+
+/* Progress Bar Styling */
+.progress-bar-container {
+    width: 100%;
+    background-color: var(--border-color); /* Lighter background for the container */
+    border-radius: 4px;
+    height: 22px; /* Slightly taller */
+    overflow: hidden; /* Ensures progress bar stays within container */
+    margin-top: 5px; /* Space above progress bar */
+    margin-bottom: 5px; /* Space below progress bar */
+}
+
+.progress-bar {
+    height: 100%;
+    background-color: var(--accent-color);
+    text-align: center;
+    line-height: 22px; /* Match container height */
+    color: white;
+    border-radius: 4px; /* Apply border-radius to the bar itself for smoother look */
+    font-size: 0.8em;
+    font-weight: 500;
+    transition: width 0.3s ease-in-out; /* Animate width changes */
+}
+
+/* Specific section adjustments */
+#cpu-usage-section .progress-bar-container {
+    margin-bottom: 10px; /* More space between core bars */
+}
+#cpu-core-bars-container .progress-bar-container:last-child {
+    margin-bottom: 0;
+}
+
+
+#gpu-usage-section .gpu-specific-table {
+    margin-bottom: 20px; /* Space between GPU tables */
+}
+#gpu-usage-section .gpu-specific-table:last-child {
+    margin-bottom: 0;
+}
+#gpu-usage-section .data-table caption {
+    font-size: 1.1em;
+    font-weight: 500;
+    padding: 8px;
+    text-align: left;
+    color: var(--text-color-primary);
+    background-color: var(--primary-bg-color);
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+    border: 1px solid var(--border-color);
+    border-bottom: none;
+}
+
+
+/* Responsive table considerations */
+@media screen and (max-width: 768px) {
+    .data-table thead {
+        display: none; /* Hide table headers on small screens, rely on cell data or alternative display */
+    }
+    .data-table, .data-table tbody, .data-table tr, .data-table td {
+        display: block;
+        width: 100%;
+    }
+    .data-table tr {
+        margin-bottom: 15px;
+        border: 1px solid var(--border-color); /* Add border around each "row block" */
+        border-radius: 4px;
+        overflow: hidden; /* To ensure border-radius is respected by children */
+    }
+    .data-table td {
+        text-align: right;
+        padding-left: 50%; /* Create space for a pseudo-label */
+        position: relative;
+        border-bottom: 1px solid var(--border-color); /* Separator between "cells" */
+    }
+    .data-table td:last-child {
+        border-bottom: none;
+    }
+    .data-table td::before {
+        content: attr(data-label); /* Use data-label for pseudo-header */
+        position: absolute;
+        left: 10px;
+        width: calc(50% - 20px); /* Adjust width of label area */
+        padding-right: 10px;
+        white-space: nowrap;
+        text-align: left;
+        font-weight: bold;
+        color: var(--text-color-primary);
+    }
+
+    /* Add data-label attributes in JS or ensure they are present in HTML for this to work */
+    /* Example for disk usage table if you were to add data-label in JS: */
+    /* document.querySelectorAll('#disk-usage-table td:nth-child(1)').forEach(td => td.setAttribute('data-label', 'Filesystem')); */
+    /* This is complex to do purely in CSS without modifying HTML structure or using JS heavily for labels */
+    /* A simpler responsive approach for tables is often horizontal scrolling: */
+    .overview-section .data-table-responsive-wrapper {
+        overflow-x: auto; /* Enable horizontal scroll on the wrapper */
+        margin-top: 15px;
+    }
+    .overview-section .data-table-responsive-wrapper .data-table {
+         /* Ensure table itself doesn't collapse its width if content is narrow */
+        /* min-width: 600px; /* Example: force a min-width to enable scrolling */
+    }
+    /* If using the wrapper method, the block-style display above should be removed or conditional. */
+    /* For now, let's stick to the simpler horizontal scroll. Remove the complex :before styles. */
+
+    /* Resetting the complex responsive table to simple scroll */
+    .data-table thead { display: table-header-group; } /* Show headers */
+    .data-table, .data-table tbody, .data-table tr, .data-table td {
+        display: table-cell; /* Revert to table display */
+        width: auto; /* Revert width */
+    }
+    .data-table tr { margin-bottom: 0; border: none; border-radius: 0; }
+    .data-table td { text-align: left; padding-left: 15px; position: static; border-bottom: 1px solid var(--border-color); }
+    .data-table td::before { display: none; } /* Remove pseudo-elements */
+
+    /* Apply wrapper for horizontal scrolling */
+    /* This would require modifying the HTML structure to add these wrappers, */
+    /* or using JS to wrap tables. For pure CSS, this is a limitation. */
+    /* As a fallback, the browser's default horizontal scroll on #main-content will handle it if table overflows. */
+}
+
+/* Chart Container Styling */
+.overview-section .chart-container {
+    position: relative; /* Needed for Chart.js responsiveness */
+    margin: auto;
+    /* height is set inline in OverviewPage.js getHTML for now, can be moved here */
+    /* width: 100%; /* Take full width of parent */
+    /* max-width: 700px; /* Optional: max width for very large screens */
+    background-color: var(--primary-bg-color); /* Match section header for consistency */
+    padding: 10px;
+    border-radius: 4px;
+    box-shadow: inset 0 1px 3px var(--shadow-color); /* Inner shadow for depth */
+    margin-bottom: 15px; /* Space below chart */
+}
+
+#gpu-charts-container .chart-container {
+    height: 180px !important; /* Override default for smaller GPU charts, adjust as needed */
+}
+
 /* Lyrics Tool Styles */
 .lyrics-tool-container {
-    margin-top: 20px;
+    /* margin-top: 20px; */ /* This was potentially removed or adjusted by other changes */
     padding: 15px;
     border: 1px solid var(--border-color);
     border-radius: 5px;

@@ -8,6 +8,7 @@ import SongDetailPage from '../pages/SongDetailPage.js';
 import SearchResultsPage from '../pages/SearchResultsPage.js';
 import UpdateTrackPage from '../pages/UpdateTrackPage.js';
 import UploadTrackPage from '../pages/UploadTrackPage.js';
+import OverviewPage from '../pages/OverviewPage.js';
 
 // Utility Imports (keep if still used directly by NM)
 import { getFileExtension } from "./Utils.js"; 
@@ -55,7 +56,8 @@ class NavigationManager {
         'song-detail': SongDetailPage,
         'search-results': SearchResultsPage,
         'update-track': UpdateTrackPage,
-        'upload-track': UploadTrackPage
+        'upload-track': UploadTrackPage,
+        'overview': OverviewPage // Add this line
     };
 
     // Bind methods
