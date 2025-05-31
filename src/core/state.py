@@ -1,3 +1,4 @@
+import uuid # For generating unique client IDs
 from threading import Lock
 import psutil
 import time
@@ -53,21 +54,50 @@ def get_all_task_execution():
     with _TASK_EXECUTION_LOCK:
         return TASK_EXECUTION.copy()
 
-# 已连接客户端管理
-CONNECTED_CLIENTS = set()
+# 已连接客户端管理 (WebSockets)
 _CONNECTED_CLIENTS_LOCK = Lock()
+CONNECTED_CLIENTS_MAP = {} # Stores client_id -> websocket object
 
-def add_client(client_id):
+def add_client(websocket) -> str:
+    """
+    Adds a client to the tracking list, generates a unique ID for it,
+    stores it on the websocket object, and returns the client_id.
+    """
     with _CONNECTED_CLIENTS_LOCK:
-        CONNECTED_CLIENTS.add(client_id)
+        client_id = str(uuid.uuid4())
+        websocket.client_id = client_id # Store client_id on the websocket object itself
+        CONNECTED_CLIENTS_MAP[client_id] = websocket
+        print(f"Client added with ID: {client_id}, total clients: {len(CONNECTED_CLIENTS_MAP)}")
+        return client_id
 
-def remove_client(client_id):
+def remove_client(websocket):
+    """
+    Removes a client from the tracking list using its stored client_id.
+    """
+    client_id = getattr(websocket, 'client_id', None)
+    if client_id:
+        with _CONNECTED_CLIENTS_LOCK:
+            if client_id in CONNECTED_CLIENTS_MAP:
+                del CONNECTED_CLIENTS_MAP[client_id]
+                print(f"Client removed with ID: {client_id}, total clients: {len(CONNECTED_CLIENTS_MAP)}")
+            else:
+                print(f"Attempted to remove non-existent client ID: {client_id}")
+    else:
+        print("Attempted to remove a client without a client_id attribute.")
+
+
+def get_websocket_by_client_id(client_id: str):
+    """Retrieves a websocket object by its client_id."""
     with _CONNECTED_CLIENTS_LOCK:
-        CONNECTED_CLIENTS.discard(client_id)
+        return CONNECTED_CLIENTS_MAP.get(client_id)
 
 def get_client_number():
-    return len(CONNECTED_CLIENTS)
-
-def get_connected_clients():
+    """Returns the number of connected clients."""
     with _CONNECTED_CLIENTS_LOCK:
-        return set(CONNECTED_CLIENTS)
+        return len(CONNECTED_CLIENTS_MAP)
+
+# Kept for compatibility or if other parts of the code use the set of IDs,
+# but CONNECTED_CLIENTS_MAP is primary for websocket object access.
+def get_connected_clients_ids():
+    with _CONNECTED_CLIENTS_LOCK:
+        return set(CONNECTED_CLIENTS_MAP.keys())
