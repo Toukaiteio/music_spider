@@ -10,10 +10,12 @@ from src.main import (
     handle_download_track,
     handle_get_downloaded_music,
     handle_search_downloaded_music,
+    handle_get_system_overview, # Added for testing
+    COMMAND_HANDLERS, # Added for testing registration
     # DOWNLOADER_MODULES, # We will patch this directly in src.main
-    # COMMAND_HANDLERS # Not directly tested, but handlers are
 )
 from src.utils.data_type import ResultBase, MusicItem, MusicItemData
+import time # For mocking time.time if needed for uptime/network
 
 class TestWebSocketHandlers(unittest.IsolatedAsyncioTestCase):
 
@@ -593,6 +595,245 @@ class TestHandleUploadTrack(unittest.IsolatedAsyncioTestCase):
                 self.mock_ws, "cmd_upload_3", code=1,
                 error="Failed to process uploaded track: Disk full"
             )
+
+# --- Tests for handle_get_system_overview ---
+class TestHandleGetSystemOverview(unittest.IsolatedAsyncioTestCase):
+
+    def test_handler_registered(self):
+        self.assertIn("get_system_overview", COMMAND_HANDLERS)
+        self.assertEqual(COMMAND_HANDLERS["get_system_overview"], handle_get_system_overview)
+
+    @patch('src.main.psutil')
+    @patch('src.main.platform')
+    @patch('src.main.subprocess.run') # Use subprocess.run as it's called in main.py
+    @patch('src.main.open', new_callable=unittest.mock.mock_open)
+    @patch('src.main.time') # To control time.time() for uptime and network speed
+    async def test_handle_get_system_overview_linux_nvidia(
+        self, mock_time, mock_fs_open, mock_subprocess_run, mock_platform, mock_psutil
+    ):
+        mock_ws = AsyncMock()
+
+        # --- Configure Mocks ---
+        # Time
+        current_mock_time = 1700000000.0 # A fixed point in time
+        mock_time.time.return_value = current_mock_time
+
+        # Platform
+        mock_platform.system.return_value = "Linux"
+        mock_platform.node.return_value = "test-linux-nvidia"
+
+        # psutil
+        mock_psutil.boot_time.return_value = current_mock_time - 3600 * 24 * 2 # 2 days uptime
+
+        mock_disk_partition1 = MagicMock()
+        mock_disk_partition1.device = "/dev/sda1"
+        mock_disk_partition1.mountpoint = "/"
+        mock_disk_partition1.fstype = "ext4"
+        mock_disk_usage1 = MagicMock()
+        mock_disk_usage1.total = 100 * (1024**3) # 100GB
+        mock_disk_usage1.used = 50 * (1024**3)  # 50GB
+        mock_disk_usage1.free = 50 * (1024**3)   # 50GB
+        mock_psutil.disk_partitions.return_value = [mock_disk_partition1]
+        mock_psutil.disk_usage.return_value = mock_disk_usage1
+
+        mock_psutil.cpu_percent.side_effect = [30.0, [25.0, 35.0]] # Overall, then per-core
+        mock_psutil.cpu_count.side_effect = [4, 2] # logical then physical
+
+        # Network (simulate two calls for speed calculation)
+        prev_net_io_mock = {
+            'eth0': MagicMock(bytes_sent=1000, bytes_recv=2000, packets_sent=10, packets_recv=20, errin=0, errout=0, dropin=0, dropout=0),
+        }
+        current_net_io_mock = {
+            'eth0': MagicMock(bytes_sent=1000 + 5*(1000**2)//8, bytes_recv=2000 + 10*(1000**2)//8, packets_sent=20, packets_recv=40, errin=0, errout=0, dropin=0, dropout=0), # 5MB sent, 10MB recv in 1 sec
+        }
+        # Patch the global variables directly for network speed calculation
+        with patch('src.main.previous_net_io', prev_net_io_mock), \
+             patch('src.main.time_of_previous_net_io', current_mock_time - 1.0): # 1 second ago
+            mock_psutil.net_io_counters.return_value = current_net_io_mock
+
+            # subprocess (for nvidia-smi)
+            mock_nvidia_smi_output = "TestNVSMI GPU, 55, 8192, 2048, 60, 75\n" # Name, Util, MemTotal, MemUsed, Temp, Power
+            mock_subprocess_run.return_value = MagicMock(stdout=mock_nvidia_smi_output, returncode=0, stderr="")
+
+            # Mock CONNECTED_CLIENTS
+            with patch('src.main.CONNECTED_CLIENTS', {mock_ws}):
+                await handle_get_system_overview(mock_ws, "cmd_overview_1", {})
+
+        # --- Assertions ---
+        mock_ws.send.assert_called_once()
+        response_str = mock_ws.send.call_args[0][0]
+        response_json = json.loads(response_str)
+
+        self.assertEqual(response_json["code"], 0)
+        self.assertEqual(response_json["data"]["original_cmd_id"], "cmd_overview_1")
+
+        data = response_json["data"]
+        self.assertIn("systemInfo", data)
+        self.assertEqual(data["systemInfo"]["os"], "Linux")
+        self.assertEqual(data["systemInfo"]["hostname"], "test-linux-nvidia")
+        self.assertIn("2d", data["systemInfo"]["uptime"]) # Check if uptime contains days part
+
+        self.assertIn("diskUsage", data)
+        self.assertEqual(len(data["diskUsage"]), 1)
+        self.assertEqual(data["diskUsage"][0]["filesystem"], "/dev/sda1")
+        self.assertEqual(data["diskUsage"][0]["total"], "100.0 GB")
+
+        self.assertIn("cpuUsage", data)
+        self.assertEqual(data["cpuUsage"]["currentLoad"], 30.0)
+        self.assertEqual(len(data["cpuUsage"]["cores"]), 2)
+        self.assertEqual(data["cpuUsage"]["cores"][0]["load"], 25.0)
+        self.assertEqual(data["cpuUsage"]["logicalCores"], 4)
+        self.assertEqual(data["cpuUsage"]["physicalCores"], 2)
+
+        self.assertIn("gpuUsage", data)
+        self.assertEqual(len(data["gpuUsage"]), 1)
+        gpu0 = data["gpuUsage"][0]
+        self.assertEqual(gpu0["name"], "TestNVSMI GPU")
+        self.assertEqual(gpu0["utilization"], 55.0)
+        self.assertEqual(gpu0["memoryTotal"], "8192 MiB")
+        self.assertEqual(gpu0["temperature"], 60.0)
+        self.assertEqual(gpu0["powerDraw"], 75.0)
+
+        self.assertIn("networkUsage", data)
+        # Expected speeds: 5MBps upload = 40Mbps, 10MBps download = 80Mbps
+        self.assertAlmostEqual(data["networkUsage"]["uploadSpeed"], 40.0, places=1)
+        self.assertAlmostEqual(data["networkUsage"]["downloadSpeed"], 80.0, places=1)
+        self.assertEqual(len(data["networkUsage"]["interfaces"]), 1)
+        self.assertEqual(data["networkUsage"]["interfaces"][0]["name"], "eth0")
+        self.assertIn("40.0 Mbps", data["networkUsage"]["interfaces"][0]["uploadSpeed"])
+
+        self.assertIn("userAndTaskStats", data)
+        self.assertEqual(data["userAndTaskStats"]["onlineUsers"], 1)
+        self.assertEqual(data["userAndTaskStats"]["totalTasksExecuted"], 0) # Placeholder
+
+        self.assertIn("downloadTaskHistory", data)
+        self.assertEqual(data["downloadTaskHistory"], []) # Placeholder
+
+        mock_subprocess_run.assert_called_once_with(
+            ["nvidia-smi", "--query-gpu=name,utilization.gpu,memory.total,memory.used,temperature.gpu,power.draw", "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, check=True, timeout=5
+        )
+
+    @patch('src.main.psutil')
+    @patch('src.main.platform')
+    @patch('src.main.subprocess.run')
+    @patch('src.main.open', new_callable=unittest.mock.mock_open)
+    @patch('src.main.time')
+    async def test_handle_get_system_overview_windows_wmic(
+        self, mock_time, mock_fs_open, mock_subprocess_run, mock_platform, mock_psutil
+    ):
+        mock_ws = AsyncMock()
+        current_mock_time = 1700001000.0
+        mock_time.time.return_value = current_mock_time
+
+        mock_platform.system.return_value = "Windows"
+        mock_platform.node.return_value = "test-windows-wmic"
+        mock_psutil.boot_time.return_value = current_mock_time - 3600 # 1 hour uptime
+
+        # Simplified psutil mocks for this test
+        mock_psutil.disk_partitions.return_value = []
+        mock_psutil.cpu_percent.side_effect = [10.0, [10.0]]
+        mock_psutil.cpu_count.side_effect = [2, 1]
+        with patch('src.main.previous_net_io', {}), patch('src.main.time_of_previous_net_io', current_mock_time -1.0):
+             mock_psutil.net_io_counters.return_value = {} # Empty network for simplicity
+
+        # Simulate nvidia-smi not found, then WMIC success
+        mock_subprocess_run.side_effect = [
+            FileNotFoundError("nvidia-smi not found"), # First call for nvidia-smi
+            MagicMock(stdout="AdapterRAM  DriverVersion  Name\n2147483648  N/A            Generic PnP Monitor\n", returncode=0, stderr="") # Second call for WMIC
+        ]
+
+        with patch('src.main.CONNECTED_CLIENTS', {mock_ws}):
+            await handle_get_system_overview(mock_ws, "cmd_overview_win_1", {})
+
+        data = json.loads(mock_ws.send.call_args[0][0])["data"]
+        self.assertIn("gpuUsage", data)
+        self.assertEqual(len(data["gpuUsage"]), 1)
+        gpu0 = data["gpuUsage"][0]
+        self.assertEqual(gpu0["name"], "Generic PnP Monitor") # Name from WMIC
+        self.assertEqual(gpu0["memoryTotal"], "2.0 GB") # AdapterRAM from WMIC
+        self.assertEqual(gpu0["utilization"], "N/A")
+
+        self.assertEqual(mock_subprocess_run.call_count, 2)
+        self.assertEqual(mock_subprocess_run.call_args_list[0][0][0][0], "nvidia-smi")
+        self.assertEqual(mock_subprocess_run.call_args_list[1][0][0][0], "wmic")
+
+    @patch('src.main.psutil')
+    @patch('src.main.platform')
+    @patch('src.main.subprocess.run')
+    @patch('src.main.os.listdir') # For AMD /sys/class/drm
+    @patch('src.main.open', new_callable=unittest.mock.mock_open)
+    @patch('src.main.time')
+    async def test_handle_get_system_overview_linux_amd(
+        self, mock_time, mock_fs_open, mock_os_listdir, mock_subprocess_run, mock_platform, mock_psutil
+    ):
+        mock_ws = AsyncMock()
+        current_mock_time = 1700002000.0
+        mock_time.time.return_value = current_mock_time
+
+        mock_platform.system.return_value = "Linux"
+        mock_platform.node.return_value = "test-linux-amd"
+        mock_psutil.boot_time.return_value = current_mock_time - 7200 # 2 hours
+
+        # Simplified psutil mocks
+        mock_psutil.disk_partitions.return_value = []
+        mock_psutil.cpu_percent.side_effect = [5.0, [5.0]]
+        mock_psutil.cpu_count.side_effect = [1, 1]
+        with patch('src.main.previous_net_io', {}), patch('src.main.time_of_previous_net_io', current_mock_time -1.0):
+            mock_psutil.net_io_counters.return_value = {}
+
+        # Simulate nvidia-smi not found
+        mock_subprocess_run.side_effect = FileNotFoundError("nvidia-smi not found")
+
+        # Mock AMD sysfs structure
+        # /sys/class/drm/card0/device/vendor
+        # /sys/class/drm/card0/device/gpu_busy_percent
+        # /sys/class/drm/card0/device/hwmon/hwmon0/temp1_input
+        # /sys/class/drm/card0/device/mem_info_vram_total
+        mock_os_listdir.side_effect = lambda path: {
+            "/sys/class/drm/": ["card0"],
+            "/sys/class/drm/card0/device/hwmon": ["hwmon0"]
+        }.get(path, [])
+
+        def mock_file_read(filepath, mode='r'):
+            if filepath == "/sys/class/drm/card0/device/vendor":
+                return unittest.mock.mock_open(read_data="0x1002").return_value # AMD Vendor ID
+            elif filepath == "/sys/class/drm/card0/device/gpu_busy_percent":
+                return unittest.mock.mock_open(read_data="65").return_value
+            elif filepath == "/sys/class/drm/card0/device/hwmon/hwmon0/temp1_input":
+                return unittest.mock.mock_open(read_data="58000").return_value # 58 C
+            elif filepath == "/sys/class/drm/card0/device/mem_info_vram_total": # old path
+                 return unittest.mock.mock_open(read_data=str(16 * 1024**3)).return_value # 16GB VRAM (bytes)
+            # Add more paths as your AMD logic expands (e.g., power, mem_used)
+            return unittest.mock.mock_open(read_data="N/A").return_value # Default for other files
+
+        mock_fs_open.side_effect = mock_file_read
+        # Also mock os.path.exists for these files
+        def mock_path_exists(path):
+            return path in [
+                "/sys/class/drm/card0/device/vendor",
+                "/sys/class/drm/card0/device/gpu_busy_percent",
+                "/sys/class/drm/card0/device/hwmon",
+                "/sys/class/drm/card0/device/hwmon/hwmon0/temp1_input",
+                "/sys/class/drm/card0/device/mem_info_vram_total" # Old path
+            ]
+
+        with patch('src.main.os.path.exists', side_effect=mock_path_exists):
+            with patch('src.main.CONNECTED_CLIENTS', {mock_ws}):
+                await handle_get_system_overview(mock_ws, "cmd_overview_amd_1", {})
+
+        data = json.loads(mock_ws.send.call_args[0][0])["data"]
+        self.assertIn("gpuUsage", data)
+        self.assertEqual(len(data["gpuUsage"]), 1)
+        gpu0 = data["gpuUsage"][0]
+        self.assertEqual(gpu0["name"], "AMD GPU")
+        self.assertEqual(gpu0["utilization"], 65.0)
+        self.assertEqual(gpu0["temperature"], 58.0)
+        self.assertEqual(gpu0["memoryTotal"], "16.0 GB")
+        self.assertEqual(gpu0["powerDraw"], "N/A") # Not mocked specifically yet
+
+        mock_subprocess_run.assert_called_once() # Only for nvidia-smi attempt
+
 
 if __name__ == '__main__':
     unittest.main()

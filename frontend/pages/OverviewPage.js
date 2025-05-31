@@ -1,110 +1,5 @@
 class OverviewPage {
   constructor() {
-    this.mockData = {
-      diskUsage: [
-        {
-          filesystem: "/dev/sda1",
-          total: "100GB",
-          used: "50GB",
-          free: "50GB",
-          mountPoint: "/",
-        },
-        {
-          filesystem: "/dev/sdb1",
-          total: "1TB",
-          used: "250GB",
-          free: "750GB",
-          mountPoint: "/data",
-        },
-      ],
-      cpuUsage: {
-        currentLoad: "45%", // Example overall load
-        cores: [
-          // Optional: individual core loads
-          { core: 1, load: "60%" },
-          { core: 2, load: "30%" },
-        ],
-      },
-      gpuUsage: [
-        {
-          id: "GPU 0",
-          name: "NVIDIA GeForce RTX 3080",
-          utilization: "75%",
-          memoryTotal: "10GB",
-          memoryUsed: "4GB",
-          temperature: "65°C",
-          powerDraw: "200W",
-        },
-        {
-          id: "GPU 1",
-          name: "AMD Radeon RX 6800",
-          utilization: "50%",
-          memoryTotal: "16GB",
-          memoryUsed: "6GB",
-          temperature: "55°C",
-          powerDraw: "180W",
-        },
-      ],
-      networkUsage: {
-        uploadSpeed: "15 Mbps",
-        downloadSpeed: "100 Mbps",
-        interfaces: [
-          {
-            name: "eth0",
-            upload: "10 Mbps",
-            download: "80 Mbps",
-            dataSent: "5GB",
-            dataReceived: "50GB",
-          },
-          {
-            name: "wlan0",
-            upload: "5 Mbps",
-            download: "20 Mbps",
-            dataSent: "1GB",
-            dataReceived: "10GB",
-          },
-        ],
-      },
-      userAndTaskStats: {
-        onlineUsers: 5, // This will be the initial display value, history will populate chart
-        onlineUsersHistory: [], // Added for chart data
-        onlineUsersTimeLabels: [], // Added for chart labels
-        totalTasksExecuted: 1500,
-        successfulTasks: 1450,
-        failedTasks: 40,
-        runningTasks: 10,
-      },
-      downloadTaskHistory: [
-        {
-          id: "task123",
-          fileName: "ubuntu.iso",
-          source: "HTTP",
-          status: "Completed",
-          timestamp: "2023-10-26 10:00",
-          size: "4.5GB",
-          progress: "100%",
-        },
-        {
-          id: "task124",
-          fileName: "large_dataset.zip",
-          source: "FTP",
-          status: "Downloading",
-          timestamp: "2023-10-26 10:05",
-          size: "10GB",
-          progress: "65%",
-        },
-        {
-          id: "task125",
-          fileName: "project_files.tar.gz",
-          source: "SFTP",
-          status: "Failed",
-          timestamp: "2023-10-26 09:30",
-          size: "1.2GB",
-          progress: "0%",
-        },
-      ],
-    };
-    this.dynamicMockData = null; // Will be a deep copy of mockData
     this.updateIntervals = []; // To store interval IDs
     this.mainContentElement = null; // To store mainContentElement for updates
     this.charts = { gpuCharts: {} }; // Initialize gpuCharts as an object
@@ -165,141 +60,6 @@ class OverviewPage {
   }
 
   // Deep copies an object
-  _deepCopy(obj) {
-    return JSON.parse(JSON.stringify(obj));
-  }
-
-  startDynamicDataUpdates() {
-    this.dynamicMockData = this._deepCopy(this.mockData);
-
-    const generalUpdateInterval = setInterval(() => {
-      // CPU Usage
-      let newCpuLoad = Math.floor(Math.random() * 80) + 10; // 10-89%
-      this.dynamicMockData.cpuUsage.currentLoad = newCpuLoad + "%";
-      this.dynamicMockData.cpuUsage.cores.forEach((core) => {
-        // Ensure load is a string with '%'
-        core.load =
-          Math.max(
-            5,
-            Math.min(95, Math.floor(Math.random() * 50 + newCpuLoad * 0.25))
-          ) + "%";
-      });
-
-      // GPU Usage
-      this.dynamicMockData.gpuUsage.forEach((gpu) => {
-        gpu.utilization = Math.floor(Math.random() * 70) + 10 + "%"; // 10-79%
-        let currentTemp = parseInt(gpu.temperature); // Use parseInt without radix for simplicity here
-        gpu.temperature =
-          Math.floor(Math.random() * 10) - 5 + currentTemp + "°C"; // Fluctuate by +/- 5°C
-        gpu.temperature =
-          Math.max(30, Math.min(95, parseInt(gpu.temperature))) + "°C"; // Keep in reasonable bounds
-      });
-
-      // Network Usage
-      this.dynamicMockData.networkUsage.uploadSpeed =
-        (Math.random() * 20 + 1).toFixed(1) + " Mbps"; // 1.0 - 20.9 Mbps
-      this.dynamicMockData.networkUsage.downloadSpeed =
-        (Math.random() * 150 + 5).toFixed(1) + " Mbps"; // 5.0 - 154.9 Mbps
-      // Interface data is static in this example, no need to update table rows dynamically unless new interfaces appear
-
-      // User & Task Statistics
-      this.dynamicMockData.userAndTaskStats.totalTasksExecuted +=
-        Math.floor(Math.random() * 5) + 1;
-      if (Math.random() < 0.8) {
-        // 80% chance of success
-        this.dynamicMockData.userAndTaskStats.successfulTasks++;
-      } else {
-        this.dynamicMockData.userAndTaskStats.failedTasks++;
-      }
-      // Simulate running tasks fluctuation
-      this.dynamicMockData.userAndTaskStats.runningTasks = Math.max(
-        0,
-        this.dynamicMockData.userAndTaskStats.runningTasks +
-          (Math.floor(Math.random() * 3) - 1)
-      ); // +-1 or 0
-
-      // Online Users History Update
-      let currentOnlineUsers =
-        this.dynamicMockData.userAndTaskStats.onlineUsersHistory.length > 0
-          ? this.dynamicMockData.userAndTaskStats.onlineUsersHistory[
-              this.dynamicMockData.userAndTaskStats.onlineUsersHistory.length -
-                1
-            ]
-          : 50;
-      currentOnlineUsers += Math.floor(Math.random() * 11) - 5; // Fluctuate by -5 to +5
-      currentOnlineUsers = Math.max(5, Math.min(currentOnlineUsers, 150)); // Keep within a reasonable range (e.g., 5-150)
-
-      this.dynamicMockData.userAndTaskStats.onlineUsersHistory.push(
-        currentOnlineUsers
-      );
-      this.dynamicMockData.userAndTaskStats.onlineUsersTimeLabels.push(
-        new Date().toLocaleTimeString().split(" ")[0]
-      ); // hh:mm:ss
-
-      if (
-        this.dynamicMockData.userAndTaskStats.onlineUsersHistory.length >
-        this.maxChartDataPoints
-      ) {
-        this.dynamicMockData.userAndTaskStats.onlineUsersHistory.shift();
-        this.dynamicMockData.userAndTaskStats.onlineUsersTimeLabels.shift();
-      }
-      this.dynamicMockData.userAndTaskStats.onlineUsers = currentOnlineUsers; // Update the single display value too
-
-      // Update UI elements
-      // this.updateCpuDisplay(); // Original direct DOM update for CPU load, now handled by chart logic
-      this.updateCpuChart();
-      this.updateGpuCharts();
-      this.updateNetworkChart();
-      this.updateOnlineUsersChart();
-      this.updateTaskExecutionChart(); // Added call to update new chart
-      this.updateStatsDisplay();
-    }, 2500); // Update every 2.5 seconds
-
-    this.updateIntervals.push(generalUpdateInterval);
-
-    const downloadTaskInterval = setInterval(() => {
-      const downloadingTasks = this.dynamicMockData.downloadTaskHistory.filter(
-        (task) => task.status === "Downloading"
-      );
-      if (downloadingTasks.length > 0) {
-        const taskToUpdate =
-          downloadingTasks[Math.floor(Math.random() * downloadingTasks.length)];
-        let currentProgress = parseInt(taskToUpdate.progress);
-        currentProgress += Math.floor(Math.random() * 10) + 5; // Increment progress
-        if (currentProgress >= 100) {
-          taskToUpdate.progress = "100%";
-          taskToUpdate.status = "Completed";
-        } else {
-          taskToUpdate.progress = currentProgress + "%";
-        }
-      } else if (Math.random() < 0.1) {
-        // 10% chance to add a new dummy task if no tasks are downloading
-        const newTaskId =
-          "task" +
-          (this.dynamicMockData.downloadTaskHistory.length +
-            100 +
-            Math.floor(Math.random() * 1000));
-        const newDummyTask = {
-          id: newTaskId,
-          fileName: `new_file_${Math.floor(Math.random() * 100)}.zip`,
-          source: "HTTP",
-          status: "Downloading",
-          timestamp: new Date().toLocaleTimeString(), // Simple timestamp
-          size: (Math.random() * 20 + 1).toFixed(1) + "GB",
-          progress: Math.floor(Math.random() * 20) + "%",
-        };
-        this.dynamicMockData.downloadTaskHistory.unshift(newDummyTask); // Add to top
-        if (this.dynamicMockData.downloadTaskHistory.length > 10) {
-          // Keep history size manageable
-          this.dynamicMockData.downloadTaskHistory.pop();
-        }
-      }
-      this.updateDownloadHistoryDisplay();
-    }, 3000); // Update download tasks every 3 seconds
-
-    this.updateIntervals.push(downloadTaskInterval);
-  }
-
   onUnload() {
     this.updateIntervals.forEach((intervalId) => clearInterval(intervalId));
     this.updateIntervals = [];
@@ -328,6 +88,12 @@ class OverviewPage {
 
     this.charts = { gpuCharts: {} }; // Reset charts object
 
+    // Clear the data update interval
+    if (this.dataUpdateInterval) {
+      clearInterval(this.dataUpdateInterval);
+      this.dataUpdateInterval = null;
+    }
+
     if (window.overviewPageModuleInstance === this) {
       delete window.overviewPageModuleInstance;
     }
@@ -336,7 +102,7 @@ class OverviewPage {
     );
   }
 
-  // Chart update methods
+  // Chart update methods - These will be refactored or used by updateUIWithData
   _updateLineChart(chart, newDataLabel, newDataValue) {
     if (!chart) return;
     chart.data.labels.push(newDataLabel);
@@ -366,197 +132,71 @@ class OverviewPage {
     chart.update("none");
   }
 
-  updateCpuChart() {
-    const now = new Date().toLocaleTimeString().split(" ")[0]; // hh:mm:ss
-    const load = parseFloat(this.dynamicMockData.cpuUsage.currentLoad);
-    this._updateLineChart(this.charts.cpuUsageChart, now, load);
-
-    // Update per-core progress bars (if still desired alongside chart)
-    const cpuCoreBarsContainer = this.mainContentElement.querySelector(
-      "#cpu-core-bars-container"
-    );
-    if (cpuCoreBarsContainer) {
-      this.dynamicMockData.cpuUsage.cores.forEach((core, index) => {
-        const allCoreBars =
-          cpuCoreBarsContainer.querySelectorAll(".progress-bar");
-        if (allCoreBars[index]) {
-          allCoreBars[index].style.width = core.load;
-          allCoreBars[index].textContent = `Core ${core.core}: ${core.load}`;
-          if (allCoreBars[index].parentElement) {
-            allCoreBars[
-              index
-            ].parentElement.title = `Core ${core.core}: ${core.load}`;
-          }
-        }
-      });
-    }
-  }
-
-  updateGpuCharts() {
-    const now = new Date().toLocaleTimeString().split(" ")[0];
-    this.dynamicMockData.gpuUsage.forEach((gpuData, index) => {
-      const chart = this.charts.gpuCharts[`gpuUsageChart_${index}`]; // Access through gpuCharts
-      const utilization = parseFloat(gpuData.utilization);
-      this._updateLineChart(chart, now, utilization);
-
-      // Update temperature in the table if it's still there
-      const gpuTable = this.mainContentElement.querySelectorAll(
-        ".data-table.gpu-specific-table"
-      )[index];
-      if (gpuTable) {
-        const tempCell = gpuTable.querySelector(
-          "tbody tr:nth-child(4) td:last-child"
-        );
-        if (tempCell) tempCell.textContent = gpuData.temperature;
-      }
-    });
-  }
-
-  updateNetworkChart() {
-    const now = new Date().toLocaleTimeString().split(" ")[0];
-    const uploadSpeed = parseFloat(
-      this.dynamicMockData.networkUsage.uploadSpeed
-    );
-    const downloadSpeed = parseFloat(
-      this.dynamicMockData.networkUsage.downloadSpeed
-    );
-    this._updateMultiLineChart(this.charts.networkUsageChart, now, [
-      uploadSpeed,
-      downloadSpeed,
-    ]);
-
-    // Update interface table if needed (e.g., dataSent/Received)
-    const networkInterfacesTableBody = this.mainContentElement.querySelector(
-      "#network-interfaces-table tbody"
-    );
-    if (networkInterfacesTableBody) {
-      this.dynamicMockData.networkUsage.interfaces.forEach(
-        (ifaceData, index) => {
-          const row = networkInterfacesTableBody.rows[index];
-          if (row) {
-            // row.cells[1].textContent = ifaceData.upload; // These are now in the chart
-            // row.cells[2].textContent = ifaceData.download;
-            row.cells[3].textContent = ifaceData.dataSent;
-            row.cells[4].textContent = ifaceData.dataReceived;
-          }
-        }
-      );
-    }
-  }
-
-  updateStatsDisplay() {
-    // This one remains as direct DOM update
-    if (!this.mainContentElement) return;
-    const stats = this.dynamicMockData.userAndTaskStats;
-    // const onlineUsersEl = this.mainContentElement.querySelector('#online-users-count'); // Removed as it's now a chart
-    // if (onlineUsersEl) onlineUsersEl.textContent = stats.onlineUsers; // Removed
-    const totalTasksEl = this.mainContentElement.querySelector(
-      "#total-tasks-executed"
-    );
-    if (totalTasksEl) totalTasksEl.textContent = stats.totalTasksExecuted;
-    const successfulTasksEl = this.mainContentElement.querySelector(
-      "#successful-tasks-count"
-    );
-    if (successfulTasksEl)
-      successfulTasksEl.textContent = stats.successfulTasks;
-    const failedTasksEl = this.mainContentElement.querySelector(
-      "#failed-tasks-count"
-    );
-    if (failedTasksEl) failedTasksEl.textContent = stats.failedTasks;
-    const runningTasksEl = this.mainContentElement.querySelector(
-      "#running-tasks-count"
-    );
-    if (runningTasksEl) runningTasksEl.textContent = stats.runningTasks;
-  }
-
-  updateDownloadHistoryDisplay() {
-    if (!this.mainContentElement) return;
-    const downloadHistoryTableBody = this.mainContentElement.querySelector(
-      "#download-history-table tbody"
-    );
-    if (!downloadHistoryTableBody) return;
-
-    // For simplicity, re-rendering the whole table body for now.
-    // A more optimized version would update specific rows/cells.
-    downloadHistoryTableBody.innerHTML = ""; // Clear existing rows
-    this.dynamicMockData.downloadTaskHistory.forEach((task) => {
-      const row = downloadHistoryTableBody.insertRow();
-      row.insertCell().textContent = task.id;
-      row.insertCell().textContent = task.fileName;
-      row.insertCell().textContent = task.source;
-      row.insertCell().textContent = task.status;
-      row.insertCell().textContent = task.timestamp;
-      row.insertCell().textContent = task.size;
-
-      const progressCell = row.insertCell();
-      const progressContainer = document.createElement("div");
-      progressContainer.className = "progress-bar-container";
-      const progressBar = document.createElement("div");
-      progressBar.className = "progress-bar";
-      progressBar.style.width = task.progress;
-      progressBar.textContent = task.progress;
-      // Add color based on status
-      if (task.status === "Completed")
-        progressBar.style.backgroundColor = "var(--success-color, #28a745)";
-      else if (task.status === "Failed")
-        progressBar.style.backgroundColor = "var(--error-color, #dc3545)";
-      else progressBar.style.backgroundColor = "var(--accent-color)";
-
-      progressContainer.appendChild(progressBar);
-      progressCell.appendChild(progressContainer);
-    });
-  }
+  // updateCpuChart, updateGpuCharts, updateNetworkChart, updateStatsDisplay, updateDownloadHistoryDisplay
+  // will be replaced by updateUIWithData or their logic incorporated into it.
 
   getHTML() {
     return `
             <div id="overview-page">
                 <h2>System Overview</h2>
+
+                <div class="overview-section" id="system-info-section">
+                    <h3>System Information</h3>
+                    <p><strong>OS:</strong> <span id="sysinfo-os">N/A</span></p>
+                    <p><strong>Hostname:</strong> <span id="sysinfo-hostname">N/A</span></p>
+                    <p><strong>Uptime:</strong> <span id="sysinfo-uptime">N/A</span></p>
+                </div>
+
                 <div class="overview-section-container">
                     <div class="overview-section" id="disk-usage-section">
                         <h3>Disk Usage</h3>
                         <table class="data-table" id="disk-usage-table">
                             <thead><tr><th>Filesystem</th><th>Total</th><th>Used</th><th>Free</th><th>Mount Point</th></tr></thead>
-                            <tbody><!-- Data will be injected here --></tbody>
+                            <tbody><!-- Data will be injected by updateUIWithData --></tbody>
                         </table>
                     </div>
                     <div class="overview-section" id="task-section">
                         <div class="chart-container" style="height: 300px; max-width: 300px; margin: 15px auto;">
                             <canvas id="taskExecutionChart"></canvas>
                         </div>
+                         <p style="text-align: center; margin-top: 5px;">Total Tasks Executed: <span id="total-tasks-executed">N/A</span></p>
                     </div>
                 </div>
                 <div class="overview-section" id="cpu-usage-section">
                     <h3>CPU Usage</h3>
-                    <!-- <p>Current Load: <span id="cpu-current-load">N/A</span></p> -->
                     <div class="chart-container" style="height:250px; width:100%; margin-bottom: 10px;">
                         <canvas id="cpuUsageChart"></canvas>
                     </div>
-                    <div id="cpu-core-bars-container"></div> <!-- For core-specific progress bars, kept for now -->
+                    <div id="cpu-core-bars-container">
+                        <!-- Per-core bars will be populated by updateUIWithData -->
+                    </div>
+                    <p><strong>Logical Cores:</strong> <span id="cpu-logical-cores">N/A</span></p>
+                    <p><strong>Physical Cores:</strong> <span id="cpu-physical-cores">N/A</span></p>
                 </div>
 
                 <div class="overview-section" id="gpu-usage-section">
                     <h3>GPU Usage</h3>
                     <div id="gpu-charts-container">
-                        <!-- GPU Canvases will be added here by JS if simple, or use static IDs -->
+                        <!-- GPU Canvases will be added here by JS or updateUIWithData -->
                     </div>
-                    <div id="gpu-usage-tables-container" style="margin-top:15px;"></div> <!-- Tables for other GPU stats like temp, memory -->
+                    <div id="gpu-usage-tables-container" style="margin-top:15px;">
+                        <!-- GPU tables will be populated by updateUIWithData -->
+                    </div>
                 </div>
 
                 <div class="overview-section" id="network-usage-section">
                     <h3>Network Usage</h3>
-                    <!-- <p>Upload: <span id="network-upload-speed">N/A</span> | Download: <span id="network-download-speed">N/A</span></p> -->
                     <div class="chart-container" style="height:250px; width:100%; margin-bottom: 10px;">
                         <canvas id="networkUsageChart"></canvas>
                     </div>
                     <table class="data-table" id="network-interfaces-table">
-                        <thead><tr><th>Interface</th><th>Total Upload</th><th>Total Download</th><th>Data Sent</th><th>Data Received</th></tr></thead>
-                        <tbody><!-- Data will be injected here --></tbody>
+                        <thead><tr><th>Interface</th><th>Upload Speed</th><th>Download Speed</th><th>Data Sent</th><th>Data Received</th></tr></thead>
+                        <tbody><!-- Data will be injected by updateUIWithData --></tbody>
                     </table>
                 </div>
 
                 <div class="overview-section" id="stats-section">
-                    <h3>User & Task Statistics</h3>
-
+                    <h3>User Statistics</h3>
                     <div class="chart-container" style="height: 250px; margin-bottom: 15px;">
                         <canvas id="onlineUsersChart"></canvas>
                     </div>
@@ -566,7 +206,7 @@ class OverviewPage {
                     <h3>Download Task History</h3>
                     <table class="data-table" id="download-history-table">
                         <thead><tr><th>ID</th><th>File Name</th><th>Source</th><th>Status</th><th>Timestamp</th><th>Size</th><th>Progress</th></tr></thead>
-                        <tbody><!-- Data will be injected here --></tbody>
+                        <tbody><!-- Data will be injected by updateUIWithData --></tbody>
                     </table>
                 </div>
             </div>
@@ -574,163 +214,47 @@ class OverviewPage {
   }
 
   onLoad(mainContentElement, subPageId, appState, managers) {
-    this.mainContentElement = mainContentElement; // Store for updates
-    this.dynamicMockData = this._deepCopy(this.mockData); // Initial data load from dynamic copy
+    this.mainContentElement = mainContentElement;
     window.overviewPageModuleInstance = this; // Expose instance for testing
-
-    // Pre-fill online users history for initial chart display
-    if (this.dynamicMockData.userAndTaskStats.onlineUsersHistory.length === 0) {
-      const baseTime = Date.now() - this.maxChartDataPoints * 2500; // Simulate past data points
-      for (let i = 0; i < this.maxChartDataPoints; i++) {
-        let randomUsers = Math.floor(Math.random() * 100) + 20; // Initial random data (20-119)
-        if (i > 0) {
-          // Make it somewhat continuous
-          const prevUsers =
-            this.dynamicMockData.userAndTaskStats.onlineUsersHistory[i - 1];
-          randomUsers = Math.max(
-            5,
-            Math.min(prevUsers + (Math.floor(Math.random() * 21) - 10), 150)
-          );
-        }
-        this.dynamicMockData.userAndTaskStats.onlineUsersHistory.push(
-          randomUsers
-        );
-        this.dynamicMockData.userAndTaskStats.onlineUsersTimeLabels.push(
-          new Date(baseTime + i * 2500).toLocaleTimeString().split(" ")[0]
-        );
-      }
-      // Set the current displayed onlineUsers to the last pre-filled value
-      if (this.dynamicMockData.userAndTaskStats.onlineUsersHistory.length > 0) {
-        this.dynamicMockData.userAndTaskStats.onlineUsers =
-          this.dynamicMockData.userAndTaskStats.onlineUsersHistory[
-            this.dynamicMockData.userAndTaskStats.onlineUsersHistory.length - 1
-          ];
-      }
-    }
-
-    // Populate Disk Usage (Disk usage is static in this example, so use dynamicMockData or mockData)
-    const diskUsageTableBody = mainContentElement.querySelector(
-      "#disk-usage-table tbody"
-    );
-    this.dynamicMockData.diskUsage.forEach((disk) => {
-      const row = diskUsageTableBody.insertRow();
-      row.insertCell().textContent = disk.filesystem;
-      row.insertCell().textContent = disk.total;
-      row.insertCell().textContent = disk.used;
-      row.insertCell().textContent = disk.free;
-      row.insertCell().textContent = disk.mountPoint;
-    });
-
-    // Chart Initializations
+    console.log(managers);
+    this.websocketManager = managers.webSocketManager;
+    // Initialize charts with empty data
     this._initCpuChart(mainContentElement);
-    this._initGpuCharts(mainContentElement);
+    this._initGpuCharts(mainContentElement, []); // Pass empty array for initial GPU data
     this._initNetworkChart(mainContentElement);
     this._initOnlineUsersChart(mainContentElement);
-    this._initTaskExecutionChart(mainContentElement); // Initialize the new chart
+    this._initTaskExecutionChart(mainContentElement);
 
-    // Populate static or less frequently updated parts of CPU (core bars)
-    const cpuCoreBarsContainer = mainContentElement.querySelector(
-      "#cpu-core-bars-container"
+    // Initial data fetch
+    this.fetchSystemOverviewData();
+
+    // Setup periodic updates
+    const updateIntervalSeconds = 5; // e.g., every 5 seconds
+    this.dataUpdateInterval = setInterval(
+      () => this.fetchSystemOverviewData(),
+      updateIntervalSeconds * 1000
     );
-    cpuCoreBarsContainer.innerHTML = "";
-    if (this.dynamicMockData.cpuUsage.cores) {
-      this.dynamicMockData.cpuUsage.cores.forEach((core) => {
-        const coreBarContainer = document.createElement("div");
-        coreBarContainer.className = "progress-bar-container";
-        coreBarContainer.title = `Core ${core.core}: ${core.load}`;
-        const coreBar = document.createElement("div");
-        coreBar.className = "progress-bar";
-        coreBar.style.width = core.load;
-        coreBar.textContent = `Core ${core.core}: ${core.load}`;
-        coreBarContainer.appendChild(coreBar);
-        cpuCoreBarsContainer.appendChild(coreBarContainer);
-      });
-    }
-
-    // Populate GPU tables (non-chart data like memory, temp, power)
-    const gpuUsageTablesContainer = mainContentElement.querySelector(
-      "#gpu-usage-tables-container"
-    );
-    gpuUsageTablesContainer.innerHTML = "";
-    this.dynamicMockData.gpuUsage.forEach((gpu, index) => {
-      // Add canvas for chart if not already in HTML structure defined by getHTML
-      const gpuChartsContainer = mainContentElement.querySelector(
-        "#gpu-charts-container"
-      );
-      if (gpuChartsContainer.querySelector(`#gpuUsageChart_${index}`) == null) {
-        const canvas = document.createElement("canvas");
-        canvas.id = `gpuUsageChart_${index}`;
-        canvas.height = 100; // Smaller height for individual GPU charts
-        const chartContainer = document.createElement("div");
-        chartContainer.className = "chart-container";
-        chartContainer.style.marginBottom = "10px";
-        chartContainer.appendChild(canvas);
-        gpuChartsContainer.appendChild(chartContainer);
-      }
-
-      // Create table for additional GPU info
-      const gpuTable = document.createElement("table");
-      gpuTable.className = "data-table gpu-specific-table";
-      gpuTable.innerHTML = `
-                <caption>${gpu.name} (${gpu.id}) - Details</caption>
-                <thead>
-                    <tr><th>Metric</th><th>Value</th></tr>
-                </thead>
-                <tbody>
-                    <tr><td>Memory Total</td><td>${gpu.memoryTotal}</td></tr>
-                    <tr><td>Memory Used</td><td>${gpu.memoryUsed}</td></tr>
-                    <tr><td class="gpu-temperature-label">Temperature</td><td>${gpu.temperature}</td></tr>
-                    <tr><td>Power Draw</td><td>${gpu.powerDraw}</td></tr>
-                </tbody>
-            `;
-      // Note: GPU utilization is now in the chart, so no progress bar here.
-      gpuUsageTablesContainer.appendChild(gpuTable);
-    });
-
-    // Populate Network Interfaces Table (Data Sent/Received - speeds are in chart)
-    const networkInterfacesTableBody = mainContentElement.querySelector(
-      "#network-interfaces-table tbody"
-    );
-    networkInterfacesTableBody.innerHTML = "";
-    this.dynamicMockData.networkUsage.interfaces.forEach((iface) => {
-      const row = networkInterfacesTableBody.insertRow();
-      row.insertCell().textContent = iface.name;
-      row.insertCell().textContent = "N/A"; // Upload speed from chart
-      row.insertCell().textContent = "N/A"; // Download speed from chart
-      row.insertCell().textContent = iface.dataSent;
-      row.insertCell().textContent = iface.dataReceived;
-    });
-
-    // Populate User & Task Statistics (remains direct DOM update)
-    // The single onlineUsers value is now updated dynamically from history, so this will reflect the latest pre-filled or generated value.
-    // mainContentElement.querySelector('#online-users-count').textContent = this.dynamicMockData.userAndTaskStats.onlineUsers;
-    // mainContentElement.querySelector("#total-tasks-executed").textContent =
-    //   this.dynamicMockData.userAndTaskStats.totalTasksExecuted;
-    // The following are now represented in the donut chart
-    // mainContentElement.querySelector('#successful-tasks-count').textContent = this.dynamicMockData.userAndTaskStats.successfulTasks;
-    // mainContentElement.querySelector('#failed-tasks-count').textContent = this.dynamicMockData.userAndTaskStats.failedTasks;
-    // mainContentElement.querySelector('#running-tasks-count').textContent = this.dynamicMockData.userAndTaskStats.runningTasks;
-
-    // Populate Download Task History - initial population
-    this.updateDownloadHistoryDisplay(); // Initial population of download history table
-
-    // Start dynamic updates which will also populate charts with initial data points
-    this.startDynamicDataUpdates();
+    this.updateIntervals.push(this.dataUpdateInterval);
   }
 
   // Chart Initialization Methods
   _initCpuChart(mainContentElement) {
-    const cpuCtx = mainContentElement
-      .querySelector("#cpuUsageChart")
+    const canvasElement = mainContentElement
+      .querySelector("#cpuUsageChart");
+    if (canvasElement.chartInstance) {
+      canvasElement.chartInstance.destroy(); // 销毁旧实例
+    }
+    const cpuCtx = canvasElement
       .getContext("2d");
+    if(this.charts.cpuUsageChart) this.charts.cpuUsageChart.destroy();
     this.charts.cpuUsageChart = new Chart(cpuCtx, {
       type: "line",
       data: {
-        labels: [], // Time labels
+        labels: [], // Time labels - will be populated by updates
         datasets: [
           {
             label: "CPU Load %",
-            data: [], // CPU load data
+            data: [], // CPU load data - will be populated by updates
             borderColor: this.chartThemeColors.cpuLineColor,
             backgroundColor: this.chartThemeColors.cpuFillColor,
             tension: 0.2,
@@ -765,34 +289,41 @@ class OverviewPage {
     });
   }
 
-  _initGpuCharts(mainContentElement) {
+  _initGpuCharts(mainContentElement, gpuDataArray) {
+    // gpuDataArray for initial setup if needed, otherwise pass []
     const gpuChartsContainer = mainContentElement.querySelector(
       "#gpu-charts-container"
     );
-    this.dynamicMockData.gpuUsage.forEach((gpu, index) => {
-      let canvas = mainContentElement.querySelector(`#gpuUsageChart_${index}`);
+    gpuChartsContainer.innerHTML = ""; // Clear previous charts if any during re-init or dynamic add/remove
+    this.charts.gpuCharts = {}; // Reset
+
+    gpuDataArray.forEach((gpu, index) => {
+      const canvasId = `gpuUsageChart_${index}`;
+      let canvas = mainContentElement.querySelector(`#${canvasId}`);
       if (!canvas) {
-        canvas = document.createElement("canvas");
-        canvas.id = `gpuUsageChart_${index}`;
         const chartContainerDiv = document.createElement("div");
         chartContainerDiv.className = "chart-container";
-        // Height is now controlled by CSS: #gpu-charts-container .chart-container
-        // chartContainerDiv.style.height='150px';
         chartContainerDiv.style.width = "100%";
         chartContainerDiv.style.marginBottom = "10px";
+        // Set a fixed height for individual GPU chart containers for consistency.
+        // This can also be done via CSS for `.gpu-charts-container .chart-container`
+        chartContainerDiv.style.height = "180px";
+
+        canvas = document.createElement("canvas");
+        canvas.id = canvasId;
         chartContainerDiv.appendChild(canvas);
         gpuChartsContainer.appendChild(chartContainerDiv);
       }
+
       const gpuCtx = canvas.getContext("2d");
-      this.charts.gpuCharts[`gpuUsageChart_${index}`] = new Chart(gpuCtx, {
-        // Store in gpuCharts
+      this.charts.gpuCharts[canvasId] = new Chart(gpuCtx, {
         type: "line",
         data: {
-          labels: [],
+          labels: [], // Time labels - populated by updates
           datasets: [
             {
-              label: `${gpu.name} Utilization %`,
-              data: [],
+              label: `${gpu.name || "GPU " + index} Utilization %`, // Use name if available
+              data: [], // Utilization data - populated by updates
               borderColor: this.chartThemeColors.gpuLineColor,
               backgroundColor: this.chartThemeColors.gpuFillColor,
               tension: 0.2,
@@ -833,20 +364,25 @@ class OverviewPage {
         },
       });
     });
+    if (gpuDataArray.length === 0) {
+      gpuChartsContainer.innerHTML =
+        '<p style="text-align:center; color: var(--text-secondary)">No GPU data available.</p>';
+    }
   }
 
   _initNetworkChart(mainContentElement) {
     const networkCtx = mainContentElement
       .querySelector("#networkUsageChart")
       .getContext("2d");
+    if(this.charts.networkUsageChart) this.charts.networkUsageChart.destroy();
     this.charts.networkUsageChart = new Chart(networkCtx, {
       type: "line",
       data: {
-        labels: [],
+        labels: [], // Time labels - populated by updates
         datasets: [
           {
             label: "Upload Speed (Mbps)",
-            data: [],
+            data: [], // Upload data - populated by updates
             borderColor: this.chartThemeColors.networkUploadLineColor,
             backgroundColor: this.chartThemeColors.networkUploadFillColor,
             tension: 0.2,
@@ -854,7 +390,7 @@ class OverviewPage {
           },
           {
             label: "Download Speed (Mbps)",
-            data: [],
+            data: [], // Download data - populated by updates
             borderColor: this.chartThemeColors.networkDownloadLineColor,
             backgroundColor: this.chartThemeColors.networkDownloadFillColor,
             tension: 0.2,
@@ -870,7 +406,7 @@ class OverviewPage {
             min: 0,
             ticks: { color: this.chartThemeColors.ticksColor },
             grid: { color: this.chartThemeColors.gridColor },
-          }, // Max will be auto
+          }, // Max will be auto for Y axis
           x: {
             ticks: { color: this.chartThemeColors.ticksColor },
             grid: { color: this.chartThemeColors.gridColor },
@@ -888,21 +424,19 @@ class OverviewPage {
     });
   }
 
-  // New method to initialize the Online Users Chart
   _initOnlineUsersChart(mainContentElement) {
     const onlineUsersCtx = mainContentElement
       .querySelector("#onlineUsersChart")
       .getContext("2d");
+    if ( this.charts.onlineUsersChart) this.charts.onlineUsersChart.destroy();
     this.charts.onlineUsersChart = new Chart(onlineUsersCtx, {
       type: "line",
       data: {
-        labels: [
-          ...this.dynamicMockData.userAndTaskStats.onlineUsersTimeLabels,
-        ],
+        labels: [], // Time labels - populated by updates
         datasets: [
           {
             label: "Online Users",
-            data: [...this.dynamicMockData.userAndTaskStats.onlineUsersHistory],
+            data: [], // User count data - populated by updates
             borderColor: this.chartThemeColors.onlineUsersLineColor,
             backgroundColor: this.chartThemeColors.onlineUsersFillColor,
             fill: true,
@@ -939,25 +473,11 @@ class OverviewPage {
     });
   }
 
-  // New method to update the Online Users Chart
-  updateOnlineUsersChart() {
-    if (this.charts.onlineUsersChart) {
-      this.charts.onlineUsersChart.data.labels = [
-        ...this.dynamicMockData.userAndTaskStats.onlineUsersTimeLabels,
-      ];
-      this.charts.onlineUsersChart.data.datasets[0].data = [
-        ...this.dynamicMockData.userAndTaskStats.onlineUsersHistory,
-      ];
-      this.charts.onlineUsersChart.update("none");
-    }
-  }
-
-  // New method to initialize the Task Execution Donut Chart
   _initTaskExecutionChart(mainContentElement) {
     const taskCtx = mainContentElement
       .querySelector("#taskExecutionChart")
       .getContext("2d");
-    const stats = this.dynamicMockData.userAndTaskStats;
+    if(this.charts.taskExecutionChart)  this.charts.taskExecutionChart.destroy();
     this.charts.taskExecutionChart = new Chart(taskCtx, {
       type: "doughnut",
       data: {
@@ -965,11 +485,7 @@ class OverviewPage {
         datasets: [
           {
             label: "Task Status",
-            data: [
-              stats.successfulTasks,
-              stats.failedTasks,
-              stats.runningTasks,
-            ],
+            data: [0, 0, 0], // Initial empty data, populated by updates
             backgroundColor: [
               this.chartThemeColors.taskSuccessfulColor,
               this.chartThemeColors.taskFailedColor,
@@ -1023,32 +539,321 @@ class OverviewPage {
               },
             },
           },
-          title: {
-            display: true,
-            text: () =>
-              `Total Tasks: ${this.dynamicMockData.userAndTaskStats.totalTasksExecuted}`,
-            color: this.chartThemeColors.legendColor,
-            font: { size: 16 },
-          },
+          // Title is removed from here, will be handled by a separate HTML element if needed
+          // or dynamically set in updateUIWithData if chart title needs to be data-driven.
         },
       },
     });
   }
 
-  // New method to update the Task Execution Donut Chart
-  updateTaskExecutionChart() {
-    if (this.charts.taskExecutionChart) {
-      const stats = this.dynamicMockData.userAndTaskStats;
-      this.charts.taskExecutionChart.data.datasets[0].data = [
-        stats.successfulTasks,
-        stats.failedTasks,
-        stats.runningTasks,
-      ];
-      if (this.charts.taskExecutionChart.options.plugins.title) {
-        this.charts.taskExecutionChart.options.plugins.title.text = () =>
-          `Total Tasks: ${stats.totalTasksExecuted}`;
+  // updateOnlineUsersChart and updateTaskExecutionChart will be effectively replaced by updateUIWithData logic.
+
+  async fetchSystemOverviewData() {
+    if (!this.websocketManager) {
+      console.error("this.websocketManager not initialized");
+      // Optionally, display an error to the user on the UI
+      // For example, by setting a state that getHTML() can use to show an error message.
+      return;
+    }
+    try {
+      const data = await this.websocketManager.sendWebSocketCommand(
+        "get_system_overview",
+        {}
+      );
+      if (data) {
+        this.updateUIWithData(data);
+      } else {
+        console.warn(
+          "Received null or undefined data from get_system_overview"
+        );
+        // Handle cases where data might be unexpectedly null/undefined
+        // For example, show a "No data received" or "Error fetching data" message.
       }
-      this.charts.taskExecutionChart.update("none");
+    } catch (error) {
+      console.error("Error fetching system overview data:", error);
+      // Display a user-friendly error message on the page
+      if (this.mainContentElement) {
+        const errorDisplay =
+          this.mainContentElement.querySelector("#system-info-os") || // pick a prominent spot
+          this.mainContentElement.querySelector("h2");
+        if (errorDisplay) {
+          errorDisplay.textContent = "Error fetching system data. Retrying...";
+        }
+      }
+    }
+  }
+
+  updateUIWithData(data) {
+    if (!this.mainContentElement || !data || data.code !== 0) {
+      console.warn(
+        "Skipping UI update: main content element or data not available.",
+        { mainElement: this.mainContentElement, dataAvailable: !!data }
+      );
+      return;
+    }
+    data = data.data;
+    const now = new Date().toLocaleTimeString().split(" ")[0]; // hh:mm:ss for chart updates
+
+    // System Info
+    if (data.systemInfo) {
+      const osEl = this.mainContentElement.querySelector("#sysinfo-os");
+      if (osEl) osEl.textContent = data.systemInfo.os || "N/A";
+      const hostnameEl =
+        this.mainContentElement.querySelector("#sysinfo-hostname");
+      if (hostnameEl)
+        hostnameEl.textContent = data.systemInfo.hostname || "N/A";
+      const uptimeEl = this.mainContentElement.querySelector("#sysinfo-uptime");
+      if (uptimeEl) uptimeEl.textContent = data.systemInfo.uptime || "N/A";
+    }
+
+    // Disk Usage
+    if (data.diskUsage) {
+      const diskUsageTableBody = this.mainContentElement.querySelector(
+        "#disk-usage-table tbody"
+      );
+      if (diskUsageTableBody) {
+        diskUsageTableBody.innerHTML = ""; // Clear existing rows
+        data.diskUsage.forEach((disk) => {
+          const row = diskUsageTableBody.insertRow();
+          row.insertCell().textContent = disk.filesystem;
+          row.insertCell().textContent = disk.total;
+          row.insertCell().textContent = disk.used;
+          row.insertCell().textContent = disk.free;
+          row.insertCell().textContent = disk.mountPoint;
+        });
+      }
+    }
+
+    // CPU Usage
+    if (data.cpuUsage) {
+      // Update CPU Load Chart
+      if (
+        this.charts.cpuUsageChart &&
+        data.cpuUsage.currentLoad !== undefined
+      ) {
+        this._updateLineChart(
+          this.charts.cpuUsageChart,
+          now,
+          data.cpuUsage.currentLoad
+        );
+      }
+
+      // Update Per-Core Progress Bars
+      const cpuCoreBarsContainer = this.mainContentElement.querySelector(
+        "#cpu-core-bars-container"
+      );
+      if (cpuCoreBarsContainer) {
+        cpuCoreBarsContainer.innerHTML = ""; // Clear existing bars
+        if (data.cpuUsage.cores && data.cpuUsage.cores.length > 0) {
+          data.cpuUsage.cores.forEach((core) => {
+            const coreBarContainer = document.createElement("div");
+            coreBarContainer.className = "progress-bar-container";
+            coreBarContainer.title = `Core ${core.core}: ${core.load}%`;
+            const coreBar = document.createElement("div");
+            coreBar.className = "progress-bar";
+            coreBar.style.width = `${core.load}%`;
+            coreBar.textContent = `Core ${core.core}: ${core.load}%`;
+            coreBarContainer.appendChild(coreBar);
+            cpuCoreBarsContainer.appendChild(coreBarContainer);
+          });
+        } else {
+          cpuCoreBarsContainer.innerHTML =
+            '<p style="text-align:center; color: var(--text-secondary)">No per-core data available.</p>';
+        }
+      }
+      const logicalCoresEl =
+        this.mainContentElement.querySelector("#cpu-logical-cores");
+      if (logicalCoresEl)
+        logicalCoresEl.textContent = data.cpuUsage.logicalCores || "N/A";
+      const physicalCoresEl = this.mainContentElement.querySelector(
+        "#cpu-physical-cores"
+      );
+      if (physicalCoresEl)
+        physicalCoresEl.textContent = data.cpuUsage.physicalCores || "N/A";
+    }
+
+    // GPU Usage
+    const gpuChartsContainer = this.mainContentElement.querySelector(
+      "#gpu-charts-container"
+    );
+    const gpuUsageTablesContainer = this.mainContentElement.querySelector(
+      "#gpu-usage-tables-container"
+    );
+
+    if (gpuChartsContainer) gpuChartsContainer.innerHTML = ""; // Clear previous content
+    if (gpuUsageTablesContainer) gpuUsageTablesContainer.innerHTML = ""; // Clear previous content
+
+    if (data.gpuUsage && data.gpuUsage.length > 0) {
+      // Re-initialize GPU charts with new data structure (if GPU count changes) or update existing ones.
+      // For simplicity, we can re-initialize if the number of GPUs has changed.
+      // A more optimized approach would be to match by ID if available.
+      if (Object.keys(this.charts.gpuCharts).length !== data.gpuUsage.length) {
+        this._initGpuCharts(this.mainContentElement, data.gpuUsage); // Re-init if count differs
+      }
+
+      data.gpuUsage.forEach((gpu, index) => {
+        const chartId = `gpuUsageChart_${index}`;
+        const chart = this.charts.gpuCharts[chartId];
+        if (chart && gpu.utilization !== undefined) {
+          this._updateLineChart(chart, now, gpu.utilization);
+        } else if (!chart) {
+          // If chart wasn't initialized (e.g. dynamic add), initialize it.
+          // This assumes _initGpuCharts can handle being called with a single GPU object or needs adjustment.
+          // For now, we rely on the check above that re-initializes all on count change.
+          console.warn(`GPU chart ${chartId} not found for update.`);
+        }
+
+        // Populate GPU Info Table
+        if (gpuUsageTablesContainer) {
+          const gpuTable = document.createElement("table");
+          gpuTable.className = "data-table gpu-specific-table";
+          gpuTable.innerHTML = `
+                    <caption>${gpu.name || `GPU ${index}`} (${
+            gpu.id || "N/A"
+          }) - Details</caption>
+                    <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+                    <tbody>
+                        <tr><td>Memory Total</td><td>${
+                          gpu.memoryTotal || "N/A"
+                        }</td></tr>
+                        <tr><td>Memory Used</td><td>${
+                          gpu.memoryUsed || "N/A"
+                        }</td></tr>
+                        <tr><td class="gpu-temperature-label">Temperature</td><td>${
+                          gpu.temperature !== undefined
+                            ? gpu.temperature + "°C"
+                            : "N/A"
+                        }</td></tr>
+                        <tr><td>Power Draw</td><td>${
+                          gpu.powerDraw !== undefined
+                            ? gpu.powerDraw + "W"
+                            : "N/A"
+                        }</td></tr>
+                    </tbody>
+                `;
+          gpuUsageTablesContainer.appendChild(gpuTable);
+        }
+      });
+    } else {
+      if (gpuChartsContainer)
+        gpuChartsContainer.innerHTML =
+          '<p style="text-align:center; color: var(--text-secondary)">No GPU data available.</p>';
+      if (gpuUsageTablesContainer) gpuUsageTablesContainer.innerHTML = ""; // Clear if it had content
+    }
+
+    // Network Usage
+    if (data.networkUsage) {
+      if (
+        this.charts.networkUsageChart &&
+        data.networkUsage.uploadSpeed !== undefined &&
+        data.networkUsage.downloadSpeed !== undefined
+      ) {
+        this._updateMultiLineChart(this.charts.networkUsageChart, now, [
+          data.networkUsage.uploadSpeed,
+          data.networkUsage.downloadSpeed,
+        ]);
+      }
+
+      const networkInterfacesTableBody = this.mainContentElement.querySelector(
+        "#network-interfaces-table tbody"
+      );
+      if (networkInterfacesTableBody) {
+        networkInterfacesTableBody.innerHTML = ""; // Clear existing rows
+        if (
+          data.networkUsage.interfaces &&
+          data.networkUsage.interfaces.length > 0
+        ) {
+          data.networkUsage.interfaces.forEach((iface) => {
+            const row = networkInterfacesTableBody.insertRow();
+            row.insertCell().textContent = iface.name;
+            row.insertCell().textContent = `${iface.uploadSpeed} Mbps`; // Assuming speed is in Mbps from backend
+            row.insertCell().textContent = `${iface.downloadSpeed} Mbps`;
+            row.insertCell().textContent = iface.dataSent;
+            row.insertCell().textContent = iface.dataReceived;
+          });
+        } else {
+          const row = networkInterfacesTableBody.insertRow();
+          const cell = row.insertCell();
+          cell.colSpan = 5;
+          cell.textContent = "No network interface data available.";
+          cell.style.textAlign = "center";
+        }
+      }
+    }
+
+    // User & Task Stats
+    if (data.userAndTaskStats) {
+      const stats = data.userAndTaskStats;
+      // Update Online Users Chart
+      if (this.charts.onlineUsersChart && stats.onlineUsers !== undefined) {
+        this._updateLineChart(
+          this.charts.onlineUsersChart,
+          now,
+          stats.onlineUsers
+        );
+      }
+
+      // Update Task Execution Donut Chart
+      if (this.charts.taskExecutionChart) {
+        this.charts.taskExecutionChart.data.datasets[0].data = [
+          stats.successfulTasks || 0,
+          stats.failedTasks || 0,
+          stats.runningTasks || 0,
+        ];
+        this.charts.taskExecutionChart.update("none");
+      }
+
+      const totalTasksEl = this.mainContentElement.querySelector(
+        "#total-tasks-executed"
+      );
+      if (totalTasksEl)
+        totalTasksEl.textContent = stats.totalTasksExecuted || "0";
+    }
+
+    // Download Task History
+    if (data.downloadTaskHistory) {
+      const downloadHistoryTableBody = this.mainContentElement.querySelector(
+        "#download-history-table tbody"
+      );
+      if (downloadHistoryTableBody) {
+        downloadHistoryTableBody.innerHTML = ""; // Clear existing rows
+        if (data.downloadTaskHistory.length > 0) {
+          data.downloadTaskHistory.forEach((task) => {
+            const row = downloadHistoryTableBody.insertRow();
+            row.insertCell().textContent = task.id;
+            row.insertCell().textContent = task.fileName;
+            row.insertCell().textContent = task.source;
+            row.insertCell().textContent = task.status;
+            row.insertCell().textContent = task.timestamp; // Assuming timestamp is a string
+            row.insertCell().textContent = task.size;
+
+            const progressCell = row.insertCell();
+            const progressContainer = document.createElement("div");
+            progressContainer.className = "progress-bar-container";
+            const progressBar = document.createElement("div");
+            progressBar.className = "progress-bar";
+            const progressPercent = parseFloat(task.progress); // Assuming progress is a number 0-100
+            progressBar.style.width = `${progressPercent}%`;
+            progressBar.textContent = `${progressPercent}%`;
+
+            if (task.status === "Completed")
+              progressBar.style.backgroundColor =
+                "var(--success-color, #28a745)";
+            else if (task.status === "Failed")
+              progressBar.style.backgroundColor = "var(--error-color, #dc3545)";
+            else progressBar.style.backgroundColor = "var(--accent-color)";
+
+            progressContainer.appendChild(progressBar);
+            progressCell.appendChild(progressContainer);
+          });
+        } else {
+          const row = downloadHistoryTableBody.insertRow();
+          const cell = row.insertCell();
+          cell.colSpan = 7; // Number of columns in the table
+          cell.textContent = "No download task history available.";
+          cell.style.textAlign = "center";
+        }
+      }
     }
   }
 }
