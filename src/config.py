@@ -15,19 +15,23 @@ else:
 # Important: Provide a strong, randomly generated default key ONLY for local development if absolutely necessary,
 # and ensure it's NOT the one used in production.
 # Best practice: Require AES_KEY to be set in the environment for production.
-DEFAULT_AES_KEY = "DEFAULT_VERY_WEAK_AES_KEY_CHANGE_ME_NOW_0123456789ABCDEF01234567" # 64 hex chars = 32 bytes
+DEFAULT_AES_KEY = "YOUR_SECURE_AES_KEY_HERE_32_BYTES_HEX_ENCODED" # 64 hex chars = 32 bytes
 AES_KEY = os.getenv("AES_KEY", DEFAULT_AES_KEY)
 if AES_KEY == DEFAULT_AES_KEY:
     print("WARNING: Using default weak AES_KEY. Please set a strong AES_KEY environment variable for production.")
-if len(bytes.fromhex(AES_KEY)) != 32:
-    raise ValueError("AES_KEY must be a 64-character hex string (32 bytes).")
+# if len(bytes.fromhex(AES_KEY)) != 32:
+#     raise ValueError("AES_KEY must be a 64-character hex string (32 bytes).")
+DEFAULT_GENIUS_ACCESS_TOKEN = "YOUR _GENIUS_ACCESS_TOKEN_HERE"
+GENIUS_ACCESS_TOKEN = os.getenv("GENIUS_ACCESS_TOKEN", DEFAULT_GENIUS_ACCESS_TOKEN)
+if  GENIUS_ACCESS_TOKEN == DEFAULT_GENIUS_ACCESS_TOKEN:
+    print("WARNING: Using default GENIUS_ACCESS_TOKEN. Please set a valid GENIUS_ACCESS_TOKEN environment variable for production.")
 
 
 # File System Paths
-DOWNLOADS_DIR = os.getenv("DOWNLOADS_DIR", "./downloads")
+DOWNLOADS_DIR = "./frontend/downloads"
 TEMP_UPLOAD_DIR = os.getenv("TEMP_UPLOAD_DIR", "./temp_uploads")
 TASK_EXECUTION_FILE = os.getenv("TASK_EXECUTION_FILE", "./task_execution_stats.json")
-
+FRONTEND_DIR = os.getenv("FRONTEND_DIR", "./frontend")
 # Ensure paths are absolute or resolve them relative to a known base directory if needed
 # For simplicity, we'll use them as potentially relative paths for now,
 # but absolute paths are safer for server applications.

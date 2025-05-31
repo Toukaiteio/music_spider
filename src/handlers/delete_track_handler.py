@@ -3,21 +3,8 @@ import shutil
 import json
 
 from utils.data_type import ResultBase
-# from core.ws_messaging import send_response (hypothetical)
-
-# Placeholder for send_response
-async def send_response(websocket, cmd_id: str, code: int, data: dict = None, error: str = None):
-    response_payload = {"original_cmd_id": cmd_id}
-    if error:
-        response_payload["error"] = error
-    if data:
-        response_payload.update(data)
-
-    response = ResultBase(code=code, data=response_payload)
-    try:
-        await websocket.send(json.dumps(response.get_json()))
-    except Exception as e:
-        print(f"Failed to send response for cmd_id {cmd_id}: {e}")
+from core.ws_messaging import send_response
+from config import DOWNLOADS_DIR
 
 
 async def handle_delete_track(websocket, cmd_id: str, payload: dict):
@@ -28,7 +15,7 @@ async def handle_delete_track(websocket, cmd_id: str, payload: dict):
         await send_response(websocket, cmd_id, code=1, error="Missing or invalid music_id.")
         return
 
-    track_dir_path = os.path.join("./downloads", music_id)
+    track_dir_path = os.path.join(DOWNLOADS_DIR, music_id)
 
     if not os.path.exists(track_dir_path) or not os.path.isdir(track_dir_path):
         print(f"Track directory {track_dir_path} not found. Assuming already deleted.")

@@ -21,20 +21,22 @@ import functools # For functools.partial
 
 # Relative imports for project modules
 # Assuming utils and downloaders are in PYTHONPATH or structured to be found
-from utils.data_type import ResultBase, MusicItem # MusicItem needed by finalize_chunked_upload
-from downloaders import soundcloud_downloader, bilibili_downloader
 
+from downloaders import soundcloud_downloader, bilibili_downloader
+from .custom_request_handler import CustomRequestHandler
+from .state import increment_task_execution,get_task_execution,update_task_execution,get_all_task_execution,add_client,get_connected_clients,remove_client
 # Import configuration
-from src.config import (
+from config import (
     AES_KEY,
     TEMP_UPLOAD_DIR,
     TASK_EXECUTION_FILE,
     HOST,
     WEBSOCKET_PORT,
     FRONTEND_PORT, # Added for the frontend server
-    # DOWNLOADS_DIR # Not directly used in server.py, but in helpers and handlers
+    DOWNLOADS_DIR, # Not directly used in server.py, but in helpers and handlers
+    FRONTEND_DIR
 )
-
+from core.ws_messaging import send_response # (hypothetical)
 # Import handlers
 from handlers.search_handler import handle_search
 from handlers.download_track_handler import handle_download_track
@@ -57,15 +59,6 @@ DOWNLOADER_MODULES = { # TODO: This could also be part of config if sources are 
     "bilibili": bilibili_downloader,
 }
 
-# State Variables
-# TODO: Move these to a dedicated state management module (e.g., src/core/state.py)
-TASK_EXCUTION = {
-    "totalTasksExecuted": 0,
-    "successfulTasks": 0,
-    "failedTasks": 0,
-    "runningTasks": 0,
-}
-CONNECTED_CLIENTS = set()
 
 # Command Handlers (imports handlers from src.handlers)
 COMMAND_HANDLERS = {
@@ -84,32 +77,15 @@ COMMAND_HANDLERS = {
     "get_system_overview": handle_get_system_overview,
 }
 
-# Helper function to send responses (remains in server.py as it's core to WebSocket interaction)
-async def send_response(websocket, cmd_id: str, code: int, data: dict = None, error: str = None):
-    """Helper function to send a consistent response structure."""
-    response_payload = {"original_cmd_id": cmd_id}
-    if error:
-        response_payload["error"] = error
-    if data:
-        response_payload.update(data)
-
-    response = ResultBase(code=code, data=response_payload)
-    try:
-        await websocket.send(json.dumps(response.get_json()))
-    except websockets.exceptions.ConnectionClosed:
-        print(f"Attempted to send to a closed connection for cmd_id {cmd_id}.")
-    except Exception as e:
-        print(f"Failed to send response for cmd_id {cmd_id}: {e}")
-
 # Main WebSocket connection handler
 async def ws_handler(websocket, path = None): # Renamed from 'handler' to 'ws_handler' for clarity
     client_addr = websocket.remote_address
     print(f"Client connected from {client_addr}")
-    CONNECTED_CLIENTS.add(websocket)
+    add_client(websocket)
     try:
         async for message in websocket:
-            TASK_EXCUTION["totalTasksExecuted"] = TASK_EXCUTION.get("totalTasksExecuted", 0) + 1
-            TASK_EXCUTION["runningTasks"] = TASK_EXCUTION.get("runningTasks", 0) + 1
+            increment_task_execution("totalTasksExecuted")
+            increment_task_execution("runningTasks")
 
             cmd_id = "unknown_cmd_id_initial"
             try:
@@ -118,35 +94,35 @@ async def ws_handler(websocket, path = None): # Renamed from 'handler' to 'ws_ha
                 command = data.get("command")
                 payload = data.get("payload", {})
 
-                if not command: # cmd_id can be optional for notifications, but command is essential
-                    TASK_EXCUTION["failedTasks"] = TASK_EXCUTION.get("failedTasks", 0) + 1
+                if not command:  # cmd_id can be optional for notifications, but command is essential
+                    increment_task_execution("failedTasks")
                     await send_response(websocket, cmd_id, code=1, error="Missing command")
                     continue
 
                 if command_handler_func := COMMAND_HANDLERS.get(command):
                     try:
                         await command_handler_func(websocket, cmd_id, payload)
-                        TASK_EXCUTION["successfulTasks"] = TASK_EXCUTION.get("successfulTasks", 0) + 1
+                        increment_task_execution("successfulTasks")
                     except Exception as e:
-                        TASK_EXCUTION["failedTasks"] = TASK_EXCUTION.get("failedTasks", 0) + 1
+                        increment_task_execution("failedTasks")
                         print(f"Error in command handler for '{command}' (cmd_id: {cmd_id}): {e}")
                         # import traceback; traceback.print_exc() # For debugging
                         await send_response(websocket, cmd_id, code=1, error=f"Server error processing command '{command}': {str(e)}")
                 else:
-                    TASK_EXCUTION["failedTasks"] = TASK_EXCUTION.get("failedTasks", 0) + 1
+                    increment_task_execution("failedTasks")
                     await send_response(websocket, cmd_id, code=1, error=f"Unknown command: {command}")
 
             except json.JSONDecodeError:
-                TASK_EXCUTION["failedTasks"] = TASK_EXCUTION.get("failedTasks", 0) + 1
+                increment_task_execution("failedTasks")
                 await send_response(websocket, "unknown_json_error_cmd_id", code=1, error="Invalid JSON message")
             except Exception as e:
-                TASK_EXCUTION["failedTasks"] = TASK_EXCUTION.get("failedTasks", 0) + 1
+                increment_task_execution("failedTasks")
                 print(f"Critical error processing message for cmd_id {cmd_id}: {e}")
                 # import traceback; traceback.print_exc() # For debugging
                 await send_response(websocket, cmd_id, code=1, error=f"Unexpected server error: {str(e)}")
             finally:
-                TASK_EXCUTION["runningTasks"] = TASK_EXCUTION.get("runningTasks", 0) - 1
-                if TASK_EXCUTION["runningTasks"] < 0: TASK_EXCUTION["runningTasks"] = 0
+                increment_task_execution("runningTasks", -1)
+                if get_task_execution("runningTasks") < 0: update_task_execution("runningTasks",0)
 
     except websockets.exceptions.ConnectionClosedError:
         print(f"Client {client_addr} disconnected with ConnectionClosedError.")
@@ -156,30 +132,29 @@ async def ws_handler(websocket, path = None): # Renamed from 'handler' to 'ws_ha
         print(f"Connection error with {client_addr}: {e}")
     finally:
         print(f"Client disconnected from {client_addr}")
-        if websocket in CONNECTED_CLIENTS:
-            CONNECTED_CLIENTS.remove(websocket)
+        if websocket in get_connected_clients():
+            remove_client(websocket)
 
 # Task execution statistics functions
 def save_task_execution_stats():
-    TASK_EXCUTION["runningTasks"] = 0
+    update_task_execution("runningTasks",0)
     try:
         with open(TASK_EXECUTION_FILE, "w") as f:
-            json.dump(TASK_EXCUTION, f, indent=4)
+            json.dump(get_all_task_execution(), f, indent=4)
         print("TASK_EXCUTION data saved.")
     except Exception as e:
         print(f"Failed to save TASK_EXCUTION: {e}")
 
 def load_task_execution_stats():
-    global TASK_EXCUTION
     if os.path.exists(TASK_EXECUTION_FILE): # TASK_EXECUTION_FILE is from config
         try:
             with open(TASK_EXECUTION_FILE, "r") as f:
                 data = json.load(f)
                 if isinstance(data, dict):
                     for key, value in data.items():
-                        if key in TASK_EXCUTION:
-                            TASK_EXCUTION[key] = value
-                    TASK_EXCUTION["runningTasks"] = 0
+                        if key in get_all_task_execution():
+                            update_task_execution(key,value)
+                    update_task_execution("runningTasks",0)
             print("TASK_EXCUTION data loaded.")
         except json.JSONDecodeError:
             print(f"Error decoding {TASK_EXECUTION_FILE}. Initializing with default stats.")
@@ -218,7 +193,8 @@ async def start_server(): # Renamed from 'main' to 'start_server' for clarity
 def start_frontend_server():
     """Starts a simple HTTP server for the frontend in a daemon thread."""
     try:
-        frontend_dir = os.path.join(os.getcwd(), "frontend")
+        frontend_dir = os.path.join(os.getcwd(), FRONTEND_DIR)
+        downloads_dir = os.path.join(os.getcwd(), DOWNLOADS_DIR)
         if not os.path.isdir(frontend_dir):
             print(f"Warning: Frontend directory '{frontend_dir}' not found. Creating it.")
             os.makedirs(frontend_dir) # Create if it doesn't exist
@@ -226,9 +202,13 @@ def start_frontend_server():
             with open(os.path.join(frontend_dir, "index.html"), "w") as f:
                 f.write("<h1>Frontend Directory Created - Placeholder</h1>")
 
-
+        if not os.path.isdir(downloads_dir):
+                print(f"Warning: Downloads directory '{downloads_dir}' not found. Creating it.")
+                os.makedirs(downloads_dir)
         # Use functools.partial to set the directory for the handler
-        Handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=frontend_dir)
+        print(f"Frontend dir: {frontend_dir}")
+        print(f"Downloads dir: {downloads_dir}")
+        Handler = functools.partial(CustomRequestHandler, directory=frontend_dir)
 
         # Ensure HOST is correctly used. If HOST is '0.0.0.0', it's fine for TCPServer.
         # If HOST can be a hostname, TCPServer might resolve it.

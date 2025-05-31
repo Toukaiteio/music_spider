@@ -5,55 +5,13 @@ import time
 
 from utils.data_type import ResultBase, MusicItem
 # from core.downloaders import DOWNLOADER_MODULES (hypothetical)
-# from core.ws_messaging import send_response (hypothetical)
-
-# Placeholder for DOWNLOADER_MODULES
-DOWNLOADER_MODULES = {}
-
-# Placeholder for send_response
-async def send_response(websocket, cmd_id: str, code: int, data: dict = None, error: str = None):
-    response_payload = {"original_cmd_id": cmd_id}
-    if error:
-        response_payload["error"] = error
-    if data:
-        response_payload.update(data)
-
-    response = ResultBase(code=code, data=response_payload)
-    try:
-        await websocket.send(json.dumps(response.get_json()))
-    except Exception as e:
-        print(f"Failed to send response for cmd_id {cmd_id}: {e}")
-
-
+from core.ws_messaging import send_response
+from core.state import DOWNLOADER_MODULES
 async def handle_download_track(websocket, cmd_id: str, payload: dict):
     source = payload.get("source", "soundcloud")
     track_data = payload.get("track_data")
-
-    # This is a temporary solution. DOWNLOADER_MODULES should be managed centrally.
-    if not DOWNLOADER_MODULES:
-        try:
-            # Attempt to dynamically import if not already populated (example of a fallback)
-            from downloaders import soundcloud_downloader, bilibili_downloader
-            # This requires downloaders to be in PYTHONPATH and structured as a package.
-            # Or, if they are in the same directory for now:
-            # import soundcloud_downloader
-            # import bilibili_downloader
-
-            # Re-populate DOWNLOADER_MODULES (this is still a temporary fix)
-            # In a real app, this would be done at startup or via dependency injection.
-            global DOWNLOADER_MODULES_TEMP # Use a temporary global to avoid modifying a potentially shared global directly if not intended
-            DOWNLOADER_MODULES_TEMP = {
-                 "soundcloud": soundcloud_downloader,
-                 "bilibili": bilibili_downloader,
-            }
-            downloader_module = DOWNLOADER_MODULES_TEMP.get(source)
-        except ImportError as ie:
-             print(f"Failed to import downloader modules dynamically: {ie}")
-             await send_response(websocket, cmd_id, code=1, error=f"Server setup error: Downloader modules not available.")
-             return
-    else:
-        downloader_module = DOWNLOADER_MODULES.get(source)
-
+    downloader_module = DOWNLOADER_MODULES.get(source)
+        
 
     if not downloader_module:
         await send_response(websocket, cmd_id, code=1, error=f"Unsupported source for download: {source}")
@@ -143,6 +101,3 @@ async def handle_download_track(websocket, cmd_id: str, payload: dict):
         print(f"Exception during download process for cmd_id {cmd_id} (track: {track_data.get('title', track_id_for_progress)}): {e}")
         await send_response(websocket, cmd_id, code=1, error=f"Server error during download: {str(e)}")
 
-# Define a global for temporary use if needed by the dynamic import example,
-# though direct use of DOWNLOADER_MODULES is preferred if it's correctly populated.
-DOWNLOADER_MODULES_TEMP = {}

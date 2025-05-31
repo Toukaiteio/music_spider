@@ -2,7 +2,7 @@ import os
 import json
 import base64
 from Crypto.Cipher import AES # For decrypt_path
-from src.config import AES_KEY, TEMP_UPLOAD_DIR, DOWNLOADS_DIR # Import from config
+from config import AES_KEY, TEMP_UPLOAD_DIR, DOWNLOADS_DIR # Import from config
 
 # AES_KEY, TEMP_UPLOAD_DIR, DOWNLOADS_DIR are now imported from src.config
 

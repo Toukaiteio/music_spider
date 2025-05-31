@@ -2,26 +2,10 @@ import os
 import json
 
 from utils.data_type import ResultBase, MusicItem
-# from core.ws_messaging import send_response (hypothetical)
-
-# Placeholder for send_response
-async def send_response(websocket, cmd_id: str, code: int, data: dict = None, error: str = None):
-    response_payload = {"original_cmd_id": cmd_id}
-    if error:
-        response_payload["error"] = error
-    if data:
-        response_payload.update(data)
-
-    response = ResultBase(code=code, data=response_payload)
-    try:
-        await websocket.send(json.dumps(response.get_json()))
-    except Exception as e:
-        print(f"Failed to send response for cmd_id {cmd_id}: {e}")
-
-
+from core.ws_messaging import send_response
+from config import DOWNLOADS_DIR
 async def handle_get_downloaded_music(websocket, cmd_id: str, payload: dict):
     print(f"Handling get_downloaded_music command with cmd_id: {cmd_id}")
-    DOWNLOADS_DIR = "./downloads"
     downloaded_music_list = []
 
     try:

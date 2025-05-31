@@ -162,7 +162,7 @@ body {
     border: 1px solid var(--border-color);
 }
 .overview-section#task-section {
-    background-color: #121212;
+    background-color: var(--primary-bg-color);
 }
 .overview-section h3 {
     margin-top: 0;
@@ -879,7 +879,6 @@ body {
     position: absolute;
     bottom: 8px;
     right: 8px;
-    background-color: rgba(0, 0, 0, 0.6); /* Semi-transparent background */
     color: white;
     border: none;
     border-radius: 50%;
@@ -898,9 +897,7 @@ body {
     opacity: 1;
     transform: translateY(0);
 }
-.play-on-card-button:hover {
-    background-color: var(--accent-color); /* Use theme accent on hover */
-}
+
 .play-on-card-button .material-icons {
     font-size: 24px;
     color: white; /* Icon color explicitly white */
@@ -988,7 +985,9 @@ body {
     background-color: var(--shadow-color);
     /* The general color: var(--accent-color) is removed from here to allow specific hover colors. */
 }
-
+.play-on-card-button:hover {
+    background-color: rgba(0, 0, 0, 0.6); /* Use theme accent on hover */
+}
 
 .remove-from-collection-button:hover {
     color: rgb(229, 57, 53); /* Darker red for remove from collection hover */
@@ -2450,4 +2449,54 @@ button:hover {
 .track-details-dialog .description {
     margin-top: 1rem;
     color: var(--text-color-secondary);
+}
+
+.home-page-header {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    padding-right: 12px;
+    font-size: 1.8em;
+    box-sizing: border-box;
+    margin-bottom: 12px;
+}
+/* Home Page Header Search Bar Styles */
+.home-page-header-search-container {
+    display: flex;
+    align-items: center;
+    background-color: var(--secondary-bg-color);
+    border-radius: 25px;
+    box-shadow: 0 1px 3px var(--shadow-color);
+    min-width: 180px;
+    max-width: 320px;
+    width: 100%;
+    font-size: 16px;
+    transition: background-color 0.3s;
+    box-sizing: border-box;
+}
+
+.home-page-header-search-container:hover{
+    background-color: var(--primary-bg-color);
+}
+
+.home-page-header-search-container .search-icon {
+    color: var(--text-color-secondary);
+    margin-right: 12px;
+    margin-left: 12px;
+    font-size: 20px;
+}
+
+.home-page-header-search {
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--text-color-primary);
+    font-size: 16px;
+    width: 100%;
+    padding: 6px 0;
+}
+
+.home-page-header-search::placeholder {
+    color: var(--text-color-secondary);
+    opacity: 1;
 }

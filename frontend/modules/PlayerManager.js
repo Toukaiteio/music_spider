@@ -7,7 +7,8 @@
 // 可用如 music-beat-detector、music-tempo、ml5.js pitch detection等库、或简单实现
 import { pauseEditorAndResetButton } from './LyricsEditor.js'; // Import the function
 import UIManager from "./UIManager.js";
-
+const ALLOWED_PLAY_MODE = ["list-loop", "single-loop", "random"];
+const PLAY_MODE_MAPPED_ICON = ["repeat", "repeat_one", "shuffle"];
 class PlayerManager {
   constructor({
     playlist = [],
@@ -122,10 +123,9 @@ class PlayerManager {
     // 播放模式切换
     if (this.playerPlaybackModeButton) {
       this.playerPlaybackModeButton.addEventListener("click", () => {
-        const modes = ["list-loop", "single-loop", "random"];
-        let idx = modes.indexOf(this.mode);
-        idx = (idx + 1) % modes.length;
-        this.setMode(modes[idx]);
+        let idx = ALLOWED_PLAY_MODE.indexOf(this.mode);
+        idx = (idx + 1) % ALLOWED_PLAY_MODE.length;
+        this.setMode(ALLOWED_PLAY_MODE[idx]);
       });
     }
 
@@ -423,9 +423,7 @@ class PlayerManager {
   }
 
   setMode(mode) {
-    const modes = ["list-loop", "single-loop", "random"];
-    const icons = ["repeat", "repeat_one", "shuffle"];
-    if (modes.includes(mode)) {
+    if (ALLOWED_PLAY_MODE.includes(mode)) {
       this.mode = mode;
       localStorage.setItem("player_mode", mode);
       // 切换播放模式图标
@@ -433,8 +431,8 @@ class PlayerManager {
         const icon =
           this.playerPlaybackModeButton.querySelector(".material-icons");
         if (icon) {
-          const idx = modes.indexOf(mode);
-          icon.textContent = icons[idx];
+          const idx = ALLOWED_PLAY_MODE.indexOf(mode);
+          icon.textContent = PLAY_MODE_MAPPED_ICON[idx];
         }
       }
     }

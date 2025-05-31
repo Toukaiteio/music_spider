@@ -3,8 +3,7 @@ import os
 import requests
 from Crypto.Cipher import AES
 import base64
-AES_KEY = "A48BA96016DDF15AB43734480D1C84EF75F6F2CDA70627365367BC289999CC3BFDCC4C15DAE289D88B6660029018ECDE"
-GENIUS_ACCESS_TOKEN = "DI_dtCNQd0ycAPKAxJx6komcQQUsPmI_Fg_ASHueTLRy-Dg7mvaiBFYeBhrbSPj-"
+from config import AES_KEY,GENIUS_ACCESS_TOKEN
 genius = lyricsgenius.Genius(GENIUS_ACCESS_TOKEN)
 def encrypt_path(path):
     data = path.encode('utf-8')

@@ -5,25 +5,7 @@ import uuid
 
 from utils.data_type import ResultBase
 from utils.helpers import write_session_manifest, TEMP_UPLOAD_DIR # Import helpers
-# from core.ws_messaging import send_response (hypothetical)
-# from core.chunked_upload import _write_session_manifest (hypothetical) # No longer needed
-
-
-# Placeholder for send_response
-# TODO: This will be moved to src.core.server and imported from there.
-async def send_response(websocket, cmd_id: str, code: int, data: dict = None, error: str = None):
-    response_payload = {"original_cmd_id": cmd_id}
-    if error:
-        response_payload["error"] = error
-    if data:
-        response_payload.update(data)
-
-    response = ResultBase(code=code, data=response_payload)
-    try:
-        await websocket.send(json.dumps(response.get_json()))
-    except Exception as e:
-        print(f"Failed to send response for cmd_id {cmd_id}: {e}")
-
+from core.ws_messaging import send_response
 
 async def handle_initiate_chunked_upload(websocket, cmd_id: str, payload: dict):
     print(f"Handling initiate_chunked_upload: cmd_id={cmd_id}, payload={payload}")

@@ -31,13 +31,14 @@ class CollectionsPage {
         // Ensure library is loaded. If not, fetch it and re-navigate.
         // The re-navigate part will be handled by NavigationManager's updated logic later,
         // for now, the page module assumes library might need loading.
-        if (!appState.library || appState.library.length === 0) {
+        if ((!appState.library || appState.library.length === 0) && !appState.inited) {
             if (collectionsLoadingMessage) collectionsLoadingMessage.style.display = "block";
             // Prevent infinite loop if WebSocket is already trying to load
             if (!window.__collectionsPageLoadingLibrary) {
                 window.__collectionsPageLoadingLibrary = true;
                 managers.webSocketManager.sendWebSocketCommand("get_downloaded_music", {})
                     .then((response) => {
+                        appState.inited = true;
                         window.__collectionsPageLoadingLibrary = false;
                         const libraryData = response.data && response.data.library ? response.data.library : [];
                         appState.library = libraryData;

@@ -8,51 +8,22 @@ import re # For parsing WMIC output
 
 from utils.data_type import ResultBase
 from utils.helpers import format_bytes, format_speed # Import helpers
+from core.state import increment_task_execution,get_task_execution,get_net_io_global,update_net_io_global,update_task_execution,get_all_task_execution,add_client,get_connected_clients,remove_client,get_client_number
+from core.ws_messaging import send_response
 
-# from core.ws_messaging import send_response (hypothetical)
-# from core.state import CONNECTED_CLIENTS, TASK_EXCUTION (hypothetical)
 
 # Globals that were in main.py, specific to this handler's needs.
 # These should ideally be managed by a central state module if accessed by multiple handlers.
 # For now, they are handler-specific or passed in if necessary.
 # TODO: Move previous_net_io_global and time_of_previous_net_io_global to core state or pass them appropriately
-previous_net_io_global = psutil.net_io_counters(pernic=True)
-time_of_previous_net_io_global = time.time()
-
-# Placeholder for CONNECTED_CLIENTS and TASK_EXECUTION
-# These would typically be imported from a shared state module (e.g., src/core/state.py)
-# TODO: Import CONNECTED_CLIENTS and TASK_EXECUTION from src.core.state when it's created
-CONNECTED_CLIENTS = set() # Example: In a real app, this would be the actual shared set.
-TASK_EXCUTION = { # Example: Simulating the shared task execution dict.
-    "totalTasksExecuted": 0,
-    "successfulTasks": 0,
-    "failedTasks": 0,
-    "runningTasks": 0,
-}
 
 
-# Placeholder for send_response
-# TODO: This will be moved to src.core.server and imported from there.
-async def send_response(websocket, cmd_id: str, code: int, data: dict = None, error: str = None):
-    response_payload = {"original_cmd_id": cmd_id}
-    if error:
-        response_payload["error"] = error
-    if data:
-        response_payload.update(data)
 
-    response = ResultBase(code=code, data=response_payload)
-    try:
-        await websocket.send(json.dumps(response.get_json()))
-    except Exception as e:
-        print(f"Failed to send response for cmd_id {cmd_id}: {e}")
 
 
 async def handle_get_system_overview(websocket, cmd_id: str, payload: dict):
-    # Use the global variables for network I/O calculation
-    # TODO: Refactor how these global states are accessed. They should ideally be part of a class or passed in.
-    global previous_net_io_global, time_of_previous_net_io_global
     overview_data = {}
-
+    previous_net_io_global,time_of_previous_net_io_global = get_net_io_global()
     # System Info
     try:
         boot_time_timestamp = psutil.boot_time()
@@ -285,8 +256,7 @@ async def handle_get_system_overview(websocket, cmd_id: str, payload: dict):
 
     # Network Usage
     try:
-        current_net_io = psutil.net_io_counters(pernic=True)
-        current_time = time.time()
+        current_net_io,current_time = update_net_io_global()
         time_delta = current_time - time_of_previous_net_io_global # Use global
 
         total_upload_bits_ps = 0
@@ -314,8 +284,6 @@ async def handle_get_system_overview(websocket, cmd_id: str, payload: dict):
                 "dataReceived": format_bytes(current_stats.bytes_recv)
             })
 
-        previous_net_io_global = current_net_io # Update global
-        time_of_previous_net_io_global = current_time # Update global
 
         overview_data["networkUsage"] = {
             "uploadSpeed": round(total_upload_bits_ps / (1000**2), 2),
@@ -329,11 +297,11 @@ async def handle_get_system_overview(websocket, cmd_id: str, payload: dict):
     # User & Task Stats (using placeholder globals)
     try:
         overview_data["userAndTaskStats"] = {
-            "onlineUsers": len(CONNECTED_CLIENTS), # Use placeholder
-            "totalTasksExecuted": TASK_EXCUTION.get("totalTasksExecuted", 0), # Use placeholder
-            "successfulTasks": TASK_EXCUTION.get("successfulTasks", 0),
-            "failedTasks": TASK_EXCUTION.get("failedTasks", 0),
-            "runningTasks": TASK_EXCUTION.get("runningTasks", 0),
+            "onlineUsers": get_client_number(), # Use placeholder
+            "totalTasksExecuted": get_task_execution("totalTasksExecuted"), # Use placeholder
+            "successfulTasks": get_task_execution("successfulTasks"),
+            "failedTasks": get_task_execution("failedTasks"),
+            "runningTasks": get_task_execution("runningTasks"),
         }
     except Exception as e:
         print(f"Error getting user/task stats: {e}")

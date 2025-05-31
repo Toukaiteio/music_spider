@@ -1,37 +1,8 @@
 import json
 
 from utils.data_type import ResultBase
-# from core.ws_messaging import send_response (hypothetical)
-# from lyrics_allocator.genius import get_song_info # This will be a key dependency
-
-# Placeholder for send_response
-async def send_response(websocket, cmd_id: str, code: int, data: dict = None, error: str = None):
-    response_payload = {"original_cmd_id": cmd_id}
-    if error:
-        response_payload["error"] = error
-    if data:
-        response_payload.update(data)
-
-    response = ResultBase(code=code, data=response_payload)
-    try:
-        await websocket.send(json.dumps(response.get_json()))
-    except Exception as e:
-        print(f"Failed to send response for cmd_id {cmd_id}: {e}")
-
-# Placeholder for get_song_info from lyrics_allocator.genius
-# In a real setup, this import should work if the path is correct and genius.py is accessible.
-# For now, define a dummy function if direct import fails during isolated testing.
-try:
-    from lyrics_allocator.genius import get_song_info
-except ImportError:
-    print("Warning: lyrics_allocator.genius not found. Using placeholder for get_song_info.")
-    def get_song_info(name, artist):
-        # Dummy implementation
-        print(f"Placeholder get_song_info called with Name: {name}, Artist: {artist}")
-        if name == "Test Song":
-            return {"title": name, "artist": artist if artist else "Unknown Artist", "lyrics": "Placeholder lyrics..."}
-        return None
-
+from core.ws_messaging import send_response
+from lyrics_allocator.genius import get_song_info
 
 async def handle_get_music_info(websocket, cmd_id, payload):
     music_name = payload.get("name", "")

@@ -6,25 +6,8 @@ import shutil
 
 from utils.data_type import ResultBase, MusicItem
 from utils.helpers import decrypt_path, TEMP_UPLOAD_DIR # Import helper and constants
-# from core.ws_messaging import send_response (hypothetical)
-
-
-# Placeholder for send_response
-# TODO: This will be moved to src.core.server and imported from there.
-async def send_response(websocket, cmd_id: str, code: int, data: dict = None, error: str = None):
-    response_payload = {"original_cmd_id": cmd_id}
-    if error:
-        response_payload["error"] = error
-    if data:
-        response_payload.update(data)
-
-    response = ResultBase(code=code, data=response_payload)
-    try:
-        await websocket.send(json.dumps(response.get_json()))
-    except Exception as e:
-        print(f"Failed to send response for cmd_id {cmd_id}: {e}")
-
-
+from core.ws_messaging import send_response
+from config import DOWNLOADS_DIR
 async def handle_upload_track(websocket, cmd_id: str, payload: dict):
     print(f"Handling upload_track command with cmd_id: {cmd_id}")
     track_data = payload.get("track_data", {})
@@ -46,7 +29,7 @@ async def handle_upload_track(websocket, cmd_id: str, payload: dict):
 
         music_id = f"upload_{timestamp}_{audio_size}"
 
-        work_path = os.path.join("./downloads", music_id) # Assign here
+        work_path = os.path.join(DOWNLOADS_DIR, music_id) # Assign here
         os.makedirs(work_path, exist_ok=True)
 
         # Process audio file (assuming it's base64 encoded string)
