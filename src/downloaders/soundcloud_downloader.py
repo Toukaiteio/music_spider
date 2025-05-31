@@ -13,6 +13,7 @@ import tempfile
 import glob
 import asyncio
 import concurrent.futures
+import functools # Import functools for partial
 # Global variables from main.py
 user_id = "77130-7014-3319-567702"
 oauth_token = "2-303884-1556525673-bal84X32zv4Kw"
@@ -24,26 +25,39 @@ if os.path.exists(client_id_path):
 else:
     client_id = "cWww6yL0wMOcwhn4GEYjHVAg3mwMPBis"
 
-version = None # Will be initialized by get_app_version
+version = None # Will be initialized by get_app_version_sync or async version
 
-def get_app_version():
-
+def get_app_version_sync(): # Renamed for clarity
     url = "https://soundcloud.com/versions.json"
     try:
         resp = requests.get(url)
         resp.raise_for_status()
         data = resp.json()
-        return data.get("app")
+        return data.get("app", "UNKNOWN_VERSION") # Provide default directly
     except Exception as e:
-        print(f"Error fetching app version: {e}")
-        # Fallback or default version if needed
+        print(f"Error fetching app version (sync): {e}")
+        return "UNKNOWN_VERSION"
+
+async def get_app_version_async():
+    loop = asyncio.get_event_loop()
+    url = "https://soundcloud.com/versions.json"
+    try:
+        resp = await loop.run_in_executor(None, requests.get, url)
+        resp.raise_for_status()
+        data = await loop.run_in_executor(None, resp.json) # resp.json() can also be blocking
+        return data.get("app", "UNKNOWN_VERSION")
+    except Exception as e:
+        print(f"Error fetching app version (async): {e}")
         return "UNKNOWN_VERSION"
 
 # Initialize version right after defining get_app_version
-version = get_app_version()
+# For module initialization, we still need a synchronous way if it's top-level.
+# Or, the version needs to be fetched asynchronously when first needed by an async function.
+# Let's initialize it synchronously for now. If an async context needs a fresher one, it can call get_app_version_async.
+version = get_app_version_sync()
 
 
-def fetch_ext_from_url(url):
+def fetch_ext_from_url(url): # This is a utility function, remains synchronous
     path = url.split("?", 1)[0]
     ext = os.path.splitext(path)[1]
     if ext:
@@ -53,49 +67,64 @@ def fetch_ext_from_url(url):
         return mimetypes.guess_extension(mime)
     return ".bin"
 
-def update_client_id():
-    global client_id, version
-    new_version = get_app_version() # Fetch latest version
-    if new_version: # if get_app_version succeeded
-        version = new_version
+async def update_client_id_async(): # Renamed to indicate async
+    global client_id, version # client_id and version are global module variables
+    loop = asyncio.get_event_loop()
+
+    new_version = await get_app_version_async() # Use async version
+    if new_version and new_version != "UNKNOWN_VERSION":
+        version = new_version # Update global version
     
     discover_url = "https://soundcloud.com/discover"
     try:
-        resp = requests.get(discover_url)
+        resp = await loop.run_in_executor(None, requests.get, discover_url)
         resp.raise_for_status()
-        doc = pq(resp.text)
-        scripts = doc("script[src]")
-        if not scripts:
-            print("未找到script标签")
-            return None # Return None on failure
         
-        # Iterate through script tags to find the one containing client_id
-        # The original code just took the last one, which might be fragile.
-        # A more robust way would be to check content or a pattern.
-        # For now, sticking to the last script for direct porting.
-        last_script = scripts[-1]
-        script_src = pq(last_script).attr("src")
+        # PyQuery parsing can be CPU intensive, so offload it too
+        text_content = resp.text
+        def parse_script_src(html_text):
+            doc = pq(html_text)
+            scripts = doc("script[src]")
+            if not scripts:
+                print("未找到script标签")
+                return None
+            last_script = scripts[-1] # Assuming last script is the target
+            return pq(last_script).attr("src")
+
+        script_src = await loop.run_in_executor(None, parse_script_src, text_content)
         
         if not script_src:
             print("未找到script的src属性")
             return None
 
-        js_resp = requests.get(script_src)
+        js_resp = await loop.run_in_executor(None, requests.get, script_src)
         js_resp.raise_for_status()
-        match = re.search(r',client_id:"([a-zA-Z0-9]+)",', js_resp.text)
-        if match:
-            new_client_id = match.group(1)
-            client_id = new_client_id
-            # client_id_path is defined globally
-            with open(client_id_path, "w") as f:
-                f.write(new_client_id)
-            print(f"client_id已更新: {new_client_id}")
+
+        js_text_content = js_resp.text
+        def find_client_id_in_js(js_code):
+            match = re.search(r',client_id:"([a-zA-Z0-9]+)",', js_code)
+            if match:
+                return match.group(1)
+            return None
+
+        new_client_id = await loop.run_in_executor(None, find_client_id_in_js, js_text_content)
+
+        if new_client_id:
+            client_id = new_client_id # Update global client_id
+
+            # File I/O also needs to be non-blocking
+            def write_client_id_to_file(path, c_id):
+                with open(path, "w") as f:
+                    f.write(c_id)
+
+            await loop.run_in_executor(None, write_client_id_to_file, client_id_path, new_client_id)
+            print(f"client_id已更新 (async): {new_client_id}")
             return new_client_id
         else:
-            print("未找到client_id")
+            print("未找到client_id (async)")
             return None
     except Exception as e:
-        print(f"Error updating client_id: {e}")
+        print(f"Error updating client_id (async): {e}")
         return None
 
 
@@ -508,60 +537,57 @@ def download_cover_internal(cover_url: str, save_path_full: str, track_id: str, 
         return None
 
 
-def search_tracks(query: str, limit: int = 20) -> list[dict]:
-    global client_id, version, user_id, oauth_token,version # Ensure globals are accessible
+async def search_tracks_async(query: str, limit: int = 20) -> list[dict]: # Renamed
+    global client_id, version, user_id, oauth_token # Ensure globals are accessible
+    loop = asyncio.get_event_loop()
     
     quoted_query = quote(query)
-    api_url = (
-        f"https://api-v2.soundcloud.com/search"
-        f"?q={quoted_query}&facet=model&user_id={user_id}"
-        f"&client_id={client_id}&limit={limit}&offset=0"
-        f"&linked_partitioning=1&app_version={version}&app_locale=en"
-    )
-    print(f"Requesting URL: {api_url}")
     
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
-        "Accept": "application/json, text/javascript, */*; q=0.01",
-        "Accept-Language": "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7,ja;q=0.6",
-        "Accept-Encoding": "gzip, deflate, br, zstd",
-        "Authorization": f"OAuth {oauth_token}",
-        "Origin": "https://soundcloud.com",
-        "Referer": "https://soundcloud.com/",
-    }
+    async def attempt_search(current_client_id, current_version):
+        api_url = (
+            f"https://api-v2.soundcloud.com/search"
+            f"?q={quoted_query}&facet=model&user_id={user_id}"
+            f"&client_id={current_client_id}&limit={limit}&offset=0"
+            f"&linked_partitioning=1&app_version={current_version}&app_locale=en"
+        )
+        print(f"Requesting URL (async search): {api_url}")
 
-    try:
-        resp = requests.get(api_url, headers=headers)
-        resp.raise_for_status() # Raise HTTPError for bad responses (4XX or 5XX)
-        data = resp.json()
-    except requests.exceptions.RequestException as e:
-        print(f"API request failed: {e}")
-        data = {} # Ensure data is an empty dict on failure
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36",
+            "Accept": "application/json, text/javascript, */*; q=0.01",
+            "Accept-Language": "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7,ja;q=0.6",
+            "Accept-Encoding": "gzip, deflate, br, zstd",
+            "Authorization": f"OAuth {oauth_token}", # oauth_token is global
+            "Origin": "https://soundcloud.com",
+            "Referer": "https://soundcloud.com/",
+        }
+        try:
+            # requests.get is blocking, run in executor
+            resp = await loop.run_in_executor(None, functools.partial(requests.get, api_url, headers=headers))
+            resp.raise_for_status()
+            # resp.json() can also be blocking for large responses
+            return await loop.run_in_executor(None, resp.json)
+        except requests.exceptions.RequestException as e:
+            print(f"API request failed (async search): {e}")
+            return {} # Return empty dict on failure to match original logic flow
+        except Exception as e_json: # Catch potential json decode errors specifically if needed
+            print(f"API request JSON decode failed (async search): {e_json}")
+            return {}
+
+    # Use current global client_id and version for the first attempt
+    data = await attempt_search(client_id, version)
 
     if not data.get("collection"):
-        print("No data from API or collection is empty. Attempting to update client_id and retry...")
-        new_client_id = update_client_id()
+        print("No data from API or collection is empty. Attempting to update client_id and retry (async)...")
+        # Make sure to await update_client_id_async as it's now an async function
+        new_client_id = await update_client_id_async()
         if new_client_id:
-            client_id = new_client_id # Update global client_id for the retry
-            # Update version as well, as update_client_id might have fetched a new one
-            version = get_app_version() if version == "UNKNOWN_VERSION" or not version else version
-
-            api_url = (
-                f"https://api-v2.soundcloud.com/search"
-                f"?q={quoted_query}&facet=model&user_id={user_id}"
-                f"&client_id={client_id}&limit={limit}&offset=0"
-                f"&linked_partitioning=1&app_version={version}&app_locale=en"
-            )
-            print(f"Retrying with new client_id. Requesting URL: {api_url}")
-            try:
-                resp = requests.get(api_url, headers=headers)
-                resp.raise_for_status()
-                data = resp.json()
-            except requests.exceptions.RequestException as e_retry:
-                print(f"API retry request failed: {e_retry}")
-                data = {} # Ensure data is an empty dict on retry failure
+            # client_id global is updated by update_client_id_async
+            # version global might also be updated by update_client_id_async
+            print(f"Retrying with new client_id ({client_id}) and version ({version}).")
+            data = await attempt_search(client_id, version) # Retry with updated globals
         else:
-            print("Failed to update client_id. Cannot retry.")
+            print("Failed to update client_id (async). Cannot retry.")
 
     return data.get("collection", [])
 
@@ -678,90 +704,12 @@ async def download_track(track_info: dict, base_download_path: str = "./download
     
     return music_item
 
-# Example usage (optional, for testing this module directly)
-async def _soundcloud_module_test():
-    print("Testing SoundCloud Downloader Module...")
-    
-    # Test 1: Update client_id (optional, as it's called by search_tracks if needed)
-    # print("Attempting to update client_id...")
-    # updated_id = update_client_id()
-    # print(f"Updated client_id: {updated_id}" if updated_id else "client_id update failed or not needed.")
-
-    # Test 2: Search for tracks
-    search_query = "NCS Alan Walker" # Replace with a test query
-    print(f"\nSearching for tracks with query: '{search_query}'")
-    tracks = search_tracks(search_query, limit=1) # Limit to 1 for quicker test download
-
-    if tracks:
-        print(f"Found {len(tracks)} tracks.")
-        for i, track_data in enumerate(tracks):
-            print(f"  {i+1}. Title: {track_data.get('title')}, Artist: {track_data.get('user', {}).get('username')}")
-        
-        # Test 3: Download the first track from search results
-        first_track_info = tracks[0]
-        print(f"\nAttempting to download first track: {first_track_info.get('title')}")
-
-        def test_progress_callback(track_id, current_size, total_size, file_type, status, error_message=None):
-            if total_size > 0 and status == "downloading":
-                progress_percentage = (current_size / total_size) * 100
-                print(f"  [PROGRESS] Track ID: {track_id}, Type: {file_type}, {current_size}/{total_size} bytes ({progress_percentage:.2f}%) - Status: {status}")
-            else:
-                print(f"  [PROGRESS] Track ID: {track_id}, Type: {file_type}, {current_size} bytes - Status: {status}" + (f" Error: {error_message}" if error_message else ""))
-
-        downloaded_item = await download_track(
-            track_info=first_track_info,
-            progress_callback=test_progress_callback
-        )
-        
-        if downloaded_item:
-            print(f"\nSuccessfully downloaded track:")
-            print(f"  Music ID: {downloaded_item.music_id}")
-            print(f"  Title: {downloaded_item.title}")
-            print(f"  Author: {downloaded_item.author}")
-            print(f"  Cover Path: {downloaded_item.cover}") # This is _cover_path
-            print(f"  Audio Path: {downloaded_item.audio}") # This is _audio_path
-            print(f"  JSON Path: {os.path.join(downloaded_item.work_path, 'music.json')}")
-            
-            # Verify content of MusicItem.data
-            print(f"  MusicItemData Preview Cover: {downloaded_item.data.preview_cover}")
-            print(f"  MusicItemData Cover Path: {downloaded_item.data.cover_path}")
-            print(f"  MusicItemData Audio Path: {downloaded_item.data.audio_path}")
-
-            # Example of loading it back
-            loaded_item = MusicItem.load_from_json(downloaded_item.music_id)
-            if loaded_item:
-                 print(f"\nSuccessfully reloaded MusicItem from JSON:")
-                 print(f"  Loaded Cover Path: {loaded_item.cover}")
-                 print(f"  Loaded Audio Path: {loaded_item.audio}")
-                 print(f"  Loaded Preview Cover URL: {loaded_item.preview_cover}")
-
-        else:
-            print("Failed to download the track.")
-    else:
-        print("No tracks found for the query.")
-
-if __name__ == '__main__':
-    # This allows testing the module directly.
-    # Note: asyncio.run might be needed if any part becomes async in future.
-    # For now, assuming all testable functions are synchronous.    
-    # Since _soundcloud_module_test is async due to its name, but content is sync
-    # we can call it directly if not using await inside it.
-    # However, the main module might run an event loop, so direct print is fine.
-    _soundcloud_module_test() # No asyncio.run needed if it's not truly async.
-                              # The function itself is defined as `async def` but doesn't use `await`.
-                              # For consistency, let's make it a sync function if it doesn't need to be async.
-
-# If _soundcloud_module_test was truly async:
-# if __name__ == '__main__':
-#     import asyncio
-#     asyncio.run(_soundcloud_module_test())
-#
-# Correcting _soundcloud_module_test to be synchronous as it contains no await calls
-async def _soundcloud_module_test_sync(): # Renamed to avoid confusion with async def
-    print("Testing SoundCloud Downloader Module (Synchronous Test)...")
+# The test function is now async because it calls async search_tracks_async and download_track
+async def _soundcloud_module_test_async():
+    print("Testing SoundCloud Downloader Module (Async Test)...")
     search_query = "NCS Alan Walker" 
     print(f"\nSearching for tracks with query: '{search_query}'")
-    tracks = search_tracks(search_query, limit=1)
+    tracks = await search_tracks_async(search_query, limit=1) # Await the async search
 
     if tracks:
         print(f"Found {len(tracks)} tracks.")
@@ -797,4 +745,4 @@ async def _soundcloud_module_test_sync(): # Renamed to avoid confusion with asyn
         print("No tracks found for the query.")
 
 if __name__ == '__main__':
-    _soundcloud_module_test_sync()
+    asyncio.run(_soundcloud_module_test_async()) # Run the async test function

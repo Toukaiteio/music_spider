@@ -5,7 +5,7 @@ import asyncio
 import uuid
 from typing import Generic, TypeVar, runtime_checkable
 from typing import Dict, Any
-
+from config import DOWNLOADS_DIR
 class DictSerializable:
     def to_dict(self) -> Dict[str, Any]:
         """将对象转换为字典"""
@@ -64,7 +64,7 @@ class MusicItem:
         lossless: bool = False,
         lyrics: str = ""
     ):
-        self.work_path = os.path.join("./downloads", str(music_id))
+        self.work_path = os.path.join(DOWNLOADS_DIR, str(music_id))
         os.makedirs(self.work_path, exist_ok=True)
         
         self.data = MusicItemData(
@@ -205,7 +205,7 @@ class MusicItem:
 
     @classmethod
     def load_from_json(cls, music_id: str):
-        work_path = os.path.join("./downloads", str(music_id))
+        work_path = os.path.join(DOWNLOADS_DIR, str(music_id))
         json_path = os.path.join(work_path, "music.json")
         if os.path.exists(json_path):
             with open(json_path, "r", encoding="utf-8") as f:

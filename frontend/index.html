@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Music Downloader</title>
     <link rel="stylesheet" href="style.css" />
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <script src="./third_party/chart.min.js"></script>
     <script src="./third_party/color-thief.min.js"></script>
     <script src="./third_party/jsmediatags.min.js"></script>
   </head>
@@ -119,7 +119,7 @@
         this._handleInteraction(e);
       };
 
-      const handleEnd = () => {
+      const handleEnd = (e) => {
         this._isDragging = false;
         e.preventDefault();
         e.stopPropagation();
@@ -241,7 +241,9 @@
       const clamped = Math.max(this.min, Math.min(this.max, val));
       this._value = clamped;
       this.setAttribute('value', clamped);
-      this._updateUI();
+      if (!this._isDragging) {
+        this._updateUI();
+      }
     }
 
     get step() {
@@ -449,7 +451,7 @@
                 value="0"
                 min="0"
                 max="100"
-              />
+              ></dys-range>
               <span id="player-duration">0:00</span>
             </div>
           </div>
@@ -475,7 +477,7 @@
               min="0"
               max="100"
               aria-label="Volume Slider"
-            />
+            ></dys-range>
             <button
               id="player-hide-button"
               class="player-control-button"

@@ -1,4 +1,5 @@
 /downloads
+/frontend/downloads
 /temp_uploads
 *.pyc
 /util/__pycache__
