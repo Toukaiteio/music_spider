@@ -111,9 +111,9 @@ async def handle_upload_track(websocket, cmd_id: str, payload: dict):
             duration=0
         )
 
-        music_item.set_audio(audio_path_full) # Path relative to work_path
+        music_item.set_audio(os.path.join("./downloads/", audio_filename)) # Path relative to work_path
         if relative_cover_path_for_item:
-            music_item.set_cover(relative_cover_path_for_item)
+            music_item.set_cover(os.path.join("./downloads/", "./covers/" + new_cover_filename))
 
         music_item.dump_self()
 

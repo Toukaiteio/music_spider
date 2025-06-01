@@ -1,28 +1,9 @@
 import lyricsgenius
 import os
 import requests
-from Crypto.Cipher import AES
-import base64
-from config import AES_KEY,GENIUS_ACCESS_TOKEN
+from config import GENIUS_ACCESS_TOKEN
+from utils.helpers import encrypt_path
 genius = lyricsgenius.Genius(GENIUS_ACCESS_TOKEN)
-def encrypt_path(path):
-    data = path.encode('utf-8')
-    key_len = 64  # 32 bytes hex
-    iv_len = 32   # 16 bytes hex
-    aes_key_full = AES_KEY * 3  # 保证足够长
-
-    for i in range(3):
-        key_start = (i * (key_len + iv_len)) % len(aes_key_full)
-        key = bytes.fromhex(aes_key_full[key_start:key_start + key_len])
-        iv_start = (key_start + key_len) % len(aes_key_full)
-        iv = bytes.fromhex(aes_key_full[iv_start:iv_start + iv_len])
-        cipher = AES.new(key, AES.MODE_CBC, iv)
-        # 只在第一次做PKCS7 padding
-        if i == 0:
-            pad_len = 16 - (len(data) % 16)
-            data = data + bytes([pad_len] * pad_len)
-        data = cipher.encrypt(data)
-    return base64.urlsafe_b64encode(data).decode('utf-8')
 def get_song_info(title, artist=None):
     """
     根据曲名和可选的歌手名搜索歌曲，并返回歌曲元信息字典。

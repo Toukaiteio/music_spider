@@ -8,7 +8,7 @@ import re # For parsing WMIC output
 
 from utils.data_type import ResultBase
 from utils.helpers import format_bytes, format_speed # Import helpers
-from core.state import increment_task_execution,get_task_execution,get_net_io_global,update_net_io_global,update_task_execution,get_all_task_execution,add_client,get_connected_clients,remove_client,get_client_number
+from core.state import get_task_execution,get_net_io_global,update_net_io_global,get_client_number
 from core.ws_messaging import send_response
 
 

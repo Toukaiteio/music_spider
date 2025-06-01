@@ -1,103 +1,64 @@
-import asyncio
-import functools
-import json
-import time
+# import asyncio # No longer directly needed for async download logic here
+# import functools # No longer needed for partial
+# import json # No longer needed for ResultBase construction here
+# import time # No longer needed for throttling progress
 
-from utils.data_type import ResultBase, MusicItem
-# from core.downloaders import DOWNLOADER_MODULES (hypothetical)
+# from utils.data_type import ResultBase, MusicItem # MusicItem might not be needed here anymore
 from core.ws_messaging import send_response
-from core.state import DOWNLOADER_MODULES
+from core.state import get_download_task_queue # DOWNLOADER_MODULES check is minimal, actual download is elsewhere
+# from core.server import download_task_queue # Import the task queue
+
 async def handle_download_track(websocket, cmd_id: str, payload: dict):
     source = payload.get("source", "soundcloud")
     track_data = payload.get("track_data")
-    downloader_module = DOWNLOADER_MODULES.get(source)
-        
-
-    if not downloader_module:
-        await send_response(websocket, cmd_id, code=1, error=f"Unsupported source for download: {source}")
-        return
+    download_task_queue = get_download_task_queue()
+    # Minimal check for downloader existence, actual module is used by worker
+    # from core.state import DOWNLOADER_MODULES # Re-import for this check if needed, or rely on worker
+    # For now, assume worker will handle unknown source error reporting via results queue.
 
     if not track_data or not isinstance(track_data, dict):
         await send_response(websocket, cmd_id, code=1, error="Missing or invalid track_data.")
         return
 
-    track_id_for_progress = "unknown_track"
-    if source == "soundcloud":
-        track_id_for_progress = str(track_data.get("id", "unknown_track"))
-    elif source == "bilibili":
-        track_id_for_progress = str(track_data.get("bvid", track_data.get("music_id", "unknown_track")))
-
-    if track_id_for_progress == "unknown_track":
-        track_id_for_progress = str(track_data.get("music_id", "unknown_track"))
-
-    if track_id_for_progress == "unknown_track" and not track_data.get("title"):
-        await send_response(websocket, cmd_id, code=1, error="Track ID or identifiable information missing in track_data.")
+    # Client ID should have been attached to the websocket object during connection.
+    client_id = getattr(websocket, 'client_id', None)
+    if not client_id:
+        await send_response(websocket, cmd_id, code=1, error="Client ID not found on websocket connection. Cannot queue download.")
+        # This indicates an issue with the connection setup or state management.
+        print(f"Error: client_id missing from websocket object for cmd_id: {cmd_id}")
         return
 
-    last_progress_send_time = {}
-    loop = asyncio.get_running_loop()
-
-    def progress_callback_ws(track_id: str, current_size: int, total_size: int, file_type: str, status: str, error_message: str = None, *, main_loop, current_websocket, original_cmd_id):
-        progress_percent = (current_size / total_size) * 100 if total_size > 0 else 0
-
-        if status == "downloading":
-            now = time.time()
-            throttle_key = (track_id, file_type)
-            last_sent = last_progress_send_time.get(throttle_key, 0)
-            if (now - last_sent < 0.5) and (current_size < total_size if total_size > 0 else True) :
-                return
-            last_progress_send_time[throttle_key] = now
-
-        progress_update_payload = {
-            "original_cmd_id": original_cmd_id,
-            "status_type": "download_progress",
-            "track_id": track_id,
-            "file_type": file_type,
-            "status": status,
-            "current_size": current_size,
-            "total_size": total_size,
-            "progress_percent": round(progress_percent, 2),
-        }
-        if error_message:
-            progress_update_payload["error_message"] = error_message
-
-        json_message = json.dumps(ResultBase(code=0, data=progress_update_payload).get_json())
-
-        try:
-            asyncio.run_coroutine_threadsafe(current_websocket.send(json_message), main_loop)
-        except Exception as e:
-            print(f"Failed to send progress for cmd_id {original_cmd_id}, track {track_id}: {e}")
+    # Construct the task message for the download worker
+    download_task = {
+        "source": source,
+        "track_data": track_data, # This should be serializable (dict)
+        "original_cmd_id": cmd_id,
+        "client_id": client_id
+    }
 
     try:
-        print(f"Starting download for track: {track_data.get('title', track_id_for_progress)} (cmd_id: {cmd_id})")
+        # Put the task onto the queue.
+        # This is a blocking call if the queue is full and has a maxsize.
+        # If queue is unbounded (default), it won't block unless system resources exhausted.
+        # Consider put_nowait() or timeout if strict non-blocking is needed,
+        # but workers should process tasks, making space.
+        download_task_queue.put(download_task)
 
-        partial_progress_callback = functools.partial(
-            progress_callback_ws,
-            main_loop=loop,
-            current_websocket=websocket,
-            original_cmd_id=cmd_id
-        )
+        print(f"Download task queued for cmd_id: {cmd_id}, client_id: {client_id}, track: {track_data.get('title', 'N/A')}")
 
-        music_item_result = await downloader_module.download_track(
-            track_data,
-            "./downloads",
-            partial_progress_callback
-        )
+        # Send an immediate acknowledgment to the client
+        await send_response(websocket, cmd_id, code=0, data={
+            "status": "download_queued",
+            "message": "Download task has been queued successfully.",
+            "track_title": track_data.get("title", "N/A") # Optionally include title in ack
+        })
 
-        if music_item_result and isinstance(music_item_result, MusicItem):
-            print(f"Download complete for cmd_id {cmd_id} (source: {source}), track: {music_item_result.data.title}")
-            final_response_data = {
-                "original_cmd_id": cmd_id,
-                "status": "download_complete",
-                "message": f"Track '{music_item_result.data.title}' downloaded successfully.",
-                "track_details": music_item_result.data.to_dict()
-            }
-            await send_response(websocket, cmd_id, code=0, data=final_response_data)
-        else:
-            print(f"Download process for cmd_id {cmd_id} (track: {track_data.get('title', track_id_for_progress)}) did not return a valid MusicItem or failed.")
-            await send_response(websocket, cmd_id, code=1, error="Download failed. Check progress updates for specific errors.")
-
+    except AttributeError as ae: # If download_task_queue is not imported correctly (e.g. None)
+        print(f"Error accessing download_task_queue (AttributeError): {ae}. Ensure it's imported and initialized.")
+        await send_response(websocket, cmd_id, code=1, error="Server configuration error: Download queue not available.")
     except Exception as e:
-        print(f"Exception during download process for cmd_id {cmd_id} (track: {track_data.get('title', track_id_for_progress)}): {e}")
-        await send_response(websocket, cmd_id, code=1, error=f"Server error during download: {str(e)}")
+        # This could be due to various issues, e.g., if the queue is closed,
+        # or if track_data is not serializable (though it should be a dict).
+        print(f"Error queuing download task for cmd_id {cmd_id}: {e}")
+        await send_response(websocket, cmd_id, code=1, error=f"Failed to queue download task: {str(e)}")
 

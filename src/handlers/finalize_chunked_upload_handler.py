@@ -193,7 +193,7 @@ async def handle_finalize_chunked_upload(websocket, cmd_id: str, payload: dict):
 
         manifest_data["status"] = "finalized"
         manifest_data["finalized_at"] = time.time()
-        _write_session_manifest(upload_session_id, manifest_data)
+        write_session_manifest(upload_session_id, manifest_data)
 
         shutil.rmtree(session_path) # Cleanup session directory
         print(f"Cleaned up session directory: {session_path}")
