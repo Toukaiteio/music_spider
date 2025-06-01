@@ -3,8 +3,8 @@
 /temp_uploads
 *.pyc
 /util/__pycache__
-*.txt
 test.py
+client_id.txt
 *.json
 /.venv
 /.vscode
