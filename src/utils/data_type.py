@@ -66,7 +66,7 @@ class MusicItem:
     ):
         self.work_path = os.path.join(DOWNLOADS_DIR, str(music_id))
         os.makedirs(self.work_path, exist_ok=True)
-        
+        self.read_path = os.path.join("./downloads", str(music_id))
         self.data = MusicItemData(
             music_id=str(music_id), # Ensure music_id is string
             title=title,

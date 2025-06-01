@@ -5,12 +5,13 @@
 
 # from utils.data_type import ResultBase, MusicItem # MusicItem might not be needed here anymore
 from core.ws_messaging import send_response
-# from core.state import DOWNLOADER_MODULES # DOWNLOADER_MODULES check is minimal, actual download is elsewhere
-from core.server import download_task_queue # Import the task queue
+from core.state import get_download_task_queue # DOWNLOADER_MODULES check is minimal, actual download is elsewhere
+# from core.server import download_task_queue # Import the task queue
 
 async def handle_download_track(websocket, cmd_id: str, payload: dict):
     source = payload.get("source", "soundcloud")
     track_data = payload.get("track_data")
+    download_task_queue = get_download_task_queue()
     # Minimal check for downloader existence, actual module is used by worker
     # from core.state import DOWNLOADER_MODULES # Re-import for this check if needed, or rely on worker
     # For now, assume worker will handle unknown source error reporting via results queue.

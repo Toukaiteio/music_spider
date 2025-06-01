@@ -47,7 +47,7 @@ async def handle_update_track_info(websocket, cmd_id: str, payload: dict):
                     with open(new_cover_path_full, "wb") as f:
                         f.write(cover_data)
 
-                    music_item.set_cover(new_cover_path_full) # Path relative to work_path is fine if MusicItem handles it
+                    music_item.set_cover(os.path.join(music_item.read_path, "./covers/"+cover_filename)) # Path relative to work_path is fine if MusicItem handles it
                     updated_fields_tracker.append("cover_image")
                     print(f"Updated cover image for track {music_id} to {new_cover_path_full}")
 
@@ -89,7 +89,7 @@ async def handle_update_track_info(websocket, cmd_id: str, payload: dict):
                 new_cover_filename = f"cover_{int(time.time())}.{cover_ext}"
                 new_cover_path = os.path.join(cover_dir, new_cover_filename)
                 shutil.move(abs_cover_path, new_cover_path)
-                music_item.set_cover(new_cover_path) # Path relative to work_path
+                music_item.set_cover(os.path.join(music_item.read_path, "./covers/"+new_cover_filename)) # Path relative to work_path
                 updated_fields_tracker.append("cover_image")
                 print(f"Updated cover image for track {music_id} using local path: {new_cover_path}")
             else:

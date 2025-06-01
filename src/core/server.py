@@ -27,9 +27,10 @@ import functools # For functools.partial
 
 from downloaders import soundcloud_downloader, bilibili_downloader
 from .custom_request_handler import CustomRequestHandler
-from .state import (
+from core.state import (
+    DOWNLOADER_MODULES,
     increment_task_execution, get_task_execution, update_task_execution, get_all_task_execution,
-    add_client, remove_client, get_websocket_by_client_id  # Added get_websocket_by_client_id
+    add_client, remove_client, get_websocket_by_client_id,get_download_task_queue,get_download_results_queue  # Added get_websocket_by_client_id
 )
 # Import configuration
 from config import (
@@ -58,20 +59,16 @@ from handlers.finalize_chunked_upload_handler import handle_finalize_chunked_upl
 from handlers.get_music_info_handler import handle_get_music_info
 from handlers.get_system_overview_handler import handle_get_system_overview
 
-# Configuration and State Variables have been moved to src.config or remain as state below
-
-DOWNLOADER_MODULES = { # TODO: This could also be part of config if sources are configurable
-    "soundcloud": soundcloud_downloader,
-    "bilibili": bilibili_downloader,
-}
-
 # Queues for inter-process communication for downloads
-download_task_queue = Queue()
-download_results_queue = Queue()
+download_task_queue = get_download_task_queue()
+download_results_queue = get_download_results_queue()
 
 # Download worker process main function
-def download_worker_main(task_queue: Queue, results_queue: Queue, downloader_modules: dict, downloads_dir: str):
+def download_worker_main(task_queue: Queue, results_queue: Queue, downloads_dir: str):
+
     print(f"Download worker process started: PID {os.getpid()}")
+    from core.state import DOWNLOADER_MODULES
+    downloader_modules = DOWNLOADER_MODULES
     while True:
         try:
             task = task_queue.get()
@@ -83,7 +80,7 @@ def download_worker_main(task_queue: Queue, results_queue: Queue, downloader_mod
             source = task.get("source")
             track_data = task.get("track_data")
             original_cmd_id = task.get("original_cmd_id")
-            # client_id = task.get("client_id") # For future use if routing responses
+            client_id = task.get("client_id") # For future use if routing responses
 
             if not all([source, track_data, original_cmd_id]):
                 print(f"Worker {os.getpid()}: Invalid task received: {task}")
@@ -91,7 +88,8 @@ def download_worker_main(task_queue: Queue, results_queue: Queue, downloader_mod
                     "type": "error",
                     "original_cmd_id": original_cmd_id,
                     "error": "Invalid task data in worker",
-                    "track_id": track_data.get("id", "unknown_track_id") if isinstance(track_data, dict) else "unknown_track_id"
+                    "track_id": track_data.get("id", "unknown_track_id") if isinstance(track_data, dict) else "unknown_track_id",
+                    "client_id": client_id
                 })
                 continue
 
@@ -102,21 +100,24 @@ def download_worker_main(task_queue: Queue, results_queue: Queue, downloader_mod
                     "type": "error",
                     "original_cmd_id": original_cmd_id,
                     "error": f"No downloader for source '{source}'",
-                    "track_id": track_data.get("id")
+                    "track_id": track_data.get("id"),
+                    "client_id": client_id
                 })
                 continue
 
-            def progress_callback_mp(track_id, progress_type, current, total=None, message=None):
+            def progress_callback_mp(track_id, file_type, current_size,status, total_size=None, error_message=None):
                 """Multiprocessing-safe progress callback."""
                 # print(f"Worker {os.getpid()} progress: {track_id}, {progress_type}, {current}, {total}, {message}")
                 results_queue.put({
                     "type": "progress",
                     "original_cmd_id": original_cmd_id,
                     "track_id": track_id,
-                    "progress_type": progress_type,
-                    "current": current,
-                    "total": total,
-                    "message": message
+                    "progress_type":file_type,
+                    "message_type": status,
+                    "current": current_size,
+                    "total": total_size,
+                    "message": error_message,
+                    "client_id": client_id
                 })
 
             try:
@@ -128,14 +129,15 @@ def download_worker_main(task_queue: Queue, results_queue: Queue, downloader_mod
                 # The actual download call
                 # Note: The original download_track function in downloader modules might return a MusicItem
                 # or raise an exception. We need to handle this.
-                music_item = downloader_module.download_track(track_data, downloads_dir, progress_callback_mp)
+                music_item =  asyncio.run(downloader_module.download_track(track_data, downloads_dir, progress_callback_mp))
 
                 print(f"Worker {os.getpid()}: Download successful for track ID {track_data.get('id')}")
                 results_queue.put({
                     "type": "success",
                     "original_cmd_id": original_cmd_id,
                     "track_id": track_data.get("id"),
-                    "music_item": music_item.to_dict() if hasattr(music_item, 'to_dict') else music_item
+                    "music_item": music_item.data.to_dict(),
+                    "client_id": client_id
                 })
 
             except Exception as e:
@@ -145,7 +147,8 @@ def download_worker_main(task_queue: Queue, results_queue: Queue, downloader_mod
                     "type": "error",
                     "original_cmd_id": original_cmd_id,
                     "track_id": track_data.get("id"),
-                    "error": str(e)
+                    "error": str(e),
+                    "client_id": client_id
                 })
 
         except EOFError: # Can happen if queue is closed unexpectedly
@@ -267,8 +270,8 @@ async def process_download_results(results_queue: Queue):
                 continue
 
             websocket_client = get_websocket_by_client_id(client_id)
-            if websocket_client and websocket_client.open:
-                response_data = result_message # The worker already formats the payload well
+            if websocket_client:
+                # response_data = result_message # The worker already formats the payload well
 
                 # We can refine the data sent to client if needed, or pass as is
                 # For example, ensuring it matches what progress_callback_ws used to send for 'progress'
@@ -290,13 +293,20 @@ async def process_download_results(results_queue: Queue):
                     })
                 elif message_type == "success":
                     data_to_send.update({
-                        "status": "download_complete", # Matches old final_response_data
+                        "status": "completed_track", # Matches old final_response_data
+                        "file_type": result_message.get("progress_type"), # Assuming progress_type maps to file_type
+                        "track_id": result_message.get("track_id"),
+                        "current_size": result_message.get("current"),
+                        "total_size": result_message.get("total"),
+                        "progress_percent": round((result_message.get("current", 0) / result_message.get("total", 1)) * 100, 2) if result_message.get("total") else 0,
+                        "status_type":"download_progress",
                         "message": f"Track '{result_message.get('music_item', {}).get('title', 'N/A')}' downloaded successfully.",
                         "track_details": result_message.get("music_item")
                     })
                 elif message_type == "error":
                      data_to_send.update({
-                        "status": "download_error",
+                        "status": "error",
+                        "status_type":"download_progress",
                         "error_message": result_message.get("error"),
                         "track_id": result_message.get("track_id")
                     })
@@ -308,12 +318,6 @@ async def process_download_results(results_queue: Queue):
                 # code=0 for progress and success, code=1 for error
                 response_code = 1 if message_type == "error" else 0
                 await send_response(websocket_client, original_cmd_id, code=response_code, data=data_to_send)
-                # print(f"Sent {message_type} to client {client_id} for cmd_id {original_cmd_id}")
-
-            elif websocket_client and not websocket_client.open:
-                print(f"Client {client_id} (cmd_id: {original_cmd_id}) found but connection is closed. Discarding {message_type}.")
-            else:
-                print(f"Client {client_id} (cmd_id: {original_cmd_id}) not found. Discarding {message_type}.")
 
         except asyncio.CancelledError:
             print("Download results processor task cancelled.")
@@ -372,7 +376,7 @@ async def start_server(): # Renamed from 'main' to 'start_server' for clarity
         for i in range(num_download_workers):
             worker_process = multiprocessing.Process(
                 target=download_worker_main,
-                args=(download_task_queue, download_results_queue, DOWNLOADER_MODULES, DOWNLOADS_DIR)
+                args=(download_task_queue, download_results_queue, DOWNLOADS_DIR)
             )
             worker_process.daemon = True # Optional: manage lifecycle with sentinels or explicit termination
             worker_process.start()
@@ -384,8 +388,8 @@ async def start_server(): # Renamed from 'main' to 'start_server' for clarity
         frontend_process = multiprocessing.Process(target=start_frontend_server)
         frontend_process.start()
         print(f"Frontend server process started with PID: {frontend_process.pid}")
-
-        load_task_execution_stats()
+        # threading.Thread(target=start_frontend_server, daemon=True).start()
+        # load_task_execution_stats()
         atexit.register(save_task_execution_stats)
 
         ws_server = await websockets.serve(ws_handler, HOST, WEBSOCKET_PORT) # Use config values
@@ -503,12 +507,8 @@ def start_frontend_server():
         print(f"Frontend HTTP server starting on http://{HOST}:{FRONTEND_PORT}")
         print(f"Serving files from: {frontend_dir}")
 
-        # Start the HTTP server in a new daemon thread
-        # Daemon threads automatically exit when the main program exits
-        thread = threading.Thread(target=httpd.serve_forever)
-        thread.daemon = True
-        thread.start()
-        print(f"Frontend HTTP server running in a daemon thread.")
+        
+        httpd.serve_forever()
 
     except OSError as e:
         if e.errno == 98: # Address already in use

@@ -30,61 +30,111 @@ def format_speed(bits_per_second, precision=2):
     else:
         return f"{round(bits_per_second / (1000**3), precision)} Gbps"
 
+def encrypt_path(path):
+    data = path.encode('utf-8')
+    key_len_hex = 64   # 32 bytes -> 64 hex chars
+    iv_len_hex = 32    # 16 bytes -> 32 hex chars
+    total_rounds = 3
+    aes_key_length = len(AES_KEY)
+
+    # 当前读取指针起始位置
+    pointer = 0
+
+    for _ in range(total_rounds):
+        # 提取 key
+        key_end = pointer + key_len_hex
+        if key_end > aes_key_length:
+            key_str = AES_KEY[pointer:] + AES_KEY[:key_end % aes_key_length]
+        else:
+            key_str = AES_KEY[pointer:key_end]
+        print(f"AES_KEY: {AES_KEY}")
+        print(f"Extracted key_str: {key_str}")
+        # 更新指针并提取 iv
+        pointer = key_end % aes_key_length
+        iv_end = pointer + iv_len_hex
+        if iv_end > aes_key_length:
+            iv_str = AES_KEY[pointer:] + AES_KEY[:iv_end % aes_key_length]
+        else:
+            iv_str = AES_KEY[pointer:iv_end]
+
+        # 更新指针到下一个位置
+        pointer = iv_end % aes_key_length
+        print(key_str, iv_str)
+        # 转换为 bytes 并创建 cipher
+        key = bytes.fromhex(key_str)
+        iv = bytes.fromhex(iv_str)
+        cipher = AES.new(key, AES.MODE_CBC, iv)
+
+        # 只在第一次做 PKCS7 padding
+        if _ == 0:
+            pad_len = 16 - (len(data) % 16)
+            data = data + bytes([pad_len] * pad_len)
+
+        data = cipher.encrypt(data)
+
+    return base64.urlsafe_b64encode(data).decode('utf-8')
+
 def decrypt_path(enc_path: str) -> str:
-    """Decrypts a base64 encoded path encrypted with AES."""
+    """Decrypts a base64 encoded path encrypted with AES (reverse of encrypt_path)."""
     try:
         data = base64.urlsafe_b64decode(enc_path)
-        key_len = 64  # 32 bytes hex
-        iv_len = 32   # 16 bytes hex
+        key_len_hex = 64   # 32 bytes -> 64 hex chars
+        iv_len_hex = 32    # 16 bytes -> 32 hex chars
+        total_rounds = 3
+        aes_key_length = len(AES_KEY)
 
-        # Ensure AES_KEY is long enough by repeating it if necessary.
-        # This ensures that even if the original AES_KEY is shorter than key_len + iv_len,
-        # we can derive multiple keys/IVs from it.
-        aes_key_full = AES_KEY
-        while len(aes_key_full) < (key_len + iv_len) * 3 : # Ensure enough length for 3 rounds if needed.
-            aes_key_full += AES_KEY
+        # We'll reconstruct the same key/iv sequence as in encrypt_path, but in reverse
+        # To do this, we need to reconstruct the pointer positions for each round
+        # First, build the pointer sequence for each round
+        pointer = 0
+        pointers = []
+        for _ in range(total_rounds):
+            key_end = pointer + key_len_hex
+            pointer = key_end % aes_key_length
+            iv_end = pointer + iv_len_hex
+            pointer = iv_end % aes_key_length
+            pointers.append(pointer)
+        # Now, reverse the process
+        pointer = pointers[-1]
+        for round_idx in reversed(range(total_rounds)):
+            # Calculate key/iv for this round
+            # Go back to previous pointer position
+            # To get key, we need to back up iv_len_hex, then key_len_hex
+            iv_end = pointer
+            iv_start = (iv_end - iv_len_hex) % aes_key_length
+            key_end = iv_start
+            key_start = (key_end - key_len_hex) % aes_key_length
 
-        for i in reversed(range(3)): # Assuming 3 rounds of encryption as in original js code
-            key_start_index = (i * (key_len + iv_len)) % len(aes_key_full)
+            # Extract key and iv, handling wrap-around
+            if key_start < key_end:
+                key_str = AES_KEY[key_start:key_end]
+            else:
+                key_str = AES_KEY[key_start:] + AES_KEY[:key_end]
+            if iv_start < iv_end:
+                iv_str = AES_KEY[iv_start:iv_end]
+            else:
+                iv_str = AES_KEY[iv_start:] + AES_KEY[:iv_end]
 
-            # Check if there's enough material left in aes_key_full for key and IV
-            if key_start_index + key_len > len(aes_key_full):
-                # This should not happen if aes_key_full is sufficiently long
-                raise ValueError("AES key material exhausted for key derivation.")
-            key_hex = aes_key_full[key_start_index : key_start_index + key_len]
-            key = bytes.fromhex(key_hex)
-
-            iv_start_index = (key_start_index + key_len) % len(aes_key_full)
-            if iv_start_index + iv_len > len(aes_key_full):
-                # This should not happen if aes_key_full is sufficiently long
-                raise ValueError("AES key material exhausted for IV derivation.")
-            iv_hex = aes_key_full[iv_start_index : iv_start_index + iv_len]
-            iv = bytes.fromhex(iv_hex)
-
+            key = bytes.fromhex(key_str)
+            iv = bytes.fromhex(iv_str)
             cipher = AES.new(key, AES.MODE_CBC, iv)
             data = cipher.decrypt(data)
 
-            if i == 0: # Only unpad on the final decryption step
-                # PKCS7 unpadding
+            pointer = key_start  # Move pointer back for next round
+
+            if round_idx == 0:
+                # Remove PKCS7 padding
                 pad_len = data[-1]
-                if pad_len > AES.block_size or pad_len == 0: # Basic check for invalid padding
+                if pad_len < 1 or pad_len > AES.block_size:
                     raise ValueError("Invalid PKCS7 padding length.")
-                # Check all padding bytes
-                for padding_byte in data[-pad_len:]:
-                    if padding_byte != pad_len:
-                        raise ValueError("Invalid PKCS7 padding bytes.")
+                if data[-pad_len:] != bytes([pad_len] * pad_len):
+                    raise ValueError("Invalid PKCS7 padding bytes.")
                 data = data[:-pad_len]
 
         return data.decode('utf-8')
-    except base64.binascii.Error as e:
-        print(f"Base64 decoding error during decrypt_path: {e}")
-        raise ValueError("Invalid base64 input for path decryption.") from e
-    except ValueError as e: # Catches errors from fromhex, padding, etc.
-        print(f"Decryption error: {e}")
-        raise # Re-raise to indicate decryption failure
     except Exception as e:
-        print(f"Unexpected error in decrypt_path: {e}")
-        raise RuntimeError("Unexpected error during path decryption.") from e
+        print(f"Error in decrypt_path: {e}")
+        raise
 
 # --- Chunked Upload Helper Functions ---
 def get_session_manifest_path(session_id: str) -> str:

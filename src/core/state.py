@@ -4,7 +4,22 @@ import psutil
 import time
 from downloaders import soundcloud_downloader,bilibili_downloader
 from types import MappingProxyType
+from multiprocessing import Queue
 
+
+# 下载任务队列和结果队列的全局状态管理
+_DOWNLOAD_TASK_QUEUE_LOCK = Lock()
+_DOWNLOAD_RESULTS_QUEUE_LOCK = Lock()
+download_task_queue = Queue()
+download_results_queue = Queue()
+
+def get_download_task_queue():
+    with _DOWNLOAD_TASK_QUEUE_LOCK:
+        return download_task_queue
+
+def get_download_results_queue():
+    with _DOWNLOAD_RESULTS_QUEUE_LOCK:
+        return download_results_queue
 
 _DOWNLOADER_MODULES = {
     "soundcloud": soundcloud_downloader,
