@@ -15,8 +15,9 @@ import asyncio
 import concurrent.futures
 import functools # Import functools for partial
 # Global variables from main.py
-user_id = "77130-7014-3319-567702"
-oauth_token = "2-303884-1556525673-bal84X32zv4Kw"
+# user_id = "set_ur_user_id_here_to_use"
+# oauth_token = "set_ur_oauth_token_here_to_use"
+# if (user_id == "set_ur_user_id_here_to_use" or oauth_token == "set_ur_oauth_token_here_to_use"): return;
 client_id_path = os.path.join(os.getcwd(), "client_id.txt") # os.getcwd() will resolve to project root
 
 if os.path.exists(client_id_path):

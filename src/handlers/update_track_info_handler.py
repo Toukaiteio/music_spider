@@ -3,11 +3,14 @@ import json
 import time
 import base64
 import shutil
+import requests
 
 from utils.data_type import ResultBase, MusicItem
 from utils.helpers import decrypt_path, TEMP_UPLOAD_DIR # Import helper and constants
 from core.ws_messaging import send_response
+from core.data_sync import sync_music_to_backend
 
+from config import IS_USING_SPRINGBOOT_BACKEND
 async def handle_update_track_info(websocket, cmd_id: str, payload: dict):
     print(f"Handling update_track_info command with cmd_id: {cmd_id}, payload: {payload}")
     music_id = payload.get("music_id")
@@ -98,15 +101,31 @@ async def handle_update_track_info(websocket, cmd_id: str, payload: dict):
         music_item.dump_self()
         print(f"Track {music_id} updated successfully with provided fields: {updated_fields_tracker}")
 
+        # 如果启用了SpringBoot后端，同步更新后的数据
+        backend_sync_status = {"synced": False, "error": None}
+        if IS_USING_SPRINGBOOT_BACKEND and updated_fields_tracker:  # 只在有字段更新时同步
+            success, error = sync_music_to_backend(music_id, music_item.data.to_dict())
+            backend_sync_status["synced"] = success
+            if not success:
+                backend_sync_status["error"] = error
+                print(f"Warning: Failed to sync updated track {music_id} to backend: {error}")
+
+        response_data = {
+            "message": "Track updated successfully.",
+            "track_data": music_item.data.to_dict(),
+            "updated_fields": updated_fields_tracker,
+            "backend_sync": backend_sync_status
+        }
+
+        # 如果同步失败但不影响本地更新，调整消息
+        if backend_sync_status.get("error"):
+            response_data["message"] = f"Track updated locally but failed to sync with backend: {backend_sync_status['error']}"
+
         await send_response(
             websocket,
             cmd_id,
             code=0,
-            data={
-                "message": "Track updated successfully.",
-                "track_data": music_item.data.to_dict(),
-                "updated_fields": updated_fields_tracker
-            }
+            data=response_data
         )
 
     except Exception as e:

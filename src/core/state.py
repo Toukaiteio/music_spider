@@ -22,7 +22,7 @@ def get_download_results_queue():
         return download_results_queue
 
 _DOWNLOADER_MODULES = {
-    "soundcloud": soundcloud_downloader,
+    # "soundcloud": soundcloud_downloader,
     "bilibili": bilibili_downloader,
 }
 

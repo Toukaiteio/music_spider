@@ -1,6 +1,10 @@
 import os
 from dotenv import load_dotenv
 
+IS_USING_SPRINGBOOT_BACKEND = False
+SPRINGBOOT_BACKEND_AT = "http://localhost:8086"
+
+
 # Load environment variables from .env file if it exists
 # Useful for development. In production, variables are often set directly in the environment.
 dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env') # Assuming .env is in the root directory, one level up from src

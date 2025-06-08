@@ -116,7 +116,15 @@ class PlayerManager {
     if (this.playerVolumeSlider) {
       this.playerVolumeSlider.addEventListener("input", (e) => {
         const value = Number(e.target.value);
-        this.audio.volume = value / 100;
+        const normalizedVolume = value / 100;
+        
+        // 使用volumeGainNode来控制音量，而不是直接设置audio.volume
+        if (this.volumeGainNode) {
+          this.volumeGainNode.gain.setValueAtTime(normalizedVolume, this.audioCtx.currentTime);
+        }
+        
+        // 保存音量设置到localStorage
+        localStorage.setItem('player_volume', normalizedVolume);
       });
     }
 
@@ -281,9 +289,107 @@ class PlayerManager {
     this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     this.analyser = this.audioCtx.createAnalyser();
     this.analyser.fftSize = 2048;
+    
+    // 创建增益节点用于响度归一化
+    this.gainNode = this.audioCtx.createGain();
+    this.gainNode.gain.value = 1.0; // 初始增益为1
+    
+    // 创建增益节点用于音量控制
+    this.volumeGainNode = this.audioCtx.createGain();
+    this.volumeGainNode.gain.value = 1.0; // 初始音量为1
+    
     this.source = this.audioCtx.createMediaElementSource(this.audio);
-    this.source.connect(this.analyser);
+    
+    // 重新设置音频节点连接链：source -> normalization -> volume -> analyser -> destination
+    this.source.connect(this.gainNode);
+    this.gainNode.connect(this.volumeGainNode);
+    this.volumeGainNode.connect(this.analyser);
     this.analyser.connect(this.audioCtx.destination);
+    
+    // 设置初始音量
+    const savedVolume = localStorage.getItem('player_volume');
+    if (savedVolume !== null) {
+      const volume = parseFloat(savedVolume);
+      this.volumeGainNode.gain.setValueAtTime(volume, this.audioCtx.currentTime);
+      if (this.playerVolumeSlider) {
+        this.playerVolumeSlider.value = volume * 100;
+      }
+    }
+  }
+
+  // 计算音频的LUFS值
+  async calculateLUFS() {
+    if (!this.audio.src) return -14; // 如果没有音频源，返回目标LUFS值
+    
+    const audioData = await this.getAudioData();
+    if (!audioData) return -14;
+    
+    // 简化的LUFS计算
+    // 实际的LUFS计算需要考虑K加权滤波和门限处理
+    // 这里使用RMS作为简化的替代方案
+    const rms = this.calculateRMS(audioData);
+    // 将RMS转换为近似LUFS值
+    // 这是一个简化的转换，实际LUFS计算更复杂
+    const lufs = 20 * Math.log10(rms) - 23;
+    
+    return lufs;
+  }
+
+  // 获取音频数据
+  async getAudioData() {
+    try {
+      const response = await fetch(this.audio.src);
+      const arrayBuffer = await response.arrayBuffer();
+      const audioBuffer = await this.audioCtx.decodeAudioData(arrayBuffer);
+      
+      // 合并所有声道
+      const numberOfChannels = audioBuffer.numberOfChannels;
+      const length = audioBuffer.length;
+      const mergedData = new Float32Array(length);
+      
+      for (let channel = 0; channel < numberOfChannels; channel++) {
+        const channelData = audioBuffer.getChannelData(channel);
+        for (let i = 0; i < length; i++) {
+          mergedData[i] += channelData[i] / numberOfChannels;
+        }
+      }
+      
+      return mergedData;
+    } catch (error) {
+      console.error('Error getting audio data:', error);
+      return null;
+    }
+  }
+
+  // 计算RMS值
+  calculateRMS(data) {
+    let sum = 0;
+    for (let i = 0; i < data.length; i++) {
+      sum += data[i] * data[i];
+    }
+    return Math.sqrt(sum / data.length);
+  }
+
+  // 应用响度归一化
+  async applyLoudnessNormalization() {
+    const targetLUFS = -14; // 目标LUFS值
+    const maxGainDB = 6; // 最大增益限制(dB)
+    
+    const currentLUFS = await this.calculateLUFS();
+    
+    // 计算需要的增益
+    let gainDB = targetLUFS - currentLUFS;
+    
+    // 限制最大增益
+    gainDB = Math.min(gainDB, maxGainDB);
+    
+    // 将dB转换为线性增益
+    const linearGain = Math.pow(10, gainDB / 20);
+    
+    // 应用增益
+    if (this.gainNode) {
+      this.gainNode.gain.setValueAtTime(linearGain, this.audioCtx.currentTime);
+    }
   }
 
   setupThemeListener() {
@@ -316,6 +422,13 @@ class PlayerManager {
       this.coverImgElement.onload = () => this.extractCoverColor();
     }
     this.climaxDetected = false;
+    
+    // 在音频加载完成后应用响度归一化
+    this.audio.addEventListener('loadeddata', () => {
+      this.applyLoudnessNormalization().catch(err => 
+        console.error('Error applying loudness normalization:', err)
+      );
+    }, { once: true }); // 只执行一次
   }
   findTrackById(id) {
     return this.playlist.findIndex((track) => track.music_id === id);

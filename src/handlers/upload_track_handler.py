@@ -7,7 +7,9 @@ import shutil
 from utils.data_type import ResultBase, MusicItem
 from utils.helpers import decrypt_path, TEMP_UPLOAD_DIR # Import helper and constants
 from core.ws_messaging import send_response
-from config import DOWNLOADS_DIR
+from config import DOWNLOADS_DIR,IS_USING_SPRINGBOOT_BACKEND,SPRINGBOOT_BACKEND_AT
+from core.data_sync import sync_music_to_backend
+
 async def handle_upload_track(websocket, cmd_id: str, payload: dict):
     print(f"Handling upload_track command with cmd_id: {cmd_id}")
     track_data = payload.get("track_data", {})
@@ -117,15 +119,31 @@ async def handle_upload_track(websocket, cmd_id: str, payload: dict):
 
         music_item.dump_self()
 
+        # 如果启用了SpringBoot后端，同步新上传的数据
+        backend_sync_status = {"synced": False, "error": None}
+        if IS_USING_SPRINGBOOT_BACKEND:
+            success, error = sync_music_to_backend(music_id, music_item.data.to_dict())
+            backend_sync_status["synced"] = success
+            if not success:
+                backend_sync_status["error"] = error
+                print(f"Warning: Failed to sync uploaded track {music_id} to backend: {error}")
+
+        response_data = {
+            "message": "Track uploaded successfully",
+            "music_id": music_id,
+            "track_data": music_item.data.to_dict(),
+            "backend_sync": backend_sync_status
+        }
+
+        # 如果同步失败但不影响上传成功，调整消息
+        if backend_sync_status.get("error"):
+            response_data["message"] = f"Track uploaded locally but failed to sync with backend: {backend_sync_status['error']}"
+
         await send_response(
             websocket,
             cmd_id,
             code=0,
-            data={
-                "message": "Track uploaded successfully",
-                "music_id": music_id,
-                "track_data": music_item.data.to_dict()
-            }
+            data=response_data
         )
 
     except Exception as e:

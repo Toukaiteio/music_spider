@@ -18,6 +18,8 @@ from utils.helpers import (
     DOWNLOADS_DIR
 )
 from core.ws_messaging import send_response
+from config import IS_USING_SPRINGBOOT_BACKEND, SPRINGBOOT_BACKEND_AT
+from core.data_sync import sync_music_to_backend
 
 async def handle_finalize_chunked_upload(websocket, cmd_id: str, payload: dict):
     upload_session_id = payload.get("upload_session_id")
@@ -100,7 +102,7 @@ async def handle_finalize_chunked_upload(websocket, cmd_id: str, payload: dict):
                 genre=metadata_from_init.get("genre", ""),
                 lyrics=metadata_from_init.get("lyrics", ""),
             )
-            music_item.set_audio(final_audio_path) # Path relative to work_path
+            music_item.set_audio(os.path.join(music_item.read_path, final_audio_filename)) # Path relative to work_path
 
             cover_local_path_enc = metadata_from_init.get("cover_local_path")
             if cover_local_path_enc:
@@ -118,7 +120,7 @@ async def handle_finalize_chunked_upload(websocket, cmd_id: str, payload: dict):
                     new_cover_filename = f"cover_{int(time.time())}.{cover_ext}"
                     new_cover_path = os.path.join(covers_dir, new_cover_filename)
                     shutil.move(abs_cover_path, new_cover_path)
-                    music_item.set_cover(new_cover_path) # Path relative to work_path
+                    music_item.set_cover(os.path.join(music_item.read_path, new_cover_filename)) # Path relative to work_path
                     print(f"Set cover for {music_id_str} using uploaded cover: {new_cover_path}")
                 # else: log error or handle invalid path
 
@@ -145,10 +147,27 @@ async def handle_finalize_chunked_upload(websocket, cmd_id: str, payload: dict):
                         # Decide if this error is critical enough to fail the upload.
 
             music_item.dump_self()
-            await send_response(websocket, cmd_id, code=0, data={
+            
+            # 如果启用了SpringBoot后端，同步新上传的音频数据
+            backend_sync_status = {"synced": False, "error": None}
+            if IS_USING_SPRINGBOOT_BACKEND:
+                success, error = sync_music_to_backend(music_id_str, music_item.data.to_dict())
+                backend_sync_status["synced"] = success
+                if not success:
+                    backend_sync_status["error"] = error
+                    print(f"Warning: Failed to sync uploaded audio track {music_id_str} to backend: {error}")
+
+            response_data = {
                 "message": "Audio file uploaded and processed successfully.",
-                "track_data": music_item.data.to_dict()
-            })
+                "track_data": music_item.data.to_dict(),
+                "backend_sync": backend_sync_status
+            }
+
+            # 如果同步失败但不影响上传成功，调整消息
+            if backend_sync_status.get("error"):
+                response_data["message"] = f"Audio file uploaded locally but failed to sync with backend: {backend_sync_status['error']}"
+
+            await send_response(websocket, cmd_id, code=0, data=response_data)
 
         elif file_type == "cover":
             music_id_for_cover = payload.get("music_id", metadata_from_init.get("music_id_for_cover"))
@@ -179,14 +198,30 @@ async def handle_finalize_chunked_upload(websocket, cmd_id: str, payload: dict):
             reassembled_filepath = None # Mark as moved
             print(f"Moved reassembled cover to: {final_cover_path}")
 
-            music_item.set_cover(final_cover_path) # Path relative to work_path
+            music_item.set_cover(os.path.join(music_item.read_path, "./covers/" + new_cover_filename)) # Path relative to work_path
             music_item.dump_self()
 
-            await send_response(websocket, cmd_id, code=0, data={
+            # 如果启用了SpringBoot后端，同步更新后的封面数据
+            backend_sync_status = {"synced": False, "error": None}
+            if IS_USING_SPRINGBOOT_BACKEND:
+                success, error = sync_music_to_backend(music_id_for_cover, music_item.data.to_dict())
+                backend_sync_status["synced"] = success
+                if not success:
+                    backend_sync_status["error"] = error
+                    print(f"Warning: Failed to sync updated cover for track {music_id_for_cover} to backend: {error}")
+
+            response_data = {
                 "message": "Cover image uploaded and associated successfully.",
                 "music_id": music_id_for_cover,
-                "cover_path": music_item.data.cover_path # Send the relative path
-            })
+                "cover_path": music_item.data.cover_path, # Send the relative path
+                "backend_sync": backend_sync_status
+            }
+
+            # 如果同步失败但不影响上传成功，调整消息
+            if backend_sync_status.get("error"):
+                response_data["message"] = f"Cover image uploaded locally but failed to sync with backend: {backend_sync_status['error']}"
+
+            await send_response(websocket, cmd_id, code=0, data=response_data)
         else:
             await send_response(websocket, cmd_id, code=1, error=f"Unknown file_type for finalization: {file_type}")
             return # reassembled_filepath will be cleaned up in finally
