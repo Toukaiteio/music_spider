@@ -8,4 +8,5 @@ client_id.txt
 *.json
 /.venv
 /.vscode
+*.env
 .env
