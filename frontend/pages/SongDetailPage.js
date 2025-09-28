@@ -37,38 +37,52 @@ class SongDetailPage {
     `;
   }
 
-  onLoad(mainContentElement, subPageId, appState, managers) {
+  async #fetchLibrary(appState, managers) {
+    // If library is already initialized, no need to fetch again.
+    if (appState.inited) {
+        return appState.library;
+    }
+
+    try {
+        const response = await managers.webSocketManager.sendWebSocketCommand("get_downloaded_music", {});
+        const libraryData = response.data?.library || [];
+        appState.library = libraryData;
+        appState.inited = true; // Mark as initialized
+        return libraryData;
+    } catch (error) {
+        console.error("Failed to load library for detail page:", error);
+        return []; // Return empty on error
+    }
+  }
+
+  async onLoad(mainContentElement, subPageId, appState, managers) {
     console.log("SongDetailPage loaded");
 
-    const track = appState.currentSongDetail;
+    // Ensure library is loaded, especially on direct refresh.
+    if (!appState.inited) {
+        await this.#fetchLibrary(appState, managers);
+    }
 
+    let track = appState.currentSongDetail;
+
+    // If track is not in currentSongDetail (e.g., direct navigation/refresh), find it in the library.
+    if (!track || (track.music_id || track.id) !== subPageId) {
+        if (subPageId && appState.library && Array.isArray(appState.library)) {
+            track = appState.library.find(
+                (item) => String(item.music_id || item.id) === String(subPageId)
+            );
+            if (track) {
+                appState.currentSongDetail = track; // Update appState for consistency
+            }
+        }
+    }
+    
     if (!track) {
-      // If not found, try to find in appState.library by subPageId (which may be song id)
-      let foundTrack = null;
-      if (subPageId && appState.library && Array.isArray(appState.library)) {
-        foundTrack = appState.library.find(
-          (item) => String(item.music_id || item.id) === String(subPageId)
-        );
-      } else if (!appState.inited) {
-        managers.webSocketManager
-          .sendWebSocketCommand("get_downloaded_music", {})
-          .then((response) => {
-            appState.inited = true;
-            window.__collectionsPageLoadingLibrary = false;
-            const libraryData =
-              response.data && response.data.library
-                ? response.data.library
-                : [];
-            appState.library = libraryData;
-          });
-      }
-      if (foundTrack) {
-        appState.currentSongDetail = foundTrack;
-      } else {
         mainContentElement.innerHTML =
-          '<p style="color:red; text-align:center; padding:20px;">Error: Song details not found. Please go back and try again.</p>';
+            '<p style="color:red; text-align:center; padding:20px;">Error: Song details not found. Please go back and try again.</p>';
+        // Set a title for the error page
+        document.title = "Error - Music Downloader";
         return;
-      }
     }
 
     // Apply enter animation for song-detail page

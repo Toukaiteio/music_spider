@@ -29,68 +29,60 @@ class HomePage {
     `;
   }
 
-  onLoad(mainContentElement, subPageId, appState, managers) {
+  async #fetchLibrary(appState, managers) {
+    // If library is already initialized, no need to fetch again.
+    if (appState.inited) {
+        return appState.library;
+    }
+
+    try {
+        const response = await managers.webSocketManager.sendWebSocketCommand("get_downloaded_music", {});
+        const libraryData = response.data?.library || [];
+        appState.library = libraryData;
+        appState.inited = true; // Mark as initialized
+        managers.playerManager.setPlayList(libraryData);
+        return libraryData;
+    } catch (error) {
+        console.error("Failed to load library:", error);
+        // In case of error, return an empty array to prevent crashes
+        return [];
+    }
+  }
+
+  async onLoad(mainContentElement, subPageId, appState, managers) {
     console.log("HomePage loaded");
 
-    const homeLoadingMessage = mainContentElement.querySelector(
-      "#home-loading-message"
-    );
+    const homeLoadingMessage = mainContentElement.querySelector("#home-loading-message");
     const songCardGrid = mainContentElement.querySelector("#song-card-grid");
-    const noSongsMessage =
-      mainContentElement.querySelector("#no-songs-message");
+    const noSongsMessage = mainContentElement.querySelector("#no-songs-message");
 
     if (homeLoadingMessage) homeLoadingMessage.style.display = "block";
     if (songCardGrid) songCardGrid.style.display = "none";
     if (noSongsMessage) noSongsMessage.style.display = "none";
 
-    managers.webSocketManager
-      .sendWebSocketCommand("get_downloaded_music", {})
-      .then((response) => {
-        if (homeLoadingMessage) homeLoadingMessage.style.display = "none";
-        appState.inited = true;
-        const libraryData =
-          response.data && response.data.library ? response.data.library : [];
-        appState.library = libraryData;
-        managers.playerManager.setPlayList(libraryData);
-        if (this.#songCardList.length > 0) this.#songCardList = [];
-        if (libraryData && libraryData.length > 0) {
-          if (songCardGrid) {
-            songCardGrid.innerHTML = ""; // Clear previous content
-            libraryData.forEach((track) => {
-              // const musicId = track.music_id; // Not directly used for rendering card here
-              // let imageUrl = "placeholder_cover_1.png"; // Handled by SongCardRenderer
-              // if (track.preview_cover && typeof track.preview_cover === 'string' && track.preview_cover.trim() !== '') {
-              //     imageUrl = track.preview_cover;
-              // }
-              // const trackTitle = track.title || "Unknown Title"; // Handled by SongCardRenderer
-              const isFavorite = managers.favoriteManager
-                ? managers.favoriteManager.isFavorite(track.music_id)
-                : false;
-              const domParser = document.createElement("div");
-              domParser.innerHTML = SongCardRenderer.render(track, "library", {
-                isFavorite,
-              });
-              this.#songCardList.push(domParser.firstElementChild);
-              songCardGrid.appendChild(domParser.firstElementChild);
-            });
-            songCardGrid.style.display = "grid";
-          }
-          if (noSongsMessage) noSongsMessage.style.display = "none";
-        } else {
-          if (songCardGrid) songCardGrid.style.display = "none";
-          if (noSongsMessage) noSongsMessage.style.display = "block";
-        }
-      })
-      .catch((error) => {
-        console.error("Failed to load library:", error);
-        if (homeLoadingMessage) {
-          homeLoadingMessage.innerHTML =
-            '<p style="color: red;">Failed to load your library. Please try again later.</p>';
-          homeLoadingMessage.style.display = "block";
-        }
-        if (songCardGrid) songCardGrid.style.display = "none";
-        if (noSongsMessage) noSongsMessage.style.display = "none";
-      });
+    const libraryData = await this.#fetchLibrary(appState, managers);
+
+    if (homeLoadingMessage) homeLoadingMessage.style.display = "none";
+
+    this.#songCardList = [];
+    if (songCardGrid) songCardGrid.innerHTML = ""; // Clear previous content
+
+    if (libraryData && libraryData.length > 0) {
+        libraryData.forEach((track) => {
+            const isFavorite = managers.favoriteManager ? managers.favoriteManager.isFavorite(track.music_id) : false;
+            const cardElement = document.createElement("div");
+            cardElement.innerHTML = SongCardRenderer.render(track, "library", { isFavorite });
+            const songCard = cardElement.firstElementChild;
+            this.#songCardList.push(songCard);
+            songCardGrid.appendChild(songCard);
+        });
+        songCardGrid.style.display = "grid";
+        noSongsMessage.style.display = "none";
+    } else {
+        songCardGrid.style.display = "none";
+        noSongsMessage.style.display = "block";
+    }
+
     const searchInput = mainContentElement.querySelector(
       "#downloaded-search-bar"
     );

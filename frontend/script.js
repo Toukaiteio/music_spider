@@ -36,6 +36,44 @@ document.addEventListener("DOMContentLoaded", () => {
     localStorage.setItem("favSongs", "[]");
   }
 
+  // Add click listener for the task queue
+  const expandedTaskQueue = document.getElementById("expanded-task-queue");
+  if (expandedTaskQueue) {
+    expandedTaskQueue.addEventListener('click', (event) => {
+        const taskItem = event.target.closest('.task-item');
+        if (!taskItem) return;
+
+        const trackInfoString = taskItem.dataset.trackInfo;
+        if (!trackInfoString) {
+            console.warn("Task item clicked, but no track-info data found.");
+            return;
+        }
+
+        try {
+            const task = JSON.parse(trackInfoString);
+            const musicId = task.music_id || task.id;
+
+            // Only allow navigation if the track is completed and exists in the library
+            if (task.status === 'completed_track') {
+                const libraryTrack = window.appState.library.find(t => (t.music_id || t.id) === musicId);
+                if (libraryTrack) {
+                    navigationManager.navigateToSongDetail(libraryTrack);
+                    // Hide the task queue after navigation
+                    expandedTaskQueue.classList.remove('visible');
+                    expandedTaskQueue.setAttribute('aria-hidden', 'true');
+                } else {
+                    UIManager.showToast("Cannot open detail: Track not found in library.", "error");
+                }
+            } else {
+                UIManager.showToast("Please wait for the download to complete.", "info");
+            }
+        } catch (e) {
+            console.error("Failed to parse track info from task queue item:", e);
+            UIManager.showToast("Error processing task item click.", "error");
+        }
+    });
+  }
+
   const mainContent = document.getElementById("main-content");
 
   window.appState = {

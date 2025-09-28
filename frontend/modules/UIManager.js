@@ -59,6 +59,8 @@ class UIManager {
         const listItem = document.createElement("li");
         listItem.className = "task-item";
         listItem.dataset.musicId = task.music_id;
+        // Also store the full track info for potential navigation
+        listItem.dataset.trackInfo = JSON.stringify(task);
 
         let progressIconHtml =
           '<span class="material-icons">hourglass_empty</span>';

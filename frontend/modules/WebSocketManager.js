@@ -124,6 +124,16 @@ class WebSocketManager {
             }
             renderTaskQueue();
             updateMainTaskQueueIcon();
+            
+            // Dispatch a custom event for other modules to listen to
+            document.dispatchEvent(new CustomEvent('download-status-changed', {
+                detail: {
+                    trackId: track_id,
+                    status: queueItem.status,
+                    progress: queueItem.progressPercent
+                }
+            }));
+
           } else {
             console.warn(
               `Received progress for unknown track_id: ${track_id}`,
