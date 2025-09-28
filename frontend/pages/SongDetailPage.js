@@ -98,32 +98,22 @@ class SongDetailPage {
       "#detail-description"
     );
 
-    let detailImageUrl = "placeholder_album_art.png"; // Default placeholder
-    if (
-      track.cover_path &&
-      typeof track.cover_path === "string" &&
-      track.cover_path.trim() !== ""
-    ) {
-      detailImageUrl = "." + track.cover_path;
-    } else if (
-      track.preview_cover &&
-      typeof track.preview_cover === "string" &&
-      track.preview_cover.trim() !== ""
-    ) {
-      detailImageUrl = track.preview_cover;
-    } else if (
-      track.cover_url &&
-      typeof track.cover_url === "string" &&
-      track.cover_url.trim() !== ""
-    ) {
-      detailImageUrl = track.cover_url;
+    // Prioritize local cover path, then fallback to artwork_url
+    let detailImageUrl = "placeholder_album_art.png"; // Default
+    if (track.cover_path && typeof track.cover_path === 'string' && track.cover_path.trim() !== '') {
+        // Ensure the path is correctly formatted for local access.
+        // The backend sends a path relative to the project root, like 'downloads/bvid/cover.jpg'
+        // Prepending './' is correct.
+        detailImageUrl = './' + track.cover_path.replace(/\\/g, '/');
+    } else if (track.artwork_url && typeof track.artwork_url === 'string' && track.artwork_url.trim() !== '') {
+        detailImageUrl = track.artwork_url;
     }
 
     if (coverArtEl) coverArtEl.src = detailImageUrl;
     if (titleEl) titleEl.textContent = track.title || "Unknown Title";
     if (artistEl)
       artistEl.textContent =
-        track.author || track.artist_name || "Unknown Artist";
+        track.artist || "Unknown Artist";
     if (descriptionEl)
       descriptionEl.textContent =
         track.description || "No description available.";
@@ -415,20 +405,46 @@ class SongDetailPage {
     );
 
     if (detailPlayButton && managers.playerManager && managers.uiManager) {
-      detailPlayButton.addEventListener("click", () => {
-        const trackInfoString = detailPlayButton.dataset.trackInfo;
-        if (trackInfoString) {
-          managers.playerManager.playTrackFromCard(trackInfoString);
-        } else {
-          console.warn(
-            "Detail play button clicked, but no track-info data found."
-          );
-          managers.uiManager.showToast(
-            "Could not play track: Missing track data.",
-            "error"
-          );
+      const updatePlayButtonIcon = (isPlaying) => {
+        const icon = detailPlayButton.querySelector(".material-icons");
+        if (icon) {
+          icon.textContent = isPlaying ? "pause" : "play_arrow";
         }
-      });
+      };
+
+      const handlePlayButtonClick = () => {
+        const currentTrack = managers.playerManager.getCurrentTrack();
+        const isThisTrackPlaying = currentTrack && (currentTrack.music_id || currentTrack.id) === songId;
+
+        if (isThisTrackPlaying) {
+          managers.playerManager.togglePlay();
+        } else {
+          const trackInfoString = detailPlayButton.dataset.trackInfo;
+          if (trackInfoString) {
+            managers.playerManager.playTrackFromCard(trackInfoString);
+          } else {
+            console.warn("Detail play button clicked, but no track-info data found.");
+            managers.uiManager.showToast("Could not play track: Missing track data.", "error");
+          }
+        }
+      };
+
+      detailPlayButton.addEventListener("click", handlePlayButtonClick);
+
+      const playerStateCallback = (state) => {
+        const isThisTrackPlaying = state.track && (state.track.music_id || state.track.id) === songId;
+        updatePlayButtonIcon(isThisTrackPlaying && state.isPlaying);
+      };
+
+      managers.playerManager.onStateChange(playerStateCallback);
+      
+      // Initial state
+      const initialState = managers.playerManager.getCurrentTrack();
+      const isInitiallyPlaying = initialState && (initialState.music_id || initialState.id) === songId && managers.playerManager.isPlaying;
+      updatePlayButtonIcon(isInitiallyPlaying);
+
+      // Store the callback to remove it on unload
+      this.playerStateCallback = playerStateCallback;
     }
 
     if (detailAddToCollectionButton && managers.collectionManager) {
@@ -508,6 +524,10 @@ class SongDetailPage {
     // removed when mainContentElement.innerHTML is changed by NavigationManager._performNavigateTo.
     // However, listeners on `window` or other persistent elements need manual cleanup here or in NM.
     // The lyrics animation cleanup is already handled by `this.onUnload` being overwritten in `onLoad`.
+
+    if (this.playerStateCallback && window.managers.playerManager) {
+      window.managers.playerManager.offStateChange(this.playerStateCallback);
+    }
   }
 }
 

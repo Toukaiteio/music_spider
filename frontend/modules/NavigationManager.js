@@ -225,6 +225,21 @@ class NavigationManager {
     if (!pageModuleInstance) {
         pageModuleInstance = new PageModuleClass();
         this.pageModuleInstances[pageId] = pageModuleInstance;
+        // If the new instance has an init method, call it.
+        if (typeof pageModuleInstance.init === 'function') {
+            // We need to pass the managers object to init as well.
+            const managers = {
+                webSocketManager: this.webSocketManager,
+                playerManager: this.playerManager,
+                uiManager: this.uiManager,
+                searchManager: this.searchManager,
+                favoriteManager: this.favoriteManager,
+                collectionManager: this.collectionManager,
+                uploadManager: this.uploadManager,
+                navigationManager: this
+            };
+            pageModuleInstance.init(this.appState, managers);
+        }
     }
     this.activePageModule = pageModuleInstance; // Set current active module
 

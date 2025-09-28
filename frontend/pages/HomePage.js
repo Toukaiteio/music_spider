@@ -4,9 +4,25 @@ import SongCardRenderer from "../modules/SongCardRenderer.js";
 
 class HomePage {
   constructor() {
-    // Page-specific initialization if any
+    this.initialized = false; // To prevent multiple listener attachments
+    this.handleLibraryChange = this.handleLibraryChange.bind(this);
   }
   #songCardList = [];
+
+  init(appState, managers) {
+      if (this.initialized) return;
+      document.addEventListener('library-changed', () => this.handleLibraryChange(appState, managers));
+      this.initialized = true;
+  }
+
+  handleLibraryChange(appState, managers) {
+      console.log('Library changed, reloading HomePage');
+      // To reload, we can call onLoad again. We need the mainContentElement.
+      const mainContentElement = document.getElementById('main-content');
+      if (mainContentElement && mainContentElement.querySelector('#home-page')) {
+          this.onLoad(mainContentElement, null, appState, managers);
+      }
+  }
   getHTML() {
     return `
        <div id="home-page">
@@ -50,6 +66,7 @@ class HomePage {
   }
 
   async onLoad(mainContentElement, subPageId, appState, managers) {
+    this.init(appState, managers); // Ensure listeners are attached
     console.log("HomePage loaded");
 
     const homeLoadingMessage = mainContentElement.querySelector("#home-loading-message");

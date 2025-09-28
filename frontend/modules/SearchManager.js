@@ -387,14 +387,14 @@ showTrackDetailsDialog(track) {
             </button>
             <div class="track-cover">
                 <img src="${
-                    track.cover_url || track.artwork_url || "./assets/default-cover.png"
-                }" 
+                    track.artwork_url || "./assets/default-cover.png"
+                }"
                          alt="${track.title} cover">
             </div>
             <div class="track-info">
                 <h3>${track.title || "Unknown Title"}</h3>
                 <p class="artist">${
-                    track.artist || track.uploader || track.author || "Unknown Artist"
+                    track.artist || "Unknown Artist"
                 }</p>
                 <p class="duration">${
                     track.duration
@@ -505,10 +505,8 @@ showTrackDetailsDialog(track) {
 
         const queueItem = {
           ...trackObject,
-          artwork_url: trackObject.cover_url,
-          music_id: trackObject.id
-            ? trackObject.id.toString()
-            : Date.now().toString(), // Ensure music_id from id
+          artwork_url: trackObject.artwork_url,
+          music_id: trackObject.music_id || (trackObject.id ? trackObject.id.toString() : Date.now().toString()), // Ensure music_id from id
           progressPercent: 0,
           status: "pending",
           statusMessage: "Queued for download...",

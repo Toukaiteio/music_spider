@@ -26,6 +26,7 @@ class PlayerManager {
     this.currentLoadedTrack = {};
     this.mode = "list-loop"; // 'list-loop', 'single-loop', 'random'
     this.isPlaying = false;
+    this.stateChangeCallbacks = new Set();
     this.audioCtx = null;
     this.analyser = null;
     this.source = null;
@@ -214,10 +215,11 @@ class PlayerManager {
             this.playlist[this.currentIndex].title || "";
         if (this.playerTrackArtist)
           this.playerTrackArtist.textContent =
-            this.playlist[this.currentIndex].artist || "";
+            this.playlist[this.currentIndex].artist || "Unknown Artist";
         if (this.playerAlbumArt)
-          this.playerAlbumArt.src =
-            "." + this.playlist[this.currentIndex].cover_path;
+          this.playerAlbumArt.src = this.playlist[this.currentIndex].cover_path
+            ? "." + this.playlist[this.currentIndex].cover_path
+            : this.playlist[this.currentIndex].artwork_url || 'placeholder_album_art.png';
       }
     });
     const savedMode = localStorage.getItem("player_mode");
@@ -418,7 +420,9 @@ class PlayerManager {
     this.currentIndex = index;
     this.audio.src = "." + this.playlist[index].audio_path;
     if (this.coverImgElement) {
-      this.coverImgElement.src = "." + this.playlist[index].cover_path;
+      this.coverImgElement.src = this.playlist[index].cover_path
+          ? "." + this.playlist[index].cover_path
+          : this.playlist[index].artwork_url || 'placeholder_album_art.png';
       this.coverImgElement.onload = () => this.extractCoverColor();
     }
     this.climaxDetected = false;
@@ -455,12 +459,14 @@ class PlayerManager {
     this.audioCtx.resume(); // Ensure AudioContext is resumed
     this.audio.play().catch(e => console.error("Error playing main audio:", e));
     this.isPlaying = true;
+    this.notifyStateChange();
     this.startVisualizer();
   }
 
   pause() {
     this.audio.pause();
     this.isPlaying = false;
+    this.notifyStateChange();
     this.stopVisualizer();
   }
 
@@ -475,7 +481,7 @@ class PlayerManager {
         this.playerTrackTitle.textContent = trackInfo.title || "Unknown Title";
       }
       if (this.playerTrackArtist) {
-        this.playerTrackArtist.textContent = trackInfo.author || trackInfo.artist_name || "Unknown Artist";
+        this.playerTrackArtist.textContent = trackInfo.artist || "Unknown Artist";
       }
       
       this.playTrackById(trackInfo.music_id); // This should load and play the track
@@ -727,5 +733,36 @@ class PlayerManager {
     }
   }
 }
+
+// 在 PlayerManager 类的定义之外，但在同一文件内
+
+/**
+ * 订阅播放器状态变化。
+ * @param {function} callback 当播放状态改变时调用的回调函数。
+ */
+PlayerManager.prototype.onStateChange = function(callback) {
+  this.stateChangeCallbacks.add(callback);
+};
+
+/**
+ * 取消订阅播放器状态变化。
+ * @param {function} callback 要移除的回调函数。
+ */
+PlayerManager.prototype.offStateChange = function(callback) {
+  this.stateChangeCallbacks.delete(callback);
+};
+
+/**
+ * 通知所有订阅者状态已改变。
+ */
+PlayerManager.prototype.notifyStateChange = function() {
+  const state = {
+    isPlaying: this.isPlaying,
+    track: this.getCurrentTrack()
+  };
+  for (const callback of this.stateChangeCallbacks) {
+    callback(state);
+  }
+};
 
 export default PlayerManager;

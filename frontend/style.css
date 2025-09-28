@@ -1528,6 +1528,16 @@ body {
     border-bottom: none;
 }
 
+.task-item.clickable {
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.2s ease-in-out;
+}
+
+.task-item.clickable:hover {
+    background-color: var(--shadow-color);
+}
+
 .task-item-cover {
     width: 50px;
     height: 50px;

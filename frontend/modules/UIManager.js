@@ -77,11 +77,12 @@ class UIManager {
         ) {
           progressIconHtml = '<span class="material-icons">sync</span>';
         } else if (task.status === "completed_track") {
-          progressIconHtml = `<span class="material-icons" style="color: var(--success-color, green);">check_circle</span>`;
-        } else if (task.status === "error") {
-          progressIconHtml = `<span class="material-icons" style="color: var(--error-color, red);" title="${
-            task.statusMessage || "Error"
-          }">error</span>`;
+         progressIconHtml = `<span class="material-icons" style="color: var(--success-color, green);">check_circle</span>`;
+         listItem.classList.add('clickable'); // Add clickable class for completed tasks
+       } else if (task.status === "error") {
+         progressIconHtml = `<span class="material-icons" style="color: var(--error-color, red);" title="${
+           task.statusMessage || "Error"
+         }">error</span>`;
         }
 
         const progressBarHtml = `
@@ -100,19 +101,14 @@ class UIManager {
                     <img referrerpolicy="no-referrer" src="${
                       task.cover_path
                         ? "." + task.cover_path
-                        : task.artwork_url ||
-                          task.cover_url ||
-                          "placeholder_album_art_2.png"
+                        : task.artwork_url || "placeholder_album_art_2.png"
                     }" alt="Cover for ${task.title}" class="task-item-cover">
                     <div class="task-item-info">
                         <h4 class="task-item-title" title="${task.title}">${
           task.title
         }</h4>
                         <p class="task-item-artist">${
-                          task.publisher_metadata?.artist ||
-                          task.author ||
-                          task.artist_name ||
-                          "Unknown Artist"
+                          task.artist || "Unknown Artist"
                         }</p>
                         <p class="task-item-description">${
                           task.statusMessage || task.status

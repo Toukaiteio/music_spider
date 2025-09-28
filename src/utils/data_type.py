@@ -30,56 +30,55 @@ class ResultBase(Generic[T]):
     def get_json(self) -> dict:
         return {"code": self.code, "data": self.data}
 
-class MusicItemData(DictSerializable):
-    def __init__(self, music_id: str, title: str, author: str = "", description: str = "", quality: str = "", album: str = "", tags: list = [], duration: int = 0, genre: str = "",preview_cover = "", lossless: bool = False, lyrics: str = ""):
+class TrackInfo(DictSerializable):
+    def __init__(self, music_id: str, title: str, artist: str = "", description: str = "", album: str = "", tags: list = [], duration: int = 0, genre: str = "", artwork_url: str = "", lossless: bool = False, lyrics: str = "", source: str = ""):
         self.music_id = music_id
         self.title = title
-        self.author = author
+        self.artist = artist
         self.description = description
-        self.quality = quality
         self.album = album
         self.tags = tags
         self.duration = duration
         self.genre = genre
-        self.preview_cover = preview_cover
+        self.artwork_url = artwork_url # Renamed from preview_cover
         self.lossless = lossless
         self.lyrics = lyrics
-        self.cover_path = None
-        self.audio_path = None
+        self.source = source # Added source field
+        self.cover_path = None # Path to local cover file
+        self.audio_path = None # Path to local audio file
 
 class MusicItem:
     def __init__(
         self,
         music_id,
         title,
-        author="",
+        artist="",
         description="",
-        quality="",
         album="",
-        tags=[],
-        duration = 0,
+        tags=None,
+        duration=0,
         genre="",
-        cover=None, # This will be treated as preview_cover URL for MusicItemData
-        audio=None,  # This parameter is not directly used for an initial path in this refactoring.
+        artwork_url="", # Renamed from cover
+        source="",
         lossless: bool = False,
         lyrics: str = ""
     ):
         self.work_path = os.path.join(DOWNLOADS_DIR, str(music_id))
         os.makedirs(self.work_path, exist_ok=True)
         self.read_path = os.path.join("./downloads", str(music_id))
-        self.data = MusicItemData(
-            music_id=str(music_id), # Ensure music_id is string
+        self.data = TrackInfo(
+            music_id=str(music_id),
             title=title,
-            author=author,
+            artist=artist,
             description=description,
-            quality=quality,
             album=album,
-            tags=tags or [], # Ensure tags is a list
+            tags=tags or [],
             duration=duration,
             genre=genre,
-            preview_cover=cover if cover else "", # Ensure preview_cover is string
+            artwork_url=artwork_url,
             lossless=lossless,
-            lyrics=lyrics
+            lyrics=lyrics,
+            source=source
         )
         
         self._cover_path = "" # Path to the actual cover file
@@ -98,12 +97,12 @@ class MusicItem:
         self.data.title = value
 
     @property
-    def author(self):
-        return self.data.author
+    def artist(self):
+        return self.data.artist
 
-    @author.setter
-    def author(self, value):
-        self.data.author = value
+    @artist.setter
+    def artist(self, value):
+        self.data.artist = value
 
     @property
     def description(self):
@@ -113,13 +112,6 @@ class MusicItem:
     def description(self, value):
         self.data.description = value
 
-    @property
-    def quality(self):
-        return self.data.quality
-
-    @quality.setter
-    def quality(self, value):
-        self.data.quality = value
 
     @property
     def album(self):
@@ -154,12 +146,12 @@ class MusicItem:
         self.data.genre = value
 
     @property
-    def preview_cover(self):
-        return self.data.preview_cover
+    def artwork_url(self):
+        return self.data.artwork_url
 
-    @preview_cover.setter
-    def preview_cover(self, value):
-        self.data.preview_cover = value
+    @artwork_url.setter
+    def artwork_url(self, value):
+        self.data.artwork_url = value
 
     @property
     def lossless(self):
@@ -214,16 +206,16 @@ class MusicItem:
             item = cls(
                 music_id=data_dict.get("music_id"),
                 title=data_dict.get("title"),
-                author=data_dict.get("author", ""),
+                artist=data_dict.get("artist") or data_dict.get("author", ""), # Compatibility for old 'author' field
                 description=data_dict.get("description", ""),
-                quality=data_dict.get("quality", ""),
                 album=data_dict.get("album", ""),
                 tags=data_dict.get("tags", []),
                 duration=data_dict.get("duration", 0),
                 genre=data_dict.get("genre", ""),
-                cover=data_dict.get("preview_cover", ""), # preview_cover URL
+                artwork_url=data_dict.get("artwork_url") or data_dict.get("preview_cover", ""), # Compatibility
                 lossless=data_dict.get("lossless", False),
-                lyrics=data_dict.get("lyrics", "")
+                lyrics=data_dict.get("lyrics", ""),
+                source=data_dict.get("source", "")
             )
             # Set actual file paths if they exist in JSON
             if data_dict.get("cover_path"):
