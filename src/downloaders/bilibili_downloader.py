@@ -592,22 +592,18 @@ async def search_tracks_async(
 
             processed_tracks.append(
                 {
-                    "bvid": bvid,
-                    "aid": str(
-                        item.get("aid", "")
-                    ),  # Keep aid as well, might be useful
-                    "id":bvid,
+                    "music_id": bvid,
+                    "bvid": bvid, # Keep bvid for compatibility if needed elsewhere
+                    "aid": str(item.get("aid", "")),
+                    "id": bvid, # Keep id for frontend compatibility
                     "title": title,
-                    "author": author,
-                    "cover_url": cover_url,
-                    "duration": duration_sec,  # Duration in seconds
-                    "description": strip_html_tags(
-                        item.get("description", "")
-                    ),  # Short description from search results
-                    "play_count": item.get("play", 0),  # Play count
-                    "danmaku_count": item.get("danmaku", 0),  # Danmaku count
-                    # Add any other relevant fields that might be useful for display or download
-                    # For example, item.get("pubdate") for publication date (timestamp)
+                    "artist": author, # Use 'artist' instead of 'author'
+                    "artwork_url": cover_url, # Use 'artwork_url' instead of 'cover_url'
+                    "duration": duration_sec,
+                    "description": strip_html_tags(item.get("description", "")),
+                    "play_count": item.get("play", 0),
+                    "danmaku_count": item.get("danmaku", 0),
+                    "source": "bilibili" # Add source field
                 }
             )
             if len(processed_tracks) >= limit:
@@ -1066,24 +1062,25 @@ async def download_track(
         title=strip_html_tags(
             video_details.get("title", track_info.get("title", "Unknown Title"))
         ),
-        author=video_details.get("owner", {}).get(
-            "name", track_info.get("author", "Unknown Artist")
+        artist=video_details.get("owner", {}).get(
+            "name", track_info.get("artist", "Unknown Artist")
         ),
         description=full_description,
         album=video_details.get("tname", ""),
         tags=video_details.get("extracted_tags", []),
         duration=video_details.get("duration", track_info.get("duration", 0)),
         genre=video_details.get("tname", ""),
-        cover=video_details.get("pic", track_info.get("cover_url")),
+        artwork_url=video_details.get("pic", track_info.get("artwork_url")),
         lossless=False,
         lyrics=lyrics_content,
+        source='bilibili'
     )
 
     # 3. Download Cover
     downloaded_cover_path = await loop.run_in_executor(
         None,
         _download_cover_bili,
-        music_item.preview_cover,
+        music_item.artwork_url,
         music_item,
         progress_callback,
     )

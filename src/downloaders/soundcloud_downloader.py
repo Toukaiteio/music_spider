@@ -597,7 +597,7 @@ async def download_track(track_info: dict, base_download_path: str = "./download
     if not track_info:
         print("Error: track_info is empty or None.")
         if progress_callback:
-            pass 
+            pass
         return None
 
     music_id = str(track_info.get("id"))
@@ -606,44 +606,44 @@ async def download_track(track_info: dict, base_download_path: str = "./download
         return None
 
     title = track_info.get("title", "Unknown Title")
-    if(track_info.get("publisher_metadata")):
-        artist = track_info.get("publisher_metadata", {}).get("artist", "") or track_info.get("user", {}).get("username", "Unknown Artist")
-        album_title = track_info.get("publisher_metadata", {}).get("album_title", "")
-    else:
-        artist = "Unknown Artist"
-        album_title = "Unknown Album"
+    artist = track_info.get("artist") or (track_info.get("publisher_metadata", {}).get("artist", "") or track_info.get("user", {}).get("username", "Unknown Artist"))
+    album_title = track_info.get("album") or (track_info.get("publisher_metadata", {}).get("album_title", ""))
+    
     description = track_info.get("description", "")
     tags_str = track_info.get("tag_list", "")
-    tags = [tag.strip() for tag in tags_str.split("\"") if tag.strip()] if tags_str else []
+    tags = track_info.get("tags") or ([tag.strip() for tag in tags_str.split("\"") if tag.strip()] if tags_str else [])
     genre = track_info.get("genre", "")
-    duration = track_info.get("duration", 0)
+    duration_ms = track_info.get("duration", 0)
+    duration_s = duration_ms // 1000 if duration_ms > 1000 else duration_ms # Convert ms to s if needed, otherwise assume seconds
+
     artwork_url_template = track_info.get("artwork_url")
     
-    preview_cover_url = None
+    final_artwork_url = None
     if artwork_url_template:
-        preview_cover_url = artwork_url_template.replace("large", "t500x500") # Higher resolution for preview
+        final_artwork_url = artwork_url_template.replace("large", "t500x500")
 
     music_item = MusicItem(
         music_id=music_id,
         title=title,
-        author=artist,
+        artist=artist,
         description=description,
         album=album_title,
         tags=tags,
-        duration=duration,
+        duration=duration_s,
         genre=genre,
-        cover=preview_cover_url # This is preview_cover for MusicItemData
+        artwork_url=final_artwork_url,
+        source='soundcloud'
     )
 
     # Download Cover
-    if preview_cover_url:
-        cover_ext = fetch_ext_from_url(preview_cover_url)
+    if final_artwork_url:
+        cover_ext = fetch_ext_from_url(final_artwork_url)
         cover_filename = f"cover{cover_ext}"
         full_cover_path = os.path.join(music_item.work_path, cover_filename)
         # Run sync function in thread to avoid blocking
         downloaded_cover_path = await asyncio.to_thread(
             download_cover_internal,
-            preview_cover_url,
+            final_artwork_url,
             full_cover_path,
             music_item.music_id,
             progress_callback

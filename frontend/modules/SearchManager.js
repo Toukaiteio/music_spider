@@ -48,6 +48,7 @@ class SearchManager {
       this._attachDownloadButtonListeners.bind(this);
     this.handleDownloadButtonClick = this.handleDownloadButtonClick.bind(this);
     this.handleSearchInput = this.handleSearchInput.bind(this);
+    this.updateDownloadButtonStatus = this.updateDownloadButtonStatus.bind(this);
   }
 
   async init() {
@@ -57,6 +58,10 @@ class SearchManager {
       console.error("SearchManager: Search input not found during init.");
     }
     await this.fetchAvailableSources();
+    
+    // Listen for download status changes
+    document.addEventListener('download-status-changed', this.updateDownloadButtonStatus);
+
     console.log("SearchManager initialized.");
   }
 
@@ -382,14 +387,14 @@ showTrackDetailsDialog(track) {
             </button>
             <div class="track-cover">
                 <img src="${
-                    track.cover_url || track.artwork_url || "./assets/default-cover.png"
-                }" 
+                    track.artwork_url || "./assets/default-cover.png"
+                }"
                          alt="${track.title} cover">
             </div>
             <div class="track-info">
                 <h3>${track.title || "Unknown Title"}</h3>
                 <p class="artist">${
-                    track.artist || track.uploader || track.author || "Unknown Artist"
+                    track.artist || "Unknown Artist"
                 }</p>
                 <p class="duration">${
                     track.duration
@@ -500,10 +505,8 @@ showTrackDetailsDialog(track) {
 
         const queueItem = {
           ...trackObject,
-          artwork_url: trackObject.cover_url,
-          music_id: trackObject.id
-            ? trackObject.id.toString()
-            : Date.now().toString(), // Ensure music_id from id
+          artwork_url: trackObject.artwork_url,
+          music_id: trackObject.music_id || (trackObject.id ? trackObject.id.toString() : Date.now().toString()), // Ensure music_id from id
           progressPercent: 0,
           status: "pending",
           statusMessage: "Queued for download...",
@@ -564,6 +567,61 @@ showTrackDetailsDialog(track) {
       console.log("SearchManager: Download button is already disabled.");
     } else {
       console.error("SearchManager: No track info found on download button.");
+    }
+  }
+
+  updateDownloadButtonStatus(event) {
+    const { trackId, status } = event.detail;
+    
+    // This is called on any download status change, so we need to check if the search results page is visible.
+    const resultsContainer = document.getElementById("search-results-container");
+    if (!resultsContainer || !document.body.contains(resultsContainer)) {
+        return; // Not on the search results page
+    }
+
+    // Find the specific song card by its track ID (which could be music_id, id, or bvid)
+    const songCard = resultsContainer.querySelector(`[data-song-id="${trackId}"]`);
+    if (!songCard) {
+        return; // This track is not in the current search results
+    }
+
+    const downloadButton = songCard.querySelector('.search-result-download-button, .action-button-disabled');
+    if (!downloadButton) {
+        return; // No download button found on this card
+    }
+
+    switch (status) {
+        case 'downloading':
+        case 'processing':
+        case 'downloading_segments':
+        case 'all_segments_downloaded':
+        case 'concatenating_segments':
+            downloadButton.innerHTML = '<span class="material-icons">downloading</span>';
+            downloadButton.disabled = true;
+            break;
+        case 'completed_track':
+            // Replace the button with a "check" icon button
+            const checkButton = document.createElement('button');
+            checkButton.className = 'icon-button action-button-disabled';
+            checkButton.disabled = true;
+            checkButton.title = 'Already in your library';
+            checkButton.innerHTML = '<span class="material-icons">check_circle</span>';
+            downloadButton.replaceWith(checkButton);
+            break;
+        case 'error':
+            // Re-enable the download button and show a download icon
+            downloadButton.innerHTML = '<span class="material-icons">download</span>';
+            downloadButton.disabled = false;
+            // Optionally, we could show an error icon for a short time
+            // For now, just revert to downloadable state.
+            break;
+        case 'pending':
+            downloadButton.innerHTML = '<span class="material-icons">hourglass_top</span>';
+            downloadButton.disabled = true;
+            break;
+        default:
+            // For other states, do nothing, or revert to a default state if necessary
+            break;
     }
   }
 

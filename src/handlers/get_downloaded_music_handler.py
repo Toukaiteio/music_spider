@@ -47,7 +47,15 @@ def get_music_from_local() -> tuple[bool, List[Dict[str, Any]], str]:
                 try:
                     music_item_instance = MusicItem.load_from_json(music_id=music_id)
                     if music_item_instance:
-                        downloaded_music_list.append(music_item_instance.data.to_dict())
+                        music_data = music_item_instance.data.to_dict()
+                        # Ensure data conforms to the new TrackInfo model before sending to frontend
+                        if 'author' in music_data:
+                            music_data['artist'] = music_data.pop('author')
+                        if 'preview_cover' in music_data:
+                            music_data['artwork_url'] = music_data.pop('preview_cover')
+                        if 'quality' in music_data:
+                            del music_data['quality'] # No longer used in the new model
+                        downloaded_music_list.append(music_data)
                     else:
                         print(f"Could not load MusicItem for music_id: {music_id} (load_from_json returned None).")
                 except FileNotFoundError:

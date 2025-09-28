@@ -16,14 +16,14 @@ class SongCardRenderer {
         }
 
         const musicId = track.music_id || track.id || `generated-${Math.random().toString(36).substr(2, 9)}`;
-        let imageUrl = track.cover_path ? track.cover_path : (track.preview_cover?.replace('large','t500x500') || track.artwork_url?.replace('large','t500x500') || track.cover_url?.replace('large','t500x500') || 'placeholder_cover_1.png');
+        let imageUrl = track.cover_path ? track.cover_path : (track.artwork_url || 'placeholder_cover_1.png');
         
         // Ensure image URLs that might be local are correctly prefixed if necessary
         // For now, assuming URLs are absolute or correctly relative from CSS.
         // If preview_cover is a local path like "./covers/image.png", it should work if served correctly.
 
         const title = track.title || "Unknown Title";
-        const artist = track.author || track.artist_name || "Unknown Artist";
+        const artist = track.artist || "Unknown Artist";
         
         // Sanitize track info for data attribute
         // Ensure track object is stringified and quotes are escaped for HTML attribute

@@ -107,12 +107,34 @@ class WebSocketManager {
                 queueItem.statusMessage = `Concatenating segments...`;
                 break;
               case "completed_track":
-                queueItem.statusMessage = `Download complete!`;
-                break;
-              case "completed_file":
-                queueItem.statusMessage = `${
-                  file_type || "File"
-                } successfully processed.`;
+               queueItem.statusMessage = `Download complete!`;
+               
+               // Use the track info from the queueItem itself, which is more reliable.
+               // The backend might not send the full track_info on completion.
+               const completedTrackInfo = { ...queueItem };
+               // Ensure the object added to the library is clean and doesn't have queue-specific status fields
+               delete completedTrackInfo.progressPercent;
+               delete completedTrackInfo.status;
+               delete completedTrackInfo.statusMessage;
+               delete completedTrackInfo.original_cmd_id;
+
+               // Avoid duplicates
+               const existingIndex = window.appState.library.findIndex(t => (t.music_id || t.id) === (completedTrackInfo.music_id || completedTrackInfo.id));
+               if (existingIndex === -1) {
+                   window.appState.library.push(completedTrackInfo);
+               } else {
+                   // Update existing track info in case it changed (e.g., new metadata from backend)
+                   window.appState.library[existingIndex] = completedTrackInfo;
+               }
+               
+               // Dispatch an event to notify that the library has changed
+               document.dispatchEvent(new CustomEvent('library-changed', { detail: { track: completedTrackInfo } }));
+
+               break;
+             case "completed_file":
+               queueItem.statusMessage = `${
+                 file_type || "File"
+               } successfully processed.`;
                 break;
               case "error":
                 queueItem.statusMessage = `Error: ${
@@ -124,6 +146,16 @@ class WebSocketManager {
             }
             renderTaskQueue();
             updateMainTaskQueueIcon();
+            
+            // Dispatch a custom event for other modules to listen to
+            document.dispatchEvent(new CustomEvent('download-status-changed', {
+                detail: {
+                    trackId: track_id,
+                    status: queueItem.status,
+                    progress: queueItem.progressPercent
+                }
+            }));
+
           } else {
             console.warn(
               `Received progress for unknown track_id: ${track_id}`,
