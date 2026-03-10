@@ -31,7 +31,7 @@ class ResultBase(Generic[T]):
         return {"code": self.code, "data": self.data}
 
 class TrackInfo(DictSerializable):
-    def __init__(self, music_id: str, title: str, artist: str = "", description: str = "", album: str = "", tags: list = [], duration: int = 0, genre: str = "", artwork_url: str = "", lossless: bool = False, lyrics: str = "", source: str = ""):
+    def __init__(self, music_id: str, title: str, artist: str = "", description: str = "", album: str = "", tags: list = [], duration: int = 0, genre: str = "", artwork_url: str = "", lossless: bool = False, lyrics: str = "", source: str = "", loudness_lufs: float = None, loudness_peak: float = None):
         self.music_id = music_id
         self.title = title
         self.artist = artist
@@ -46,6 +46,8 @@ class TrackInfo(DictSerializable):
         self.source = source # Added source field
         self.cover_path = None # Path to local cover file
         self.audio_path = None # Path to local audio file
+        self.loudness_lufs = loudness_lufs # Integrated loudness in LUFS (EBU R128)
+        self.loudness_peak = loudness_peak # True peak level in dBFS
 
 class MusicItem:
     def __init__(
@@ -61,7 +63,9 @@ class MusicItem:
         artwork_url="", # Renamed from cover
         source="",
         lossless: bool = False,
-        lyrics: str = ""
+        lyrics: str = "",
+        loudness_lufs: float = None,
+        loudness_peak: float = None
     ):
         self.work_path = os.path.join(DOWNLOADS_DIR, str(music_id))
         os.makedirs(self.work_path, exist_ok=True)
@@ -78,7 +82,9 @@ class MusicItem:
             artwork_url=artwork_url,
             lossless=lossless,
             lyrics=lyrics,
-            source=source
+            source=source,
+            loudness_lufs=loudness_lufs,
+            loudness_peak=loudness_peak
         )
         
         self._cover_path = "" # Path to the actual cover file
@@ -169,6 +175,22 @@ class MusicItem:
     def lyrics(self, value: str):
         self.data.lyrics = value
 
+    @property
+    def loudness_lufs(self):
+        return self.data.loudness_lufs
+
+    @loudness_lufs.setter
+    def loudness_lufs(self, value: float):
+        self.data.loudness_lufs = value
+
+    @property
+    def loudness_peak(self):
+        return self.data.loudness_peak
+
+    @loudness_peak.setter
+    def loudness_peak(self, value: float):
+        self.data.loudness_peak = value
+
     # Properties for actual file paths managed by MusicItem
     @property
     def cover(self): # Corresponds to self._cover_path
@@ -215,7 +237,9 @@ class MusicItem:
                 artwork_url=data_dict.get("artwork_url") or data_dict.get("preview_cover", ""), # Compatibility
                 lossless=data_dict.get("lossless", False),
                 lyrics=data_dict.get("lyrics", ""),
-                source=data_dict.get("source", "")
+                source=data_dict.get("source", ""),
+                loudness_lufs=data_dict.get("loudness_lufs"),
+                loudness_peak=data_dict.get("loudness_peak")
             )
             # Set actual file paths if they exist in JSON
             if data_dict.get("cover_path"):

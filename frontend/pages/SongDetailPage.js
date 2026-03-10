@@ -443,8 +443,9 @@ class SongDetailPage {
       const isInitiallyPlaying = initialState && (initialState.music_id || initialState.id) === songId && managers.playerManager.isPlaying;
       updatePlayButtonIcon(isInitiallyPlaying);
 
-      // Store the callback to remove it on unload
+      // Store the callback and manager to remove it on unload
       this.playerStateCallback = playerStateCallback;
+      this.playerManager = managers.playerManager; // Save reference to playerManager
     }
 
     if (detailAddToCollectionButton && managers.collectionManager) {
@@ -525,8 +526,8 @@ class SongDetailPage {
     // However, listeners on `window` or other persistent elements need manual cleanup here or in NM.
     // The lyrics animation cleanup is already handled by `this.onUnload` being overwritten in `onLoad`.
 
-    if (this.playerStateCallback && window.managers.playerManager) {
-      window.managers.playerManager.offStateChange(this.playerStateCallback);
+    if (this.playerStateCallback && this.playerManager) {
+      this.playerManager.offStateChange(this.playerStateCallback);
     }
   }
 }

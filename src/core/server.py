@@ -58,6 +58,11 @@ from handlers.upload_chunk_handler import handle_upload_chunk
 from handlers.finalize_chunked_upload_handler import handle_finalize_chunked_upload
 from handlers.get_music_info_handler import handle_get_music_info
 from handlers.get_system_overview_handler import handle_get_system_overview
+from handlers.analyze_loudness_websocket_handler import (
+    handle_analyze_loudness_single,
+    handle_analyze_loudness_batch,
+    handle_get_loudness_data
+)
 
 # Queues for inter-process communication for downloads
 download_task_queue = get_download_task_queue()
@@ -183,6 +188,9 @@ COMMAND_HANDLERS = {
     "finalize_chunked_upload": handle_finalize_chunked_upload,
     "try_get_music_lyrics": handle_get_music_info,
     "get_system_overview": handle_get_system_overview,
+    "analyze_loudness_single": handle_analyze_loudness_single,
+    "analyze_loudness_batch": handle_analyze_loudness_batch,
+    "get_loudness_data": handle_get_loudness_data,
 }
 
 # Main WebSocket connection handler

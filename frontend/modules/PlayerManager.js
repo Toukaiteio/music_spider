@@ -118,12 +118,17 @@ class PlayerManager {
       this.playerVolumeSlider.addEventListener("input", (e) => {
         const value = Number(e.target.value);
         const normalizedVolume = value / 100;
-        
-        // 使用volumeGainNode来控制音量，而不是直接设置audio.volume
-        if (this.volumeGainNode) {
+
+        // 使用volumeGainNode来控制音量，确保AudioContext已恢复
+        if (this.volumeGainNode && this.audioCtx.state !== 'suspended') {
           this.volumeGainNode.gain.setValueAtTime(normalizedVolume, this.audioCtx.currentTime);
+        } else if (this.volumeGainNode) {
+          // 如果AudioContext被挂起，先恢复再设置音量
+          this.audioCtx.resume().then(() => {
+            this.volumeGainNode.gain.setValueAtTime(normalizedVolume, this.audioCtx.currentTime);
+          });
         }
-        
+
         // 保存音量设置到localStorage
         localStorage.setItem('player_volume', normalizedVolume);
       });
@@ -291,23 +296,34 @@ class PlayerManager {
     this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     this.analyser = this.audioCtx.createAnalyser();
     this.analyser.fftSize = 2048;
-    
-    // 创建增益节点用于响度归一化
-    this.gainNode = this.audioCtx.createGain();
-    this.gainNode.gain.value = 1.0; // 初始增益为1
-    
-    // 创建增益节点用于音量控制
+
+    // 创建智能增益节点（用于响度均衡）
+    this.smartGainNode = this.audioCtx.createGain();
+    this.smartGainNode.gain.value = 1.0;
+
+    // 创建用户音量控制节点
     this.volumeGainNode = this.audioCtx.createGain();
-    this.volumeGainNode.gain.value = 1.0; // 初始音量为1
-    
+    this.volumeGainNode.gain.value = 1.0;
+
     this.source = this.audioCtx.createMediaElementSource(this.audio);
-    
-    // 重新设置音频节点连接链：source -> normalization -> volume -> analyser -> destination
-    this.source.connect(this.gainNode);
-    this.gainNode.connect(this.volumeGainNode);
+
+    // 音频节点连接链：source -> smartGain -> volume -> analyser -> destination
+    this.source.connect(this.smartGainNode);
+    this.smartGainNode.connect(this.volumeGainNode);
     this.volumeGainNode.connect(this.analyser);
     this.analyser.connect(this.audioCtx.destination);
-    
+
+    // 音频间响度均衡相关变量
+    this.targetLoudness = -23; // EBU R128 标准目标响度
+    this.trackLoudnessCache = new Map(); // 缓存后端获取的响度数据
+
+    // 响度均衡强度设置 (0-1, 0=关闭, 1=最大)
+    this.loudnessNormalizationStrength = parseFloat(localStorage.getItem('loudness_normalization_strength') || '0.8');
+
+    // WebSocket连接用于获取响度数据
+    this.websocket = null;
+    this.connectWebSocket();
+
     // 设置初始音量
     const savedVolume = localStorage.getItem('player_volume');
     if (savedVolume !== null) {
@@ -319,79 +335,133 @@ class PlayerManager {
     }
   }
 
-  // 计算音频的LUFS值
-  async calculateLUFS() {
-    if (!this.audio.src) return -14; // 如果没有音频源，返回目标LUFS值
-    
-    const audioData = await this.getAudioData();
-    if (!audioData) return -14;
-    
-    // 简化的LUFS计算
-    // 实际的LUFS计算需要考虑K加权滤波和门限处理
-    // 这里使用RMS作为简化的替代方案
-    const rms = this.calculateRMS(audioData);
-    // 将RMS转换为近似LUFS值
-    // 这是一个简化的转换，实际LUFS计算更复杂
-    const lufs = 20 * Math.log10(rms) - 23;
-    
-    return lufs;
-  }
+  // WebSocket连接管理
+  connectWebSocket() {
+    if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+      return;
+    }
 
-  // 获取音频数据
-  async getAudioData() {
     try {
-      const response = await fetch(this.audio.src);
-      const arrayBuffer = await response.arrayBuffer();
-      const audioBuffer = await this.audioCtx.decodeAudioData(arrayBuffer);
-      
-      // 合并所有声道
-      const numberOfChannels = audioBuffer.numberOfChannels;
-      const length = audioBuffer.length;
-      const mergedData = new Float32Array(length);
-      
-      for (let channel = 0; channel < numberOfChannels; channel++) {
-        const channelData = audioBuffer.getChannelData(channel);
-        for (let i = 0; i < length; i++) {
-          mergedData[i] += channelData[i] / numberOfChannels;
-        }
-      }
-      
-      return mergedData;
+      this.websocket = new WebSocket('ws://localhost:8765');
+
+      this.websocket.onopen = () => {
+        console.log('Loudness WebSocket connected');
+      };
+
+      this.websocket.onmessage = (event) => {
+        this.handleWebSocketMessage(event.data);
+      };
+
+      this.websocket.onclose = () => {
+        console.log('Loudness WebSocket disconnected');
+        // 尝试重连
+        setTimeout(() => this.connectWebSocket(), 3000);
+      };
+
+      this.websocket.onerror = (error) => {
+        console.error('Loudness WebSocket error:', error);
+      };
     } catch (error) {
-      console.error('Error getting audio data:', error);
-      return null;
+      console.error('Failed to create WebSocket:', error);
     }
   }
 
-  // 计算RMS值
-  calculateRMS(data) {
-    let sum = 0;
-    for (let i = 0; i < data.length; i++) {
-      sum += data[i] * data[i];
+  // 处理WebSocket消息
+  handleWebSocketMessage(data) {
+    try {
+      const message = JSON.parse(data);
+      if (message.cmd_id && message.cmd_id.startsWith('loudness_')) {
+        this.handleLoudnessResponse(message);
+      }
+    } catch (error) {
+      console.error('Error parsing WebSocket message:', error);
     }
-    return Math.sqrt(sum / data.length);
   }
 
-  // 应用响度归一化
-  async applyLoudnessNormalization() {
-    const targetLUFS = -14; // 目标LUFS值
-    const maxGainDB = 6; // 最大增益限制(dB)
-    
-    const currentLUFS = await this.calculateLUFS();
-    
-    // 计算需要的增益
-    let gainDB = targetLUFS - currentLUFS;
-    
-    // 限制最大增益
-    gainDB = Math.min(gainDB, maxGainDB);
-    
-    // 将dB转换为线性增益
-    const linearGain = Math.pow(10, gainDB / 20);
-    
-    // 应用增益
-    if (this.gainNode) {
-      this.gainNode.gain.setValueAtTime(linearGain, this.audioCtx.currentTime);
+  // 处理响度数据响应
+  handleLoudnessResponse(message) {
+    if (message.code === 200 && message.data.has_loudness_data) {
+      const { music_id, gain_adjustment } = message.data;
+
+      // 缓存响度数据
+      this.trackLoudnessCache.set(music_id, message.data);
+
+      // 如果是当前播放的音频，立即应用增益
+      const currentTrack = this.getCurrentTrack();
+      if (currentTrack && currentTrack.music_id === music_id) {
+        this.applyLoudnessGain(gain_adjustment);
+      }
     }
+  }
+
+  // 应用响度增益
+  applyLoudnessGain(gainAdjustment) {
+    if (!this.smartGainNode || this.loudnessNormalizationStrength === 0) {
+      return;
+    }
+
+    // 应用响度均衡强度设置
+    const adjustedGain = 1.0 + (gainAdjustment - 1.0) * this.loudnessNormalizationStrength;
+
+    // 平滑应用增益
+    this.smartGainNode.gain.setTargetAtTime(
+      adjustedGain,
+      this.audioCtx.currentTime,
+      0.1 // 100ms平滑过渡
+    );
+
+    console.log(`Applied loudness gain: ${adjustedGain.toFixed(2)}`);
+  }
+
+  // 从后端获取响度数据
+  async fetchLoudnessData(musicId) {
+    if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) {
+      console.warn('WebSocket not connected, cannot fetch loudness data');
+      return;
+    }
+
+    // 检查缓存
+    if (this.trackLoudnessCache.has(musicId)) {
+      const cachedData = this.trackLoudnessCache.get(musicId);
+      if (cachedData.has_loudness_data) {
+        this.applyLoudnessGain(cachedData.gain_adjustment);
+        return;
+      }
+    }
+
+    // 从后端获取
+    const message = {
+      cmd: 'get_loudness_data',
+      cmd_id: `loudness_${Date.now()}`,
+      music_id: musicId
+    };
+
+    this.websocket.send(JSON.stringify(message));
+  }
+
+  // 重置响度分析（切换歌曲时调用）
+  resetLoudnessAnalysis() {
+    // 重置增益为默认值
+    if (this.smartGainNode) {
+      this.smartGainNode.gain.setValueAtTime(1.0, this.audioCtx.currentTime);
+    }
+
+    // 获取当前音频的响度数据
+    const currentTrack = this.getCurrentTrack();
+    if (currentTrack && currentTrack.music_id) {
+      this.fetchLoudnessData(currentTrack.music_id);
+    }
+  }
+
+  // 设置响度均衡强度
+  setLoudnessNormalizationStrength(strength) {
+    this.loudnessNormalizationStrength = Math.max(0, Math.min(1, strength));
+    localStorage.setItem('loudness_normalization_strength', this.loudnessNormalizationStrength.toString());
+  }
+
+  // 获取响度均衡强度
+  getLoudnessNormalizationStrength() {
+    return this.loudnessNormalizationStrength;
   }
 
   setupThemeListener() {
@@ -426,13 +496,9 @@ class PlayerManager {
       this.coverImgElement.onload = () => this.extractCoverColor();
     }
     this.climaxDetected = false;
-    
-    // 在音频加载完成后应用响度归一化
-    this.audio.addEventListener('loadeddata', () => {
-      this.applyLoudnessNormalization().catch(err => 
-        console.error('Error applying loudness normalization:', err)
-      );
-    }, { once: true }); // 只执行一次
+
+    // 重置响度分析
+    this.resetLoudnessAnalysis();
   }
   findTrackById(id) {
     return this.playlist.findIndex((track) => track.music_id === id);
@@ -648,6 +714,8 @@ class PlayerManager {
     const animate = (now) => {
       this.analyser.getByteFrequencyData(dataArray);
 
+      // 不再需要实时分析，响度数据由后端提供
+
       // 计算低频能量（均方根 RMS）
       let bassSum = 0;
       for (let i = lowFreqStart; i <= lowFreqEnd; i++) {
@@ -707,6 +775,9 @@ class PlayerManager {
       });
     }
     this.triggerClimaxAnimation(false);
+
+    // 重置帧计数
+    this.frameCount = 0;
   }
 
   triggerBeatAnimation(bands) {
