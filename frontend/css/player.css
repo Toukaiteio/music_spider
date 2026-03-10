@@ -1,0 +1,301 @@
+/* Main Player Bar Container */
+#main-player {
+    grid-area: content;
+    align-self: end;
+    justify-self: center;
+    background: var(--player-bg-gradient, var(--glass-bg-color));
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+    padding: 0;
+    height: 110px;
+    width: calc(100% - 60px);
+    max-width: 1400px;
+    margin-bottom: 25px;
+    border-radius: 28px;
+    box-shadow: 0 20px 60px var(--shadow-color);
+    z-index: 1000;
+    overflow: hidden;
+
+    transition:
+        width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1),
+        height 0.6s cubic-bezier(0.2, 0.8, 0.2, 1),
+        border-radius 0.6s cubic-bezier(0.2, 0.8, 0.2, 1),
+        transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+        margin 0.6s cubic-bezier(0.2, 0.8, 0.2, 1),
+        background 0.8s ease,
+        opacity 0.3s ease;
+
+    display: flex;
+    flex-direction: column;
+}
+
+/* MacOS Minimized State (Bottom Right) */
+#main-player:has(#player-show-button:not(.hidden)) {
+    width: 70px;
+    height: 70px;
+    border-radius: 35px;
+    margin-right: 35px;
+    margin-bottom: 35px;
+    justify-self: end;
+}
+
+#player-content {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    opacity: 1;
+    transition: opacity 0.5s ease;
+}
+
+#player-content.hidden {
+    opacity: 0;
+    pointer-events: none;
+    position: absolute;
+    width: 0;
+}
+
+/* Row 1: Controls & Info */
+#player-main-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 10px 40px 0 40px;
+    height: 75px;
+    box-sizing: border-box;
+}
+
+/* Row 2: Progress Bar */
+.player-progress-row {
+    width: 100%;
+    padding: 0 40px 10px 40px;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: center;
+}
+
+.player-progress-bar-container {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: 15px;
+}
+
+#player-progress-bar {
+    flex-grow: 1;
+}
+
+/* Bright Gray Progress for consistency */
+#player-progress-bar::part(track-fill) {
+    background-color: var(--text-color-primary);
+}
+
+#player-current-time,
+#player-duration {
+    font-size: 0.8em;
+    min-width: 45px;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-color-primary);
+    opacity: 0.8;
+}
+
+/* --- Left Section: Album Art & Info (Marquee) --- */
+.player-left {
+    display: flex;
+    align-items: center;
+    flex: 1.5;
+    min-width: 300px;
+    cursor: pointer;
+    overflow: hidden;
+}
+
+#player-album-art {
+    width: 56px;
+    height: 56px;
+    object-fit: cover;
+    border-radius: 12px;
+    margin-right: 15px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.25);
+    flex-shrink: 0;
+}
+
+.player-track-info {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    overflow: hidden;
+    flex-grow: 1;
+}
+
+/* --- Seamless Marquee Logic --- */
+.marquee-scroller {
+    overflow: hidden;
+    width: 100%;
+    position: relative;
+    mask-image: linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, black 15%, black 85%, transparent 100%);
+}
+
+.marquee-text {
+    width: fit-content;
+    white-space: nowrap;
+    display: inline-block;
+}
+
+/* IMPORTANT: Add margin directly to the text items for safe left spacing */
+.marquee-text h4,
+.marquee-text p {
+    margin: 0;
+    padding-left: 25px;
+    /* Added safe initial gap directly on text components */
+}
+
+.marquee-scroller.can-scroll .marquee-text {
+    display: inline-block;
+    animation: marqueeContinuous 12s linear infinite;
+    width: auto;
+}
+
+.marquee-scroller.can-scroll .marquee-text::after {
+    content: attr(data-content);
+    padding-left: 80px;
+    display: inline-block;
+}
+
+@keyframes marqueeContinuous {
+    from {
+        transform: translateX(0);
+    }
+
+    to {
+        transform: translateX(calc(-50% - 40px));
+    }
+}
+
+.player-track-info h4 {
+    font-size: 1.1em;
+    font-weight: 600;
+}
+
+.player-track-info p {
+    font-size: 0.9em;
+    color: var(--text-color-secondary);
+    margin-top: 4px;
+}
+
+/* --- Center Section: Controls --- */
+.player-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 2;
+}
+
+.player-control-buttons {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.player-control-button {
+    background: transparent;
+    border: none;
+    color: var(--text-color-primary);
+    /* Bright gray/Primary color */
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s, opacity 0.2s;
+    opacity: 0.8;
+}
+
+.player-control-button:hover {
+    background-color: var(--shadow-color);
+    opacity: 1;
+}
+
+#player-play-pause-button {
+    width: 58px;
+    height: 58px;
+    opacity: 1;
+}
+
+#player-play-pause-button .material-icons {
+    font-size: 50px;
+    color: var(--text-color-primary);
+    /* Bright gray */
+}
+
+/* --- Right Section --- */
+.player-right {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex: 1.5;
+    gap: 10px;
+}
+
+#player-volume-slider {
+    width: 90px;
+}
+
+/* --- The Show Button (FAB) --- */
+#player-show-button {
+    background: transparent;
+    border: none;
+    width: 70px;
+    height: 70px;
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 1001;
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+#player-show-button.hidden {
+    opacity: 0;
+    pointer-events: none;
+}
+
+#player-show-button .circular-progress {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+
+#player-show-button .progress-background {
+    stroke: rgba(255, 255, 255, 0.1);
+}
+
+#player-show-button .progress-bar {
+    stroke: var(--text-color-primary);
+    /* Bright gray for consistency */
+    stroke-linecap: round;
+    transition: stroke-dasharray 0.3s ease;
+}
+
+#player-show-button .material-icons {
+    font-size: 32px;
+    color: var(--text-color-primary);
+    z-index: 2;
+}
+
+#player-show-button:hover .material-icons {
+    transform: scale(1.1);
+}
+
+/* Lyrics Extras */
+#lyrics-display-area:not(.lyrics-display-area-no-lyrics) {
+    height: 100%;
+    width: 100%;
+    padding: 50px 0;
+}

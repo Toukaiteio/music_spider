@@ -1,4 +1,5 @@
 // frontend/modules/SongCardRenderer.js
+import TrackAdapter from './TrackAdapter.js';
 
 class SongCardRenderer {
     /**
@@ -15,19 +16,20 @@ class SongCardRenderer {
             return ""; // Return empty string or a placeholder/error HTML
         }
 
-        const musicId = track.music_id || track.id || `generated-${Math.random().toString(36).substr(2, 9)}`;
-        let imageUrl = track.cover_path ? track.cover_path : (track.artwork_url || 'placeholder_cover_1.png');
-        
+        const musicId = TrackAdapter.getMusicId(track) || `generated-${Math.random().toString(36).substr(2, 9)}`;
+        let imageUrl = TrackAdapter.getCoverUrl(track);
+
+
         // Ensure image URLs that might be local are correctly prefixed if necessary
         // For now, assuming URLs are absolute or correctly relative from CSS.
         // If preview_cover is a local path like "./covers/image.png", it should work if served correctly.
 
         const title = track.title || "Unknown Title";
         const artist = track.artist || "Unknown Artist";
-        
-        // Sanitize track info for data attribute
-        // Ensure track object is stringified and quotes are escaped for HTML attribute
-        const trackInfoJson = JSON.stringify(track).replace(/'/g, "&apos;");
+
+        // 规范化后序列化，确保 data-track-info 总是包含完整字段（含 cover_path / audio_path）
+        const trackInfoJson = TrackAdapter.toDataAttr(track);
+
 
         let actionButtonsHtml = "";
         // Favorite button - always added, icon depends on options.isFavorite
@@ -49,19 +51,19 @@ class SongCardRenderer {
             ` + favoriteButtonHtml;
         } else if (context === 'search-result') {
             if (options.isDownloaded) {
-                 actionButtonsHtml = `
+                actionButtonsHtml = `
                     <button class="icon-button action-button-disabled" disabled title="Already in your library">
                         <span class="material-icons">check_circle</span>
                     </button>
                 `; // Using action-button-disabled for consistent styling
             } else {
-                 actionButtonsHtml = `
+                actionButtonsHtml = `
                     <button class="search-result-download-button icon-button" aria-label="Download" data-track-info='${trackInfoJson}'>
                         <span class="material-icons">download</span>
                     </button>
                 `;
             }
-        } else if (context === 'collection-view') { 
+        } else if (context === 'collection-view') {
             actionButtonsHtml = `
                 <button class="remove-from-collection-button icon-button" data-song-id="${musicId}" aria-label="Remove from this collection">
                     <span class="material-icons">remove_circle_outline</span>
@@ -71,7 +73,7 @@ class SongCardRenderer {
                 </button>
             ` + favoriteButtonHtml;
         } else if (context === 'favorites-view') { // Favorites view specific buttons (if different from collection)
-             actionButtonsHtml = `
+            actionButtonsHtml = `
                 <button class="add-to-collection-button icon-button" aria-label="Add to Playlist" data-song-id="${musicId}" data-track-info='${trackInfoJson}'>
                     <span class="material-icons">playlist_add</span>
                 </button>

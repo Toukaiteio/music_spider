@@ -5,8 +5,10 @@
 
 // 假设有鼓点检测和高潮检测算法
 // 可用如 music-beat-detector、music-tempo、ml5.js pitch detection等库、或简单实现
-import { pauseEditorAndResetButton } from './LyricsEditor.js'; // Import the function
+import { pauseEditorAndResetButton } from './LyricsEditor.js';
 import UIManager from "./UIManager.js";
+import TrackAdapter from './TrackAdapter.js';
+
 const ALLOWED_PLAY_MODE = ["list-loop", "single-loop", "random"];
 const PLAY_MODE_MAPPED_ICON = ["repeat", "repeat_one", "shuffle"];
 class PlayerManager {
@@ -77,7 +79,7 @@ class PlayerManager {
       // 根据 audio 事件更新播放按钮图标
       const updatePlayPauseIcon = () => {
         if (icon) {
-          icon.textContent = this.audio.paused ? "play_arrow" : "pause_arrow";
+          icon.textContent = this.audio.paused ? "play_arrow" : "pause";
         }
       };
 
@@ -188,6 +190,12 @@ class PlayerManager {
         this.playerProgressBar.max = this.audio.duration * 100;
         this.playerProgressBar.value = this.audio.currentTime * 100;
       }
+      // Update circular progress on show button
+      const showButtonProgress = document.querySelector("#player-show-button .progress-bar");
+      if (showButtonProgress && this.audio.duration) {
+        const percentage = (this.audio.currentTime / this.audio.duration) * 100;
+        showButtonProgress.style.strokeDasharray = `${percentage}, 100`;
+      }
       if (this.playerCurrentTime) {
         const min = Math.floor(this.audio.currentTime / 60);
         const sec = Math.floor(this.audio.currentTime % 60)
@@ -283,14 +291,38 @@ class PlayerManager {
       };
     }
   }
-  getCurrentTime(){
-    if(this.audio && this.audio.currentTime) {
+  getCurrentTime() {
+    if (this.audio && this.audio.currentTime) {
       return this.audio.currentTime;
     }
   }
   setPlayList(playlist) {
     this.playlist = playlist;
     this.currentIndex = 0;
+  }
+
+  // 智能跑马灯检测：仅在文本溢出时开启滚动
+  checkMarquee(elementId) {
+    const scroller = document.getElementById(elementId);
+    if (!scroller) return;
+    const textContainer = scroller.querySelector('.marquee-text');
+    const innerText = textContainer.firstElementChild;
+
+    // 重置状态
+    scroller.classList.remove('can-scroll');
+    textContainer.style.animation = 'none';
+
+    // 强制同步布局检查
+    requestAnimationFrame(() => {
+      // 使用 innerText.offsetWidth 进行比较
+      if (innerText.offsetWidth > scroller.offsetWidth) {
+        scroller.classList.add('can-scroll');
+        const text = innerText.textContent;
+        // 增加一点间距字符串方便渲染
+        textContainer.setAttribute('data-content', text);
+        textContainer.style.animation = '';
+      }
+    });
   }
   setupAudioContext() {
     this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -303,7 +335,8 @@ class PlayerManager {
 
     // 创建用户音量控制节点
     this.volumeGainNode = this.audioCtx.createGain();
-    this.volumeGainNode.gain.value = 1.0;
+    this.volumeGainNode.gain.value = 0.2;
+
 
     this.source = this.audioCtx.createMediaElementSource(this.audio);
 
@@ -326,13 +359,12 @@ class PlayerManager {
 
     // 设置初始音量
     const savedVolume = localStorage.getItem('player_volume');
-    if (savedVolume !== null) {
-      const volume = parseFloat(savedVolume);
-      this.volumeGainNode.gain.setValueAtTime(volume, this.audioCtx.currentTime);
-      if (this.playerVolumeSlider) {
-        this.playerVolumeSlider.value = volume * 100;
-      }
+    const volume = (savedVolume !== null) ? parseFloat(savedVolume) : 0.2;
+    this.volumeGainNode.gain.setValueAtTime(volume, this.audioCtx.currentTime);
+    if (this.playerVolumeSlider) {
+      this.playerVolumeSlider.value = volume * 100;
     }
+
   }
 
   // WebSocket连接管理
@@ -488,18 +520,28 @@ class PlayerManager {
     if (!this.playlist[index]) return;
     this.currentLoadedTrack = this.playlist[index];
     this.currentIndex = index;
-    this.audio.src = "." + this.playlist[index].audio_path;
+
+    const audioPath = TrackAdapter.getAudioPath(this.playlist[index]);
+    if (audioPath) {
+      this.audio.src = audioPath;
+    } else {
+      console.warn('[PlayerManager] Track has no local audio_path:', this.playlist[index]);
+    }
+
     if (this.coverImgElement) {
-      this.coverImgElement.src = this.playlist[index].cover_path
-          ? "." + this.playlist[index].cover_path
-          : this.playlist[index].artwork_url || 'placeholder_album_art.png';
-      this.coverImgElement.onload = () => this.extractCoverColor();
+      this.coverImgElement.src = TrackAdapter.getCoverUrl(this.playlist[index]);
+      this.coverImgElement.onload = () => {
+        this.extractCoverColor();
+        // 更新 UI 后检查跑马灯
+        this.checkMarquee('title-scroller');
+        this.checkMarquee('artist-scroller');
+      };
     }
     this.climaxDetected = false;
-
     // 重置响度分析
     this.resetLoudnessAnalysis();
   }
+
   findTrackById(id) {
     return this.playlist.findIndex((track) => track.music_id === id);
   }
@@ -519,7 +561,7 @@ class PlayerManager {
   play() {
     // Pause LyricsEditor audio if it's playing
     if (this.lyricsEditorAudioRef && !this.lyricsEditorAudioRef.paused) {
-        pauseEditorAndResetButton(); // This function is imported from LyricsEditor.js
+      pauseEditorAndResetButton(); // This function is imported from LyricsEditor.js
     }
 
     this.audioCtx.resume(); // Ensure AudioContext is resumed
@@ -542,31 +584,52 @@ class PlayerManager {
       return;
     }
     try {
-      const trackInfo = JSON.parse(trackInfoString);
-      if (this.playerTrackTitle) {
-        this.playerTrackTitle.textContent = trackInfo.title || "Unknown Title";
-      }
-      if (this.playerTrackArtist) {
-        this.playerTrackArtist.textContent = trackInfo.artist || "Unknown Artist";
-      }
-      
-      this.playTrackById(trackInfo.music_id); // This should load and play the track
-      
-      UIManager.setPlayerVisibility(true); // Make player visible
+      const rawTrack = JSON.parse(trackInfoString);
+      const track = TrackAdapter.normalize(rawTrack);
 
-      // Update the main player's play/pause button icon to 'pause'
-      if (this.playerPlayPauseButton) {
-        const icon = this.playerPlayPauseButton.querySelector(".material-icons");
-        if (icon) {
-          icon.textContent = "pause_arrow"; 
+      if (this.playerTrackTitle) this.playerTrackTitle.textContent = track.title || "Unknown Title";
+      if (this.playerTrackArtist) this.playerTrackArtist.textContent = TrackAdapter.getArtist(track) || "Unknown Artist";
+
+      // 先尝试在 playlist 中找该曲（playlist 有完整本地路径）
+      const playlistIndex = this.findTrackById(track.music_id);
+      if (playlistIndex !== -1) {
+        this.loadTrack(playlistIndex);
+        this.play();
+      } else {
+        // playlist 中没有（下载完成但尚未刷新 playlist）：
+        // 直接用适配器解析出的路径播放
+        const audioPath = TrackAdapter.getAudioPath(track);
+        if (audioPath) {
+          this.audio.src = audioPath;
+          this.currentLoadedTrack = track;
+          if (this.coverImgElement) {
+            this.coverImgElement.src = TrackAdapter.getCoverUrl(track);
+            this.coverImgElement.onload = () => this.extractCoverColor();
+          }
+          this.play();
+        } else {
+          console.warn('[PlayerManager] Track not in playlist and no audio_path:', track);
+          UIManager.showToast('Cannot play: track not yet downloaded.', 'warning');
         }
       }
+
+      UIManager.setPlayerVisibility(true);
+
+      if (this.playerPlayPauseButton) {
+        const icon = this.playerPlayPauseButton.querySelector(".material-icons");
+        if (icon) icon.textContent = "pause";
+      }
+
+      // 检查跑马灯
+      this.checkMarquee('title-scroller');
+      this.checkMarquee('artist-scroller');
     } catch (e) {
       console.error("Failed to parse track info for playTrackFromCard:", e);
       UIManager.showToast("Error playing track: Invalid track data.", "error");
     }
   }
-  
+
+
   // Allow external modules (like LyricsEditor) to pause the main player.
   pauseTrack() {
     this.pause();
@@ -635,15 +698,26 @@ class PlayerManager {
     return this.currentLoadedTrack || null;
   }
   extractCoverColor() {
-    if (!this.coverImgElement.complete) return;
+    if (!this.coverImgElement || !this.coverImgElement.complete) return;
     const colorThief = new ColorThief();
-    let color = [200, 200, 200];
     try {
-      color = colorThief.getColor(this.coverImgElement);
-    } catch (e) {}
-    color = this.adjustColorForTheme(color, this.theme);
-    if (this.onColorChange) this.onColorChange(color);
-    this.setBackgroundBandsColor(color);
+      const palette = colorThief.getPalette(this.coverImgElement, 5);
+      if (palette && palette.length >= 2) {
+        const color1 = this.adjustColorForTheme(palette[0], this.theme);
+        const color2 = this.adjustColorForTheme(palette[1], this.theme);
+
+        // 构建渐变背景
+        const gradient = `linear-gradient(135deg, rgba(${color1[0]}, ${color1[1]}, ${color1[2]}, 0.85), rgba(${color2[0]}, ${color2[1]}, ${color2[2]}, 0.85))`;
+        if (this.playerFooter) {
+          this.playerFooter.style.setProperty('--player-bg-gradient', gradient);
+        }
+
+        if (this.onColorChange) this.onColorChange(color1);
+        this.setBackgroundBandsColor(color1);
+      }
+    } catch (e) {
+      console.error("ColorThief failed:", e);
+    }
   }
 
   adjustColorForTheme(color, theme) {
@@ -811,7 +885,7 @@ class PlayerManager {
  * 订阅播放器状态变化。
  * @param {function} callback 当播放状态改变时调用的回调函数。
  */
-PlayerManager.prototype.onStateChange = function(callback) {
+PlayerManager.prototype.onStateChange = function (callback) {
   this.stateChangeCallbacks.add(callback);
 };
 
@@ -819,14 +893,14 @@ PlayerManager.prototype.onStateChange = function(callback) {
  * 取消订阅播放器状态变化。
  * @param {function} callback 要移除的回调函数。
  */
-PlayerManager.prototype.offStateChange = function(callback) {
+PlayerManager.prototype.offStateChange = function (callback) {
   this.stateChangeCallbacks.delete(callback);
 };
 
 /**
  * 通知所有订阅者状态已改变。
  */
-PlayerManager.prototype.notifyStateChange = function() {
+PlayerManager.prototype.notifyStateChange = function () {
   const state = {
     isPlaying: this.isPlaying,
     track: this.getCurrentTrack()

@@ -1,0 +1,258 @@
+/* Update Track Page Styles */
+#update-track-page {
+    padding: 20px;
+    margin: 0 auto;
+}
+
+#update-track-page h2 {
+    text-align: center;
+    margin-bottom: 25px;
+}
+
+#update-track-form label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: var(--text-color-secondary);
+}
+
+#update-track-form input[type="text"],
+#update-track-form textarea {
+    width: 100%;
+    padding: 10px;
+    margin-top: 0;
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    background-color: var(--primary-bg-color);
+    color: var(--text-color-primary);
+    font-size: 1em;
+}
+
+#update-track-form input[type="text"]:focus,
+#update-track-form textarea:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(var(--accent-color-rgb), 0.2);
+}
+
+/* Upload Track Page Styles */
+#upload-track-page {
+    padding: 20px;
+    margin: 0 auto;
+}
+
+#upload-track-page h2 {
+    text-align: center;
+    margin-bottom: 25px;
+}
+
+#upload-track-form label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: var(--text-color-secondary);
+}
+
+#upload-track-form input[type="text"],
+#upload-track-form input[type="file"],
+#upload-track-form textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    background-color: var(--primary-bg-color);
+    color: var(--text-color-primary);
+    font-size: 1em;
+}
+
+#upload-track-form input[type="text"]:focus,
+#upload-track-form input[type="file"]:focus,
+#upload-track-form textarea:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(var(--accent-color-rgb), 0.2);
+}
+
+#upload-track-form button {
+    margin-top: 20px;
+    margin-right: 10px;
+    padding: 10px 20px;
+}
+
+#upload-track-form button#cancel-upload-button {
+    background-color: var(--secondary-bg-color);
+    color: var(--text-color-primary);
+    border: 1px solid var(--border-color);
+}
+
+#upload-track-form button#cancel-upload-button:hover {
+    background-color: var(--primary-bg-color);
+}
+
+#upload-file-info {
+    padding: 10px;
+    background-color: var(--primary-bg-color);
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    margin-bottom: 20px;
+    color: var(--text-color-secondary);
+}
+
+#upload-filename-placeholder {
+    font-style: italic;
+    color: var(--text-color-primary);
+}
+
+#upload-cover-preview {
+    max-width: 150px;
+    max-height: 150px;
+    display: none;
+    margin-top: 10px;
+    border-radius: 5px;
+    border: 1px solid var(--border-color);
+}
+
+/* Form Section Styling (Shared) */
+.form-section {
+    background-color: var(--secondary-bg-color);
+    padding: 15px;
+    margin-bottom: 20px;
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    width: 100%;
+}
+
+.form-section h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: var(--text-color-primary);
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 10px;
+    font-size: 1.2em;
+}
+
+.form-section label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: var(--text-color-secondary);
+}
+
+.form-section input[type="text"],
+.form-section input[type="file"],
+.form-section textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--primary-bg-color);
+    color: var(--text-color-primary);
+    font-size: 1em;
+    margin-bottom: 10px;
+}
+
+.form-section input[type="text"]:focus,
+.form-section input[type="file"]:focus,
+.form-section textarea:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(var(--accent-color-rgb), 0.2);
+}
+
+/* Cover Upload Area Messaging */
+.cover-upload-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.cover-upload-button {
+    width: 150px;
+    height: 150px;
+    border: 2px dashed var(--border-color);
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--primary-bg-color);
+    color: var(--icon-color);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    padding: 0;
+    transition: border-color 0.2s, background-color 0.2s;
+}
+
+.cover-upload-button:hover {
+    border-color: var(--accent-color);
+    background-color: var(--shadow-color);
+}
+
+.cover-upload-button .initial-icon {
+    font-size: 48px;
+    color: inherit;
+}
+
+.cover-upload-button .cover-preview-image {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: none;
+}
+
+.cover-upload-hint {
+    font-size: 0.8em;
+    color: var(--text-color-secondary);
+    margin-top: 8px;
+    text-align: center;
+}
+
+/* Form Layouts */
+#update-track-form,
+#upload-track-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.track-details-form-column,
+.lyrics-tool-container-wrapper {
+    flex-basis: 100%;
+    min-width: 0;
+}
+
+.form-actions {
+    flex-basis: 100%;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+@media (min-width: 900px) {
+
+    #update-track-form .track-details-form-column,
+    #upload-track-form .track-details-form-column {
+        flex: 2;
+        min-width: 300px;
+    }
+
+    .lyrics-tool-container-wrapper {
+        flex: 1;
+        min-width: 300px;
+    }
+}
+
+#update-track-form button#cancel-track-update-button {
+    background-color: var(--secondary-bg-color);
+    color: var(--text-color-primary);
+    border: 1px solid var(--border-color);
+}
+
+#update-track-form button#cancel-track-update-button:hover {
+    background-color: var(--primary-bg-color);
+}

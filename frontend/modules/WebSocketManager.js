@@ -75,8 +75,19 @@ class WebSocketManager {
             error_message,
           } = progressData;
 
+          // track_id 可能为 null（部分后端实现的 completed_track 消息里不填）
+          // 兜底：从 track_details 中取 music_id，或用 original_cmd_id 匹配
+          const fallbackId = progressData.track_details?.music_id || null;
+          const effectiveTrackId = track_id || fallbackId;
+
           const queueItem = window.appState.downloadQueue.find(
-            (item) => item.bvid ? item.bvid === track_id : item.music_id === track_id
+            (item) =>
+              (effectiveTrackId && (
+                item.bvid === effectiveTrackId ||
+                item.music_id === effectiveTrackId ||
+                item.id === effectiveTrackId
+              )) ||
+              (progressData.original_cmd_id && item.original_cmd_id === progressData.original_cmd_id)
           );
 
           if (queueItem) {
@@ -88,14 +99,10 @@ class WebSocketManager {
 
             switch (status) {
               case "downloading":
-                queueItem.statusMessage = `Downloading (${
-                  file_type || "file"
-                }): ${queueItem.progressPercent.toFixed(1)}%`;
+                queueItem.statusMessage = `Downloading (${file_type || "file"}): ${queueItem.progressPercent.toFixed(1)}%`;
                 break;
               case "processing":
-                queueItem.statusMessage = `Processing ${
-                  file_type || "file"
-                }...`;
+                queueItem.statusMessage = `Processing ${file_type || "file"}...`;
                 break;
               case "downloading_segments":
                 queueItem.statusMessage = `Downloading segments...`;
@@ -107,60 +114,55 @@ class WebSocketManager {
                 queueItem.statusMessage = `Concatenating segments...`;
                 break;
               case "completed_track":
-               queueItem.statusMessage = `Download complete!`;
-               
-               // Use the track info from the queueItem itself, which is more reliable.
-               // The backend might not send the full track_info on completion.
-               const completedTrackInfo = { ...queueItem };
-               // Ensure the object added to the library is clean and doesn't have queue-specific status fields
-               delete completedTrackInfo.progressPercent;
-               delete completedTrackInfo.status;
-               delete completedTrackInfo.statusMessage;
-               delete completedTrackInfo.original_cmd_id;
+                queueItem.statusMessage = `Download complete!`;
+                queueItem.status = "completed_track";
 
-               // Avoid duplicates
-               const existingIndex = window.appState.library.findIndex(t => (t.music_id || t.id) === (completedTrackInfo.music_id || completedTrackInfo.id));
-               if (existingIndex === -1) {
-                   window.appState.library.push(completedTrackInfo);
-               } else {
-                   // Update existing track info in case it changed (e.g., new metadata from backend)
-                   window.appState.library[existingIndex] = completedTrackInfo;
-               }
-               
-               // Dispatch an event to notify that the library has changed
-               document.dispatchEvent(new CustomEvent('library-changed', { detail: { track: completedTrackInfo } }));
+                // 异步获取完整元数据并刷新库
+                (async () => {
+                  try {
+                    const refreshResponse = await this.sendWebSocketCommand("get_downloaded_music", {});
+                    const freshLibrary = refreshResponse?.data?.library || [];
+                    const completedId = queueItem.music_id || queueItem.bvid || track_id;
+                    const freshTrack = freshLibrary.find(t =>
+                      t.music_id === completedId || t.music_id === track_id
+                    );
 
-               break;
-             case "completed_file":
-               queueItem.statusMessage = `${
-                 file_type || "File"
-               } successfully processed.`;
+                    if (freshTrack) {
+                      const existingIndex = window.appState.library.findIndex(t => t.music_id === freshTrack.music_id);
+                      if (existingIndex === -1) window.appState.library.push(freshTrack);
+                      else window.appState.library[existingIndex] = freshTrack;
+
+                      Object.assign(queueItem, freshTrack);
+                      queueItem.status = "completed_track";
+                    }
+                    renderTaskQueue();
+                    updateMainTaskQueueIcon();
+                  } catch (e) {
+                    console.error('[WebSocketManager] Failed to refresh library:', e);
+                  }
+                })();
+                break;
+              case "completed_file":
+                queueItem.statusMessage = `${file_type || "File"} successfully processed.`;
                 break;
               case "error":
-                queueItem.statusMessage = `Error: ${
-                  error_message || "Unknown download error"
-                }`;
-                break;
-              default:
+                queueItem.statusMessage = `Error: ${error_message || "Unknown download error"}`;
+                queueItem.status = "error";
                 break;
             }
+
             renderTaskQueue();
             updateMainTaskQueueIcon();
-            
-            // Dispatch a custom event for other modules to listen to
-            document.dispatchEvent(new CustomEvent('download-status-changed', {
-                detail: {
-                    trackId: track_id,
-                    status: queueItem.status,
-                    progress: queueItem.progressPercent
-                }
-            }));
 
+            document.dispatchEvent(new CustomEvent('download-status-changed', {
+              detail: {
+                trackId: track_id,
+                status: queueItem.status,
+                progress: queueItem.progressPercent
+              }
+            }));
           } else {
-            console.warn(
-              `Received progress for unknown track_id: ${track_id}`,
-              progressData
-            );
+            console.warn(`Received progress for unknown track_id: ${track_id}`, progressData);
           }
           return;
         }

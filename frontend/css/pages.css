@@ -1,0 +1,297 @@
+/* Home Page */
+#home-page {
+    padding: 0;
+}
+
+#home-page h2 {
+    margin-bottom: 20px;
+    font-size: 1.8em;
+}
+
+#no-songs-message {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+/* Home Page Header Search (Alternative search) */
+.home-page-header {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    padding-right: 12px;
+    font-size: 1.8em;
+    box-sizing: border-box;
+    margin-bottom: 12px;
+}
+
+.home-page-header-search-container {
+    display: flex;
+    align-items: center;
+    background-color: var(--secondary-bg-color);
+    border-radius: 25px;
+    box-shadow: 0 1px 3px var(--shadow-color);
+    min-width: 180px;
+    max-width: 320px;
+    width: 100%;
+    font-size: 16px;
+    transition: background-color 0.3s;
+    box-sizing: border-box;
+}
+
+.home-page-header-search-container:hover {
+    background-color: var(--primary-bg-color);
+}
+
+.home-page-header-search-container .search-icon {
+    color: var(--text-color-secondary);
+    margin-left: 15px;
+    margin-right: 10px;
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.home-page-header-search {
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--text-color-primary);
+    font-size: 16px;
+    width: 100%;
+    padding: 6px 0;
+}
+
+/* Search Page */
+#search-page {
+    padding: 0;
+}
+
+#search-page h2 {
+    margin-bottom: 25px;
+    font-size: 1.8em;
+    text-align: center;
+}
+
+.search-input-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 30px;
+    padding: 20px;
+    background-color: var(--secondary-bg-color);
+    border-radius: 8px;
+    box-shadow: 0 2px 8px var(--shadow-color);
+    transition: margin-bottom 0.5s ease-out, transform 0.5s ease-out;
+}
+
+.search-input-area.results-visible {
+    margin-bottom: 20px;
+}
+
+#search-page-input {
+    width: 100%;
+    max-width: 600px;
+    padding: 15px 20px;
+    font-size: 1.1em;
+    border: 1px solid var(--border-color);
+    border-radius: 25px;
+    margin-bottom: 15px;
+    text-align: center;
+    background-color: var(--primary-bg-color);
+    color: var(--text-color-primary);
+}
+
+/* Song Detail Page */
+#song-detail-page {
+    display: flex;
+    height: 100%;
+    padding: 20px;
+    gap: 20px;
+    animation-duration: 0.5s;
+    animation-timing-function: ease-out;
+    animation-fill-mode: forwards;
+    opacity: 0;
+    position: relative;
+}
+
+.song-detail-left {
+    display: flex;
+    flex-direction: column;
+    max-width: 400px;
+    padding-top: 50px;
+}
+
+.song-detail-left #detail-cover-art {
+    width: 100%;
+    max-width: 400px;
+    height: auto;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    box-shadow: 0 4px 15px var(--shadow-color);
+}
+
+.song-detail-left #detail-title {
+    margin-top: 0;
+    font-size: 1.8em;
+}
+
+.song-detail-left #detail-artist {
+    font-size: 1.2em;
+    margin-bottom: 10px;
+}
+
+.song-detail-left #detail-description {
+    font-size: 0.9em;
+    line-height: 1.5;
+    margin-bottom: 20px;
+    max-height: 150px;
+    overflow-y: auto;
+    padding-right: 10px;
+}
+
+.song-detail-right {
+    flex: 1;
+    padding-left: 20px;
+    border-left: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 300px;
+}
+
+/* 隐藏主内容区域滚动条 */
+#main-content {
+    scrollbar-width: none;
+    /* Firefox */
+    -ms-overflow-style: none;
+    /* IE and Edge */
+}
+
+#main-content::-webkit-scrollbar {
+    display: none;
+    /* Chrome, Safari and Opera */
+}
+
+/* Song Detail Dialog (Old style, keeping for compatibility) */
+.track-details-dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.track-details-dialog .dialog-content {
+    background: var(--secondary-bg-color);
+    padding: 2rem;
+    border-radius: 8px;
+    max-width: 600px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+}
+
+.track-details-dialog .close-dialog-button {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--icon-color);
+}
+
+.track-details-dialog .track-cover img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+}
+
+.track-details-dialog .track-info {
+    margin-top: 1.5rem;
+}
+
+.track-details-dialog .description {
+    margin-top: 1rem;
+    color: var(--text-color-secondary);
+}
+
+/* Overview Page */
+#overview-page {
+    padding: 20px;
+}
+
+#overview-page h2 {
+    text-align: center;
+    margin-bottom: 30px;
+    font-size: 2em;
+}
+
+.overview-section-container {
+    display: flex;
+    width: 100%;
+    gap: 25px;
+}
+
+.overview-section {
+    background-color: var(--secondary-bg-color);
+    padding: 20px;
+    margin-bottom: 25px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px var(--shadow-color);
+    border: 1px solid var(--border-color);
+    width: 100%;
+}
+
+.overview-section#task-section {
+    background-color: var(--primary-bg-color);
+}
+
+/* Data Table Styling */
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+
+.data-table th,
+.data-table td {
+    border: 1px solid var(--border-color);
+    padding: 12px 15px;
+    text-align: left;
+    font-size: 0.95em;
+}
+
+.data-table th {
+    background-color: var(--primary-bg-color);
+    font-weight: 600;
+}
+
+/* Progress Bar Styling (System) */
+.progress-bar-container {
+    width: 100%;
+    background-color: var(--border-color);
+    border-radius: 4px;
+    height: 22px;
+    overflow: hidden;
+    margin-top: 5px;
+    margin-bottom: 5px;
+}
+
+.progress-bar {
+    height: 100%;
+    background-color: var(--accent-color);
+    text-align: center;
+    line-height: 22px;
+    color: white;
+    border-radius: 4px;
+    font-size: 0.8em;
+    font-weight: 500;
+    transition: width 0.3s ease-in-out;
+}
