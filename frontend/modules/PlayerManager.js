@@ -314,12 +314,12 @@ class PlayerManager {
 
     // 强制同步布局检查
     requestAnimationFrame(() => {
-      // 使用 innerText.offsetWidth 进行比较
+      // 在 inline-block 模式下，innerText.offsetWidth 代表内容的实际渲染宽度
       if (innerText.offsetWidth > scroller.offsetWidth) {
         scroller.classList.add('can-scroll');
         const text = innerText.textContent;
-        // 增加一点间距字符串方便渲染
         textContainer.setAttribute('data-content', text);
+        // 让动画即刻生效
         textContainer.style.animation = '';
       }
     });
