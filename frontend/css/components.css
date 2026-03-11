@@ -39,6 +39,85 @@
     color: var(--text-color-secondary);
 }
 
+/* ---- Search Source Dropdown ---- */
+.search-source-selector {
+    position: relative;
+    margin-left: 8px;
+    display: flex;
+    align-items: center;
+}
+
+#search-source-button {
+    margin-left: 8px;
+    padding: 4px;
+    background: transparent;
+    border: none;
+}
+
+#search-source-button:hover {
+    background-color: var(--shadow-color);
+}
+
+#search-source-icon {
+    width: 24px;
+    height: 24px;
+    padding: 4px;
+}
+
+
+.search-source-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    min-width: 140px;
+    max-height: 240px;
+    overflow-y: auto;
+    background: rgba(30, 30, 32, 0.85);
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+    z-index: 1200;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.search-source-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    white-space: nowrap;
+}
+
+.search-source-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.search-source-item.active {
+    background: rgba(255, 255, 255, 0.15);
+    pointer-events: none;
+}
+
+.search-source-item img {
+    width: 18px;
+    height: 18px;
+}
+
+.search-source-item span {
+    font-size: 0.9em;
+    font-weight: 500;
+    color: var(--text-color-primary);
+    text-transform: capitalize;
+}
+
+
 /* Task Queue */
 .task-queue-container {
     position: relative;
@@ -234,9 +313,9 @@
     padding: 15px;
     border: 1px solid var(--glass-border-color);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), 
-                box-shadow 0.3s ease, 
-                background-color 0.3s ease;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+        box-shadow 0.3s ease,
+        background-color 0.3s ease;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -304,7 +383,7 @@
 
 .play-on-card-button .material-icons {
     font-size: 24px;
-    color: #111111;
+    color: var(--icon-color);
 }
 
 .play-on-card-button:hover {
@@ -345,7 +424,8 @@
 
 /* 仅在 Hover 且文本可滚动时，在该固定容器上应用遮罩 */
 .song-card:hover .song-card-title.can-scroll {
-    margin-right: 0; /* 确保不影响容器宽度 */
+    margin-right: 0;
+    /* 确保不影响容器宽度 */
 }
 
 .song-card:hover .song-card-title-scroller:has(.can-scroll) {
@@ -380,8 +460,13 @@
 }
 
 @keyframes songCardMarquee {
-    from { transform: translateX(0); }
-    to { transform: translateX(-50%); }
+    from {
+        transform: translateX(0);
+    }
+
+    to {
+        transform: translateX(-50%);
+    }
 }
 
 .song-card-artist {
@@ -401,16 +486,18 @@
 
 .song-card:hover .song-card-artist {
     opacity: 0;
-    transform: translateY(8px); /* 稍微减小偏移量，让切换更紧凑 */
+    transform: translateY(8px);
+    /* 稍微减小偏移量，让切换更紧凑 */
     pointer-events: none;
 }
 
 .song-card-actions {
     position: absolute;
     /* 微调 bottom 值，使其中心点与歌手名完全重合 */
-    bottom: 15px; 
+    bottom: 15px;
     right: 15px;
-    height: 36px; /* 明确高度 */
+    height: 36px;
+    /* 明确高度 */
     display: flex;
     justify-content: flex-end;
     align-items: center;

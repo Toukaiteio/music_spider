@@ -119,13 +119,57 @@ class SearchManager {
     }
   }
 
+  handleSearchSourceButtonClick(event) {
+    if (this.availableSources.length === 0) return;
+    event.stopPropagation();
+    const dropdown = document.getElementById("search-source-dropdown");
+    const isVisible = dropdown.style.display === "flex";
+    
+    // Close other dropdowns if needed (optional)
+    
+    dropdown.style.display = isVisible ? "none" : "flex";
+
+    if (!isVisible) {
+      this.renderDropdown();
+      const closeDropdown = (e) => {
+        if (!dropdown.contains(e.target) && e.target !== this.searchSourceButton && !this.searchSourceButton.contains(e.target)) {
+          dropdown.style.display = "none";
+          document.removeEventListener("click", closeDropdown);
+        }
+      };
+      document.addEventListener("click", closeDropdown);
+    }
+  }
+
+  renderDropdown() {
+    const dropdown = document.getElementById("search-source-dropdown");
+    if (!dropdown) return;
+    
+    dropdown.innerHTML = "";
+    this.availableSources.forEach((source, index) => {
+      const item = document.createElement("div");
+      item.className = `search-source-item ${index === this.currentSourceIndex ? "active" : ""}`;
+      item.innerHTML = `
+        <img src="source_icon/${source}.ico" alt="${source}" />
+        <span>${source}</span>
+      `;
+      item.onclick = (e) => {
+        e.stopPropagation();
+        this.currentSourceIndex = index;
+        localStorage.setItem("searchSource", source);
+        this.updateSearchSourceDisplay();
+        dropdown.style.display = "none";
+      };
+      dropdown.appendChild(item);
+    });
+  }
+
   updateSearchSourceDisplay() {
     if (!this.searchSourceIcon || this.availableSources.length === 0) {
-      if (this.searchSourceButton) this.searchSourceButton.disabled = true; // Disable button if no sources or icon
+      if (this.searchSourceButton) this.searchSourceButton.disabled = true;
       return;
     }
     const source = this.availableSources[this.currentSourceIndex];
-    // if (source && source.icon_filename && source.name) {
     if (source) {
       this.searchSourceIcon.src = `source_icon/${source}.ico`;
       this.searchSourceIcon.alt = `Search source: ${source}`;
@@ -135,29 +179,19 @@ class SearchManager {
           `Change search source (current: ${source})`
         );
       }
+      
+      // Update dropdown active state if it exists
+      const dropdown = document.getElementById("search-source-dropdown");
+      if (dropdown) {
+        const items = dropdown.querySelectorAll(".search-source-item");
+        items.forEach((item, idx) => {
+          item.classList.toggle("active", idx === this.currentSourceIndex);
+        });
+      }
     } else {
-      console.warn(
-        "SearchManager: Current source data is invalid for display.",
-        source
-      );
-      // Optionally set a default/error icon or text
+      console.warn("SearchManager: Current source data is invalid for display.", source);
       if (this.searchSourceButton) this.searchSourceButton.disabled = true;
     }
-  }
-
-  handleSearchSourceButtonClick() {
-    if (this.availableSources.length === 0) return;
-    this.currentSourceIndex++;
-    if (this.currentSourceIndex >= this.availableSources.length) {
-      this.currentSourceIndex = 0;
-    }
-    localStorage.setItem("searchSource", this.availableSources[this.currentSourceIndex]);
-    this.updateSearchSourceDisplay();
-    // Optional: if a search query exists in the input, re-trigger search
-    // const query = this.searchInput.value.trim();
-    // if (query) {
-    //     this.performSearch(query);
-    // }
   }
 
   async handleSearchInput(event) {

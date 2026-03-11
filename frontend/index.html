@@ -293,11 +293,14 @@
       <div class="search-bar-container">
         <span class="material-icons search-icon">search</span>
         <input type="text" id="header-search-input" placeholder="Search for music..." autocomplete="off" />
-        <button id="search-source-button" class="icon-button" aria-label="Change Search Source"
-          style="margin-left: 8px; padding: 4px;">
-          <img id="search-source-icon" src="source_icon/soundcloud.ico" alt="Current Search Source"
-            style="width: 24px; height: 24px; padding: 4px;">
-        </button>
+        <div class="search-source-selector">
+          <button id="search-source-button" class="icon-button" aria-label="Change Search Source">
+            <img id="search-source-icon" src="source_icon/soundcloud.ico" alt="Current Search Source" />
+          </button>
+          <div id="search-source-dropdown" class="search-source-dropdown-menu" style="display: none;">
+            <!-- Dropdown items will be populated by SearchManager.js -->
+          </div>
+        </div>
         <!-- <span class="search-source-indicator" style="margin-left: 8px; font-size: 0.9em; color: var(--text-color-secondary);">Source: SoundCloud</span> -->
       </div>
       <div class="header-actions-right">
