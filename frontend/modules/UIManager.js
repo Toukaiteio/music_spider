@@ -545,8 +545,13 @@ class UIManager {
       import('../pages/SongDetailPage.js').then(module => {
         const page = new module.default();
         overlay.innerHTML = page.getHTML();
+        
+        // Remove 'hidden' first, then add 'active' in next frame for transition
         overlay.classList.remove('hidden');
-        overlay.classList.add('active');
+        requestAnimationFrame(() => {
+          overlay.classList.add('active');
+        });
+
         const trackId = trackObject ? (trackObject.music_id || trackObject.id) : null;
         page.onLoad(overlay, String(trackId), appState, managers);
       });
@@ -556,21 +561,28 @@ class UIManager {
       overlay.classList.remove('active');
       player.classList.remove('attached-to-detail');
       
+      // 如果进入前是收起状态，现在立即触发收起动画，使其直接从贴底状态过渡到气泡状态
+      if (!this._prevPlayerExpanded) {
+        playerContent.classList.add('hidden');
+        showButton.classList.remove('hidden');
+      }
+
       // 2. 延迟隐藏容器，等待动画结束
       setTimeout(() => {
+        // 先彻底隐藏容器，防止清理 HTML 时产生视觉跳动
         overlay.classList.add('hidden');
         overlay.innerHTML = '';
         
-        // 3. 恢复之前的展开状态
-        if (!this._prevPlayerExpanded) {
-          playerContent.classList.add('hidden');
-          showButton.classList.remove('hidden');
-        }
-        
+        // 重置可能的内联样式（拖拽遗留）
+        overlay.style.transform = '';
+        overlay.style.opacity = '';
+        overlay.style.backdropFilter = '';
+        overlay.style.webkitBackdropFilter = '';
+
         // 4. 恢复收起按钮显示
         const hideBtn = document.getElementById('player-hide-button');
         if (hideBtn) hideBtn.style.display = '';
-      }, 400); // 匹配 CSS 过渡时间
+      }, 600); // 严格匹配 CSS 0.6s 的过渡动画
     }
   }
 

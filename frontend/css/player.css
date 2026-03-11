@@ -43,6 +43,15 @@
     left: calc(100% - 35px); /* 右边距 35px */
     transform: translateX(-100%); /* 项自己向左平移 100% 宽度 */
     transform-origin: bottom right;
+    
+    /* 使用更温和的弹性效果，避免超出视口右边界 */
+    transition: 
+        bottom 0.6s cubic-bezier(0.34, 1.2, 0.64, 1),
+        left 0.6s cubic-bezier(0.34, 1.2, 0.64, 1),
+        width 0.6s cubic-bezier(0.34, 1.2, 0.64, 1),
+        height 0.6s cubic-bezier(0.34, 1.2, 0.64, 1),
+        border-radius 0.6s cubic-bezier(0.34, 1.2, 0.64, 1),
+        transform 0.6s cubic-bezier(0.34, 1.2, 0.64, 1);
 }
 
 /* 歌曲详情激活时的贴底状态: 轻微悬浮 Apple Music 微调版 */
