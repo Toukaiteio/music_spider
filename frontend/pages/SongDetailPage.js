@@ -1,6 +1,7 @@
 // frontend/pages/SongDetailPage.js
 
 import { parseLRC } from "../modules/LyricsEditor.js";
+import UIManager from '../modules/UIManager.js';
 // Removed: renderLyricsPreview, initLyricsEditorControls, setMainPlayerManager, lyricsEditorAudio, loadAudioSource
 // These will be handled by the LyricsEditor module itself or general init logic.
 // NavigationManager itself will call initLyricsEditorControls if lyricsToolHtml is used.
@@ -66,7 +67,7 @@ class SongDetailPage {
     let track = appState.currentSongDetail;
 
     // If track is not in currentSongDetail (e.g., direct navigation/refresh), find it in the library.
-    if (!track || (track.music_id || track.id) !== subPageId) {
+    if (!track || String(track.music_id || track.id) !== String(subPageId)) {
         if (subPageId && appState.library && Array.isArray(appState.library)) {
             track = appState.library.find(
                 (item) => String(item.music_id || item.id) === String(subPageId)
@@ -145,7 +146,7 @@ class SongDetailPage {
       backButton.parentNode.replaceChild(newBackButton, backButton);
       newBackButton.addEventListener(
         "click",
-        managers.navigationManager.navigateBack
+        () => UIManager.toggleSongDetail(false, null, appState, managers)
       );
     }
 

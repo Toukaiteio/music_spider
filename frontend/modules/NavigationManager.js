@@ -8,6 +8,7 @@ import SongDetailPage from '../pages/SongDetailPage.js';
 import SearchResultsPage from '../pages/SearchResultsPage.js';
 import UpdateTrackPage from '../pages/UpdateTrackPage.js';
 import UploadTrackPage from '../pages/UploadTrackPage.js';
+import UIManager from '../modules/UIManager.js';
 
 // Utility Imports (keep if still used directly by NM)
 import { getFileExtension } from "./Utils.js";
@@ -52,7 +53,6 @@ class NavigationManager {
       'home': HomePage,
       'collections': CollectionsPage,
       'collection-detail': CollectionDetailPage,
-      'song-detail': SongDetailPage,
       'search-results': SearchResultsPage,
       'update-track': UpdateTrackPage,
       'upload-track': UploadTrackPage
@@ -143,31 +143,7 @@ class NavigationManager {
       return;
     }
 
-    if (
-      this.currentPageId === "song-detail" &&
-      pageId !== "song-detail" &&
-      !skipPushState
-    ) {
-      const songDetailPageElement =
-        this.mainContent.querySelector("#song-detail-page");
-      if (songDetailPageElement) {
-        songDetailPageElement.classList.add("song-detail-page-exit");
-        songDetailPageElement.addEventListener(
-          "animationend",
-          () => {
-            this._performNavigateTo(
-              pageId,
-              title,
-              path,
-              skipPushState,
-              subPageId
-            );
-          },
-          { once: true }
-        );
-        return;
-      }
-    }
+    this._performNavigateTo(pageId, title, path, skipPushState, subPageId);
     this._performNavigateTo(pageId, title, path, skipPushState, subPageId);
   }
 
@@ -496,10 +472,12 @@ class NavigationManager {
       let title =
         pageIdFromState.charAt(0).toUpperCase() + pageIdFromState.slice(1);
       if (pageIdFromState === "search-results") title = "Search Results";
-      if (pageIdFromState === "collection-detail" && subPageIdFromState)
-        title = subPageIdFromState;
+      if (pageIdFromState === "song-detail") {
+        this.navigateTo("home", "Home", "#home", true);
+        return;
+      }
 
-      if (!this.pageModulesRegistry[pageIdFromState]) { // Changed from this.pageContents
+      if (!this.pageModulesRegistry[pageIdFromState]) {
         console.warn(
           `Invalid page ID in popstate: "${pageIdFromState}". Redirecting to home.`
         );
@@ -531,12 +509,16 @@ class NavigationManager {
   }
 
   handleInitialLoad() {
-    const hash = location.hash.substring(1);
+    const hash = (location.hash || '#home').substring(1);
     const parts = hash.split("/");
     let initialPage = parts[0] || "home";
     const initialSubPageId = parts[1] || null;
 
-    if (!this.pageModulesRegistry[initialPage]) { // Changed from this.pageContents
+    if (initialPage === "song-detail") {
+      initialPage = "home";
+    }
+
+    if (!this.pageModulesRegistry[initialPage]) {
       console.warn(
         `Invalid page ID in URL hash: "${initialPage}". Defaulting to home.`
       );
@@ -620,12 +602,16 @@ class NavigationManager {
 
   navigateToSongDetail(trackObject) {
     this.appState.currentSongDetail = trackObject;
-    const songHash = trackObject.music_id || trackObject.id || Date.now();
-    this.navigateTo(
-      "song-detail",
-      trackObject.title || "Song Detail",
-      `#song-detail/${songHash}`
-    );
+    UIManager.toggleSongDetail(true, trackObject, this.appState, {
+      webSocketManager: this.webSocketManager,
+      playerManager: this.playerManager,
+      uiManager: this.uiManager,
+      searchManager: this.searchManager,
+      favoriteManager: this.favoriteManager,
+      collectionManager: this.collectionManager,
+      uploadManager: this.uploadManager,
+      navigationManager: this
+    });
   }
 
   // Removed handleUpdateCoverFileSelect, handleUpdateTrackSubmit, handleDeleteTrack

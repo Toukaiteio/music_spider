@@ -1,34 +1,31 @@
 /* Main Player Bar Container */
 #main-player {
-    grid-area: content;
-    align-self: end;
-
-    justify-self: end;
     background: var(--player-bg-gradient, var(--glass-bg-color));
     backdrop-filter: blur(40px);
     -webkit-backdrop-filter: blur(40px);
     padding: 0;
+    margin: 0; /* Reset margins to prevent offset */
     height: 110px;
-
-    /* Centering logic */
-    width: calc(100% - 60px);
-    max-width: 1400px;
-    margin-bottom: 25px;
-    margin-right: calc(max(30px, (100% - 1400px) / 2));
-
     border-radius: 28px;
     box-shadow: 0 20px 60px var(--shadow-color);
     z-index: 1000;
     overflow: hidden;
+    transform-origin: bottom center;
 
-    transform-origin: bottom right;
+    position: fixed;
+    bottom: 25px;
+    left: calc(var(--sidebar-width) + (100vw - var(--sidebar-width)) / 2);
+    transform: translateX(-50%);
+    width: calc(100vw - var(--sidebar-width) - 60px); /* Leave 30px on each side */
+    max-width: 1400px;
 
-    transition:
-        width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1),
-        height 0.6s cubic-bezier(0.2, 0.8, 0.2, 1),
-        border-radius 0.6s cubic-bezier(0.2, 0.8, 0.2, 1),
-        transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
-        margin 0.6s cubic-bezier(0.2, 0.8, 0.2, 1),
+    transition: 
+        bottom 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
+        left 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
+        width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
+        height 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
+        border-radius 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
+        transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
         background 0.8s ease,
         opacity 0.3s ease;
 
@@ -36,12 +33,31 @@
     flex-direction: column;
 }
 
+/* 收起状态 (气泡): 位于右下角 */
 #main-player:has(#player-show-button:not(.hidden)) {
     width: 70px;
     height: 70px;
     border-radius: 35px;
-    margin-right: 35px;
-    margin-bottom: 35px;
+    bottom: 35px;
+    left: calc(100% - 35px); /* 右边距 35px */
+    transform: translateX(-100%); /* 项自己向左平移 100% 宽度 */
+    transform-origin: bottom right;
+}
+
+/* 歌曲详情激活时的贴底状态: 全宽贴地 */
+#main-player.attached-to-detail {
+    bottom: 0 !important;
+    left: 0 !important;
+    transform: none !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 110px !important;
+    border-radius: 0;
+    z-index: 2001;
+}
+
+#main-player.no-transition {
+    transition: none !important;
 }
 
 #player-content {

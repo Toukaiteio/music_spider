@@ -495,6 +495,85 @@ class UIManager {
     setTimeout(() => btnConfirm.focus(), 0);
   }
 
+  static toggleSongDetail(show, trackObject = null, appState = {}, managers = {}) {
+    const overlay = document.getElementById('song-detail-overlay');
+    const player = document.getElementById('main-player');
+    const playerContent = document.getElementById('player-content');
+    const showButton = document.getElementById('player-show-button');
+    
+    if (!overlay || !player) return;
+
+    if (show) {
+      // 存储进入前的展开状态，以便退出时恢复
+      this._prevPlayerExpanded = !playerContent.classList.contains('hidden');
+      
+      // 1. 如果播放器是隐藏状态，强制显示并将其贴底
+      if (!this._prevPlayerExpanded) {
+        playerContent.classList.remove('hidden');
+        showButton.classList.add('hidden');
+      }
+      
+      // 2. 赋予贴底类，触发弹性动画
+      player.classList.add('attached-to-detail');
+      
+      // 2.5 隐藏收起按钮 (因为贴底状态不允许收起，否则布局会乱)
+      const hideBtn = document.getElementById('player-hide-button');
+      if (hideBtn) hideBtn.style.display = 'none';
+
+      // 2.6 同步播放器：如果查看的歌曲不是当前播放的，强制切换
+      if (trackObject && managers.playerManager) {
+        const pm = managers.playerManager;
+        const currentId = String(pm.currentLoadedTrack?.music_id || pm.currentLoadedTrack?.id || "");
+        const targetId = String(trackObject.music_id || trackObject.id || "");
+        
+        if (targetId && currentId !== targetId) {
+          const idx = pm.playlist.findIndex(t => String(t.music_id || t.id) === targetId);
+          if (idx !== -1) {
+            pm.loadTrack(idx);
+            pm.play();
+          }
+        }
+      }
+
+      // 3. 渲染歌曲详情
+      const SongDetailPage = managers.navigationManager.pageModulesRegistry['home'].constructor.name; // Use existing imports via registry
+      // Here we assume SongDetailPage is accessible via the registry if we didn't remove the import in NM
+      // For safety, we can use the constructor passed from NM
+      const DetailPageClass = managers.navigationManager.pageModulesRegistry['song-detail'] || managers.navigationManager.activePageModule.constructor; // Fallback logic
+      
+      // Let's directly use the track for rendering
+      import('../pages/SongDetailPage.js').then(module => {
+        const page = new module.default();
+        overlay.innerHTML = page.getHTML();
+        overlay.classList.remove('hidden');
+        overlay.classList.add('active');
+        const trackId = trackObject ? (trackObject.music_id || trackObject.id) : null;
+        page.onLoad(overlay, String(trackId), appState, managers);
+      });
+      
+    } else {
+      // 1. 退出动画
+      overlay.classList.remove('active');
+      player.classList.remove('attached-to-detail');
+      
+      // 2. 延迟隐藏容器，等待动画结束
+      setTimeout(() => {
+        overlay.classList.add('hidden');
+        overlay.innerHTML = '';
+        
+        // 3. 恢复之前的展开状态
+        if (!this._prevPlayerExpanded) {
+          playerContent.classList.add('hidden');
+          showButton.classList.remove('hidden');
+        }
+        
+        // 4. 恢复收起按钮显示
+        const hideBtn = document.getElementById('player-hide-button');
+        if (hideBtn) hideBtn.style.display = '';
+      }, 400); // 匹配 CSS 过渡时间
+    }
+  }
+
   static initGlobalMarqueeListener() {
     document.addEventListener('mouseover', (e) => {
       const card = e.target.closest('.song-card');

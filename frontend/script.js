@@ -25,6 +25,14 @@ document.addEventListener("DOMContentLoaded", () => {
     coverImgElement: document.getElementById("player-album-art"),
   });
 
+  const mainPlayer = document.getElementById("main-player");
+  if (mainPlayer) {
+    mainPlayer.classList.add("no-transition");
+    setTimeout(() => {
+      mainPlayer.classList.remove("no-transition");
+    }, 100);
+  }
+
   const CHUNK_SIZE = 256 * 1024; // 256KB
 
   UIManager.initTaskQueueControls();
@@ -318,13 +326,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const musicId =
           currentTrack?.bvid || currentTrack?.music_id || currentTrack?.id;
         if (musicId) {
-          navigationManager.navigateTo(
-            "song-detail",
-            currentTrack.title || "Track Detail",
-            "#song-detail/" + musicId,
-            false,
-            musicId
-          );
+          navigationManager.navigateToSongDetail(currentTrack);
         }
       }
     });

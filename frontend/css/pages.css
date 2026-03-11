@@ -1,6 +1,23 @@
-/* Home Page */
-#home-page {
-    padding: 0;
+#song-detail-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100vh;
+    background: var(--primary-bg-color);
+    z-index: 2000;
+    overflow-y: auto;
+    transform: translateY(100%);
+    transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    backdrop-filter: blur(40px);
+}
+
+#song-detail-overlay.active {
+    transform: translateY(0);
+}
+
+#song-detail-overlay.hidden {
+    display: none;
 }
 
 #home-page h2 {
@@ -114,11 +131,15 @@
     height: 100%;
     padding: 20px;
     gap: 20px;
-    animation-duration: 0.5s;
-    animation-timing-function: ease-out;
-    animation-fill-mode: forwards;
     opacity: 0;
+    transition: opacity 0.4s ease;
     position: relative;
+    padding-left: calc(var(--sidebar-width) + 20px); /* Respect sidebar */
+    padding-bottom: 120px; /* Leave space for player */
+}
+
+#song-detail-overlay.active #song-detail-page {
+    opacity: 1;
 }
 
 .song-detail-left {
@@ -179,6 +200,7 @@
     display: none;
     /* Chrome, Safari and Opera */
 }
+
 
 /* Song Detail Dialog (Old style, keeping for compatibility) */
 .track-details-dialog {

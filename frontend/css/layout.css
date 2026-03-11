@@ -1,4 +1,5 @@
 #app-container {
+    --sidebar-width: 260px; /* Default sidebar width */
     display: grid;
     grid-template-areas:
         "drawer header"
@@ -58,7 +59,7 @@
     grid-area: drawer;
     z-index: 1100;
     overflow-y: auto;
-    width: 260px;
+    width: var(--sidebar-width);
     padding: 20px;
     background-color: transparent;
     backdrop-filter: blur(15px);
@@ -78,8 +79,12 @@
     display: none;
 }
 
+#app-container:has(#main-drawer.collapsed) {
+    --sidebar-width: 80px;
+}
+
 #main-drawer.collapsed {
-    width: 80px;
+    width: var(--sidebar-width);
     padding: 20px 10px;
 }
 
