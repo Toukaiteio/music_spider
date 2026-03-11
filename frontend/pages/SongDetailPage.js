@@ -14,21 +14,25 @@ class SongDetailPage {
   getHTML() {
     return `
             <div id="song-detail-page">
-                <button id="song-detail-back-button" class="icon-button" aria-label="Go Back" style="position: absolute; top: 0px; left: 0px; z-index: 10;"><span class="material-icons">arrow_back</span></button>
+                <button id="song-detail-back-button" class="icon-button glass-button" aria-label="Go Back">
+                  <span class="material-icons">expand_more</span>
+                </button>
                 <div class="song-detail-left">
-                    <img src="placeholder_album_art.png" alt="Album Art" id="detail-cover-art">
-                    <h2 id="detail-title" style="margin-bottom:0px;">Track Title</h2>
-                    <p id="detail-artist" style="margin-bottom:0px;margin-top:0px;">Artist Name</p>
-                    <p id="detail-description">Full song description here...</p>
+                    <div class="detail-cover-container">
+                      <img src="placeholder_album_art.png" alt="Album Art" id="detail-cover-art">
+                    </div>
+                    <div class="detail-info-group">
+                      <h2 id="detail-title">Track Title</h2>
+                      <p id="detail-artist">Artist Name</p>
+                    </div>
                     <div id="detail-action-buttons">
-                        <button class="detail-play-button icon-button"><span class="material-icons">play_arrow</span></button>
-                        <button class="detail-add-to-collection-button icon-button"><span class="material-icons">playlist_add</span></button>
-                        <button class="detail-update-button icon-button" aria-label="Update Track Info"><span class="material-icons">edit</span></button>
+                        <button class="detail-add-to-collection-button icon-button" title="Add to Collection"><span class="material-icons">playlist_add</span></button>
+                        <button class="detail-update-button icon-button" aria-label="Update Track Info" title="Edit Track Info"><span class="material-icons">edit</span></button>
                     </div>
                 </div>
                 <div class="song-detail-right">
                     <div id="lyrics-display-area" class="lyrics-display-area-no-lyrics">
-                        <p>暂无歌词</p>
+                        <p>正在加载歌词...</p>
                     </div>
                     <button id="upload-lyrics-button" class="icon-button" style="display: none;">
                         <span class="material-icons">upload_file</span>
@@ -95,9 +99,6 @@ class SongDetailPage {
     const coverArtEl = mainContentElement.querySelector("#detail-cover-art");
     const titleEl = mainContentElement.querySelector("#detail-title");
     const artistEl = mainContentElement.querySelector("#detail-artist");
-    const descriptionEl = mainContentElement.querySelector(
-      "#detail-description"
-    );
 
     // Prioritize local cover path, then fallback to artwork_url
     let detailImageUrl = "placeholder_album_art.png"; // Default
@@ -115,21 +116,13 @@ class SongDetailPage {
     if (artistEl)
       artistEl.textContent =
         track.artist || "Unknown Artist";
-    if (descriptionEl)
-      descriptionEl.textContent =
-        track.description || "No description available.";
 
     // Add track info to buttons for script.js listener (or page-specific listener if we move them)
-    const playButtonEl = mainContentElement.querySelector(
-      ".detail-play-button"
-    );
     const addToCollectionButtonEl = mainContentElement.querySelector(
       ".detail-add-to-collection-button"
     );
     const trackInfoJson = JSON.stringify(track).replace(/'/g, "&apos;");
     const songId = track.music_id || track.id;
-
-    if (playButtonEl) playButtonEl.dataset.trackInfo = trackInfoJson;
     if (addToCollectionButtonEl) {
       addToCollectionButtonEl.dataset.trackInfo = trackInfoJson;
       if (songId) addToCollectionButtonEl.dataset.songId = songId;
@@ -164,7 +157,7 @@ class SongDetailPage {
         typeof track.lyrics === "string" &&
         track.lyrics.trim() !== ""
       ) {
-        lyricsDisplayArea.innerHTML = ""; // Clear "暂无歌词"
+        lyricsDisplayArea.innerHTML = ""; // Clear "Searching for lyrics..."
         lyricsDisplayArea.classList.remove("lyrics-display-area-no-lyrics");
         const canvas = document.createElement("canvas");
         canvas.id = "lyrics-canvas";
@@ -395,9 +388,6 @@ class SongDetailPage {
     }
 
     // Event Handlers
-    const detailPlayButton = mainContentElement.querySelector(
-      ".detail-play-button"
-    );
     const detailAddToCollectionButton = mainContentElement.querySelector(
       ".detail-add-to-collection-button"
     );
@@ -405,49 +395,6 @@ class SongDetailPage {
       ".detail-update-button"
     );
 
-    if (detailPlayButton && managers.playerManager && managers.uiManager) {
-      const updatePlayButtonIcon = (isPlaying) => {
-        const icon = detailPlayButton.querySelector(".material-icons");
-        if (icon) {
-          icon.textContent = isPlaying ? "pause" : "play_arrow";
-        }
-      };
-
-      const handlePlayButtonClick = () => {
-        const currentTrack = managers.playerManager.getCurrentTrack();
-        const isThisTrackPlaying = currentTrack && (currentTrack.music_id || currentTrack.id) === songId;
-
-        if (isThisTrackPlaying) {
-          managers.playerManager.togglePlay();
-        } else {
-          const trackInfoString = detailPlayButton.dataset.trackInfo;
-          if (trackInfoString) {
-            managers.playerManager.playTrackFromCard(trackInfoString);
-          } else {
-            console.warn("Detail play button clicked, but no track-info data found.");
-            managers.uiManager.showToast("Could not play track: Missing track data.", "error");
-          }
-        }
-      };
-
-      detailPlayButton.addEventListener("click", handlePlayButtonClick);
-
-      const playerStateCallback = (state) => {
-        const isThisTrackPlaying = state.track && (state.track.music_id || state.track.id) === songId;
-        updatePlayButtonIcon(isThisTrackPlaying && state.isPlaying);
-      };
-
-      managers.playerManager.onStateChange(playerStateCallback);
-      
-      // Initial state
-      const initialState = managers.playerManager.getCurrentTrack();
-      const isInitiallyPlaying = initialState && (initialState.music_id || initialState.id) === songId && managers.playerManager.isPlaying;
-      updatePlayButtonIcon(isInitiallyPlaying);
-
-      // Store the callback and manager to remove it on unload
-      this.playerStateCallback = playerStateCallback;
-      this.playerManager = managers.playerManager; // Save reference to playerManager
-    }
 
     if (detailAddToCollectionButton && managers.collectionManager) {
       detailAddToCollectionButton.addEventListener("click", () => {
