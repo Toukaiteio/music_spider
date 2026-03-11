@@ -15,8 +15,8 @@ import asyncio
 import concurrent.futures
 import functools # Import functools for partial
 # Global variables from main.py
-# user_id = "set_ur_user_id_here_to_use"
-# oauth_token = "set_ur_oauth_token_here_to_use"
+user_id = "set_ur_user_id_here_to_use"
+oauth_token = "set_ur_oauth_token_here_to_use"
 # if (user_id == "set_ur_user_id_here_to_use" or oauth_token == "set_ur_oauth_token_here_to_use"): return;
 client_id_path = os.path.join(os.getcwd(), "client_id.txt") # os.getcwd() will resolve to project root
 
@@ -744,6 +744,46 @@ async def _soundcloud_module_test_async():
             print("Failed to download the track.")
     else:
         print("No tracks found for the query.")
+
+# --- Unified Auth Interface ---
+def get_auth_state():
+    is_logged_in = False
+    if oauth_token and oauth_token != "set_ur_oauth_token_here_to_use":
+        is_logged_in = True
+    return {
+        "source": "soundcloud",
+        "is_logged_in": is_logged_in,
+        "login_type": "manual",
+        "user_info": {"user_id": user_id} if is_logged_in else {}
+    }
+
+def generate_auth_action():
+    return {
+        "type": "manual",
+        "fields": [
+            {"name": "oauth_token", "label": "OAuth Token", "type": "text"},
+            {"name": "user_id", "label": "User ID", "type": "text"}
+        ]
+    }
+
+def poll_auth_status(params):
+    return {"error": "Not applicable for manual login type"}
+
+def login_with_params(params):
+    global oauth_token, user_id
+    t_oauth = params.get("oauth_token")
+    t_user_id = params.get("user_id")
+    if t_oauth:
+        oauth_token = t_oauth
+    if t_user_id:
+        user_id = t_user_id
+    return {"status": "success", "message": "Manual authorization successful"}
+
+def logout():
+    global oauth_token, user_id
+    oauth_token = "set_ur_oauth_token_here_to_use"
+    user_id = "set_ur_user_id_here_to_use"
+    return {"status": "success"}
 
 if __name__ == '__main__':
     asyncio.run(_soundcloud_module_test_async()) # Run the async test function

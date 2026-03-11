@@ -5,7 +5,8 @@
 
 /* ---- Page Wrappers ---- */
 #update-track-page,
-#upload-track-page {
+#upload-track-page,
+#auth-manager-page {
     padding: 24px 28px 120px 28px;
     margin: 0 auto;
     max-width: 1400px;
@@ -13,14 +14,16 @@
 
 /* ---- Page Heading ---- */
 #update-track-page > h2,
-#upload-track-page > h2 {
+#upload-track-page > h2,
+#auth-manager-page > h2 {
     font-size: 1.6em;
     font-weight: 700;
     letter-spacing: -0.03em;
     color: var(--text-color-primary);
-    margin: 0 0 6px 0;
+    margin: 0 0 24px 0;
     text-align: left;
 }
+
 
 /* ---- Audio file info banner ---- */
 #upload-file-info {

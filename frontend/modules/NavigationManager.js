@@ -8,6 +8,7 @@ import SongDetailPage from '../pages/SongDetailPage.js';
 import SearchResultsPage from '../pages/SearchResultsPage.js';
 import UpdateTrackPage from '../pages/UpdateTrackPage.js';
 import UploadTrackPage from '../pages/UploadTrackPage.js';
+import AuthManagerPage from '../pages/AuthManagerPage.js';
 import UIManager from '../modules/UIManager.js';
 
 // Utility Imports (keep if still used directly by NM)
@@ -55,7 +56,8 @@ class NavigationManager {
       'collection-detail': CollectionDetailPage,
       'search-results': SearchResultsPage,
       'update-track': UpdateTrackPage,
-      'upload-track': UploadTrackPage
+      'upload-track': UploadTrackPage,
+      'auth-manager': AuthManagerPage
     };
 
     // Bind methods

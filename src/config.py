@@ -51,6 +51,11 @@ FRONTEND_PORT = int(os.getenv("FRONTEND_PORT", 8080)) # Example, not used by cur
 # DEBUG_MODE = os.getenv("DEBUG_MODE", "False").lower() in ('true', '1', 't')
 
 
+# Authorization
+# List of disabled authorization sources (e.g., ['soundcloud'])
+DISABLED_AUTH_SOURCES = os.getenv("DISABLED_AUTH_SOURCES", "").split(",")
+DISABLED_AUTH_SOURCES = [s.strip() for s in DISABLED_AUTH_SOURCES if s.strip()]
+
 # Verify essential configurations
 if not AES_KEY:
     raise ValueError("AES_KEY is not set. Please set it in your .env file or environment.")

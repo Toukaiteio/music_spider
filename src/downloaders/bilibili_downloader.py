@@ -1157,3 +1157,71 @@ async def download_track(
 # if music_item_placeholder and music_item_placeholder.get('pic'):
 #     work_dir = os.path.join("./downloads", str(music_item_placeholder.get('bvid','')))
 #     # Old try_download_cover logic is now in _download_cover_bili
+
+# --- Unified Auth Interface ---
+def get_auth_state():
+    is_logged_in = False
+    if "cookie" in bili_account and bili_account["cookie"]:
+        is_logged_in = True
+    return {
+        "source": "bilibili",
+        "is_logged_in": is_logged_in,
+        "login_type": "qrcode",
+        "user_info": {}
+    }
+
+def generate_auth_action():
+    qrcode_key, qrcode_url = generate_login_qrcode()
+    if qrcode_key:
+        return {
+            "type": "qrcode",
+            "qrcode_key": qrcode_key,
+            "qrcode_url": qrcode_url,
+            "qrcode_base64": str_to_qrcode_dataurl(qrcode_url)
+        }
+    return {"error": "Failed to generate QR code"}
+
+def poll_auth_status(params):
+    qrcode_key = params.get("qrcode_key")
+    if not qrcode_key:
+        return {"error": "Missing qrcode_key"}
+    res, headers = get_login_status(qrcode_key)
+    if res:
+        code = res.get("code")
+        if code == 0:
+            cookies = parse_cookies_from_headers(headers)
+            cookies["refresh_token"] = res.get("refresh_token", "")
+            if cookies:
+                cookie_path = os.path.join(os.path.dirname(__file__), "cookie.json")
+                with open(cookie_path, "w", encoding="utf-8") as f:
+                    json.dump(cookies, f, ensure_ascii=False, indent=2)
+                bili_account["cookie"] = "; ".join([f"{k}={v}" for k, v in cookies.items()])
+                if "bili_jct" in cookies:
+                    bili_account["csrf"] = cookies["bili_jct"]
+                if "refresh_token" in cookies:
+                    bili_account["refresh_token"] = cookies["refresh_token"]
+            return {"status": "success", "message": "Login successful"}
+        elif code == 86038:
+            return {"status": "expired", "message": "QR code expired"}
+        elif code == 86101:
+            return {"status": "waiting", "message": "Waiting for scan"}
+        elif code == 86090:
+            return {"status": "scanned", "message": "Waiting for confirmation"}
+        else:
+            return {"status": "failed", "message": res.get("message")}
+    return {"error": "Failed to check login status"}
+
+def login_with_params(params):
+    return {"error": "Manual login not supported for Bilibili currently. Use QR code."}
+
+def logout():
+    cookie_path = os.path.join(os.path.dirname(__file__), "cookie.json")
+    if os.path.exists(cookie_path):
+        os.remove(cookie_path)
+    # Clear only security-related keys and restore defaults
+    bili_account.clear()
+    bili_account["web_location"] = "333.1007"
+    global is_refreshed_cookie
+    is_refreshed_cookie = False
+    return {"status": "success", "message": "Logged out successfully"}
+

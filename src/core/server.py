@@ -56,6 +56,13 @@ from handlers.analyze_loudness_websocket_handler import (
     handle_analyze_loudness_batch,
     handle_get_loudness_data
 )
+from handlers.auth_handler import (
+    handle_get_all_auth_status,
+    handle_get_auth_action,
+    handle_poll_auth_status,
+    handle_login_with_params,
+    handle_logout
+)
 
 # Queues for inter-process communication for downloads
 download_task_queue = get_download_task_queue()
@@ -188,6 +195,11 @@ COMMAND_HANDLERS = {
     "analyze_loudness_single": handle_analyze_loudness_single,
     "analyze_loudness_batch": handle_analyze_loudness_batch,
     "get_loudness_data": handle_get_loudness_data,
+    "get_all_auth_status": handle_get_all_auth_status,
+    "get_auth_action": handle_get_auth_action,
+    "poll_auth_status": handle_poll_auth_status,
+    "login_with_params": handle_login_with_params,
+    "logout": handle_logout,
 }
 
 # Main WebSocket connection handler
