@@ -247,6 +247,8 @@ class NavigationManager {
 
     if (!skipPushState) {
       history.pushState({ pageId: pageId, subPageId: subPageId }, title, path);
+    } else {
+      history.replaceState({ pageId: pageId, subPageId: subPageId }, title, path);
     }
     this.updateActiveDrawerLink(pageId, subPageId);
 

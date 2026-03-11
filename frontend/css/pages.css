@@ -27,19 +27,27 @@
 .home-page-header-search-container {
     display: flex;
     align-items: center;
-    background-color: var(--secondary-bg-color);
+    background-color: var(--glass-bg-color);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     border-radius: 25px;
-    box-shadow: 0 1px 3px var(--shadow-color);
-    min-width: 180px;
-    max-width: 320px;
-    width: 100%;
+    border: 1px solid var(--glass-border-color);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    min-width: 220px;
+    max-width: 380px;
+    width: 300px;
     font-size: 16px;
-    transition: background-color 0.3s;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     box-sizing: border-box;
+    padding: 0 8px;
 }
 
-.home-page-header-search-container:hover {
-    background-color: var(--primary-bg-color);
+.home-page-header-search-container:hover,
+.home-page-header-search-container:focus-within {
+    background-color: rgba(255, 255, 255, 0.05);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+    border-color: rgba(255, 255, 255, 0.2);
+    width: 380px;
 }
 
 .home-page-header-search-container .search-icon {

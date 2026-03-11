@@ -712,14 +712,17 @@ class PlayerManager {
         const min = Math.min(r, g, b);
         const saturation = (max - min) / (max || 1);
         const brightness = max / 255;
-
-        // 剔除：亮度过高(>0.85 且 饱和度过低<0.15) 的亮灰色
-        // 剔除：纯白色区域
-        const isWhiteOrGray = brightness > 0.8 && saturation < 0.2;
-        return !isWhiteOrGray;
+        // 剔除高亮度低饱和度的杂色
+        return !(brightness > 0.8 && saturation < 0.2);
       });
 
-      // 如果过滤后没剩多少，就用原始的
+      // 3. 核心优化：权重倾斜。按照亮度升序排列，让“深色”排在最前面
+      filteredPalette.sort((a, b) => {
+        const brightA = (a[0] * 299 + a[1] * 587 + a[2] * 114) / 1000;
+        const brightB = (b[0] * 299 + b[1] * 587 + b[2] * 114) / 1000;
+        return brightA - brightB;
+      });
+
       const finalPalette = filteredPalette.length >= 2 ? filteredPalette : palette;
       
       const color1 = this.adjustColorForTheme(finalPalette[0], this.theme);
@@ -739,12 +742,17 @@ class PlayerManager {
   }
 
   adjustColorForTheme(color, theme) {
-    // color: [r,g,b]
     let [r, g, b] = color;
     if (theme === "dark") {
-      r = Math.floor(r * 0.4);
-      g = Math.floor(g * 0.4);
-      b = Math.floor(b * 0.4);
+      // 计算原始亮度 (0-255)
+      const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+      
+      // 动态压暗系数：如果颜色本身很亮，压暗力度加大 (0.2x)；如果已经很深，保持温和 (0.4x)
+      const factor = brightness > 150 ? 0.2 : 0.35;
+      
+      r = Math.floor(r * factor);
+      g = Math.floor(g * factor);
+      b = Math.floor(b * factor);
     } else {
       r = Math.min(255, Math.floor(r * 1.2));
       g = Math.min(255, Math.floor(g * 1.2));
