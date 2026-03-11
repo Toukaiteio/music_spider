@@ -404,10 +404,10 @@
 
 .progress-bar {
     height: 100%;
-    background-color: var(--accent-color);
+    background-color: rgba(200, 200, 210, 0.6);
     text-align: center;
     line-height: 22px;
-    color: white;
+    color: var(--text-color-primary);
     border-radius: 4px;
     font-size: 0.8em;
     font-weight: 500;

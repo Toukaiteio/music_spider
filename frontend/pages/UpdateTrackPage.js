@@ -18,24 +18,28 @@ class UpdateTrackPage {
     getHTML() {
         return `
             <div id="update-track-page">
-                <h2>Update Track Information</h2>
-                <div id="update-track-form"> 
+                <h2>Edit Track</h2>
+                <div id="update-track-form">
                     <input type="hidden" id="update-music-id" name="music_id">
-                    <div class="form-columns-wrapper" style="display: flex; gap: 20px;width:100%;">
-                        <div class="form-column-left" style="flex: 1;">
+                    <div class="form-columns-wrapper">
+                        <div class="form-column-left">
                             <div class="form-section">
-                                <h3>Track Metadata</h3>
+                                <h3>Metadata</h3>
                                 <div>
-                                    <label for="update-title">Title:</label>
-                                    <input type="text" id="update-title" name="title" required>
+                                    <label for="update-title">Title</label>
+                                    <input type="text" id="update-title" name="title" placeholder="Track title" required>
                                 </div>
                                 <div>
-                                    <label for="update-artist">Artist:</label>
-                                    <input type="text" id="update-artist" name="artist" required>
+                                    <label for="update-artist">Artist</label>
+                                    <input type="text" id="update-artist" name="artist" placeholder="Artist name" required>
                                 </div>
                                 <div>
-                                    <label for="update-album">Album:</label>
-                                    <input type="text" id="update-album" name="album">
+                                    <label for="update-album">Album</label>
+                                    <input type="text" id="update-album" name="album" placeholder="Album name">
+                                </div>
+                                <div>
+                                    <label for="update-genre">Genre</label>
+                                    <input type="text" id="update-genre" name="genre" placeholder="Genre">
                                 </div>
                             </div>
                             <div class="form-section">
@@ -47,28 +51,21 @@ class UpdateTrackPage {
                                         <span class="material-icons initial-icon">add_photo_alternate</span>
                                         <img src="#" alt="Cover Preview" class="cover-preview-image" style="display: none;">
                                     </button>
-                                    <p class="cover-upload-hint">Click to upload new cover image.</p>
+                                    <p class="cover-upload-hint">Click to replace cover image</p>
                                     <input type="hidden" id="cover-local-path" name="cover_local_path">
                                 </div>
                             </div>
                             <div class="form-section">
                                 <h3>Description</h3>
                                 <div>
-                                    <label for="update-description">Track Description:</label>
-                                    <textarea id="update-description" name="description" rows="4"></textarea>
+                                    <label for="update-description">Description</label>
+                                    <textarea id="update-description" name="description" rows="4" placeholder="Optional track description"></textarea>
                                 </div>
                             </div>
                         </div>
-                        <div class="form-column-right" style="flex: 1;">
-                            <div class="lyrics-tool-container-wrapper"> <!-- Wrapper for consistent styling if needed -->
-                                ${lyricsToolHtml} 
-                            </div>
-                            <div class="form-section">
-                                <h3>Categorization & Details</h3>
-                                <div>
-                                    <label for="update-genre">Genre:</label>
-                                    <input type="text" id="update-genre" name="genre">
-                                </div>
+                        <div class="form-column-right">
+                            <div class="lyrics-tool-container-wrapper">
+                                ${lyricsToolHtml}
                             </div>
                         </div>
                     </div>
@@ -76,7 +73,7 @@ class UpdateTrackPage {
                         <button type="button" id="save-track-update-button" class="dialog-button primary">Save Changes</button>
                         <button type="button" id="cancel-track-update-button" class="dialog-button secondary">Cancel</button>
                     </div>
-                </div> 
+                </div>
             </div>
     `;
     }

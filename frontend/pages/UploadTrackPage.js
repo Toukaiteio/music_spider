@@ -20,70 +20,66 @@ class UploadTrackPage {
     getHTML() {
         return `
             <div id="upload-track-page">
-                <h2>Upload New Track</h2>
-                <div id="upload-file-info" style="margin-bottom:15px; padding:10px; background-color: var(--primary-bg-color); border-radius: 5px;">
-                    Audio file: <span id="upload-filename-placeholder">No file selected</span>
+                <h2>Upload Track</h2>
+                <div id="upload-file-info">
+                    <span id="upload-filename-placeholder">No file selected</span>
                 </div>
-                <div id="upload-track-form"> 
+
+                <div id="upload-track-form">
                     <input type="hidden" id="upload-original-filepath" name="original_filepath">
-                    <div class="form-columns-wrapper" style="display: flex; gap: 20px;width:100%;">
-                        <div class="form-column-left" style="flex: 1;">
+                    <div class="form-columns-wrapper">
+                        <div class="form-column-left">
                             <div class="form-section">
-                                <h3>Track Metadata</h3>
+                                <h3>Metadata</h3>
                                 <div>
-                                    <label for="upload-title">Title:</label>
-                                    <input type="text" id="upload-title" name="title" required>
+                                    <label for="upload-title">Title</label>
+                                    <input type="text" id="upload-title" name="title" placeholder="Track title" required>
                                 </div>
                                 <div>
-                                    <label for="upload-artist">Artist:</label>
-                                    <input type="text" id="upload-artist" name="artist" required>
+                                    <label for="upload-artist">Artist</label>
+                                    <input type="text" id="upload-artist" name="artist" placeholder="Artist name" required>
                                 </div>
                                 <div>
-                                    <label for="upload-album">Album:</label>
-                                    <input type="text" id="upload-album" name="album">
+                                    <label for="upload-album">Album</label>
+                                    <input type="text" id="upload-album" name="album" placeholder="Album (optional)">
+                                </div>
+                                <div>
+                                    <label for="upload-genre">Genre</label>
+                                    <input type="text" id="upload-genre" name="genre" placeholder="Genre (optional)">
                                 </div>
                             </div>
                             <div class="form-section">
                                 <h3>Cover Art</h3>
                                 <div class="cover-upload-area">
-                                    <label for="upload-cover-file-input">Cover Image (Optional):</label>
                                     <input type="file" id="upload-cover-file-input" name="cover_file" accept="image/*" style="display: none;">
                                     <input type="hidden" id="upload-cover-ext" name="cover_ext">
                                     <button type="button" id="upload-cover-upload-button" class="cover-upload-button">
                                         <span class="material-icons initial-icon">add_photo_alternate</span>
                                         <img src="#" alt="Cover Preview" class="cover-preview-image" style="display: none;">
                                     </button>
-                                    <p class="cover-upload-hint">Click to upload or drag & drop cover image</p>
+                                    <p class="cover-upload-hint">Click to select a cover image</p>
                                     <input type="hidden" id="cover-local-path" name="cover_local_path">
                                 </div>
                             </div>
                             <div class="form-section">
                                 <h3>Description</h3>
                                 <div>
-                                    <label for="upload-description">Track Description:</label>
-                                    <textarea id="upload-description" name="description" rows="4"></textarea>
+                                    <label for="upload-description">Description</label>
+                                    <textarea id="upload-description" name="description" rows="4" placeholder="Optional track description"></textarea>
                                 </div>
                             </div>
                         </div>
-                        <div class="form-column-right" style="flex: 1;">
-                            <div class="lyrics-tool-container-wrapper"> <!-- Wrapper for consistent styling -->
+                        <div class="form-column-right">
+                            <div class="lyrics-tool-container-wrapper">
                                 ${lyricsToolHtml}
                             </div>
-                            <div class="form-section"> 
-                                <h3>Categorization</h3>
-                                <div>
-                                    <label for="upload-genre">Genre:</label>
-                                    <input type="text" id="upload-genre" name="genre">
-                                </div>
-                            </div>
-
                         </div>
                     </div>
                     <div class="form-actions">
                         <button type="button" id="submit-upload-button" class="dialog-button primary">Upload Track</button>
                         <button type="button" id="cancel-upload-button" class="dialog-button secondary">Cancel</button>
                     </div>
-                </div> 
+                </div>
             </div>
     `;
     }

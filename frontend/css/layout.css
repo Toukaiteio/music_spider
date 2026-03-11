@@ -1,5 +1,9 @@
+/* ============================================================
+   layout.css — Apple Music / macOS-style refined sidebar
+   ============================================================ */
+
 #app-container {
-    --sidebar-width: 260px; /* Default sidebar width */
+    --sidebar-width: 230px;
     display: grid;
     grid-template-areas:
         "drawer header"
@@ -11,7 +15,7 @@
     overflow: hidden;
 }
 
-/* Main Header Styles */
+/* ---- Main Header ---- */
 #main-header {
     grid-area: header;
     display: grid;
@@ -47,24 +51,38 @@
     width: 106px;
 }
 
-/* Main Content Area */
+/* ---- Main Content ---- */
 #main-content {
     grid-area: content;
     overflow-y: auto;
     padding: 20px;
 }
 
-/* Drawer / Sidebar Styles */
+/* ============================================================
+   SIDEBAR  —  macOS Sonoma / Apple Music Style
+   Design principles:
+     • Near-black, heavily blurred translucent bg
+     • Active: left "pill" indicator bar + ghost background + white text
+     • Inactive: 38% white (very "unlit") — sharp contrast with active
+     • Icons 19px — smaller feels more refined
+     • Section separators: 6% white rule, no visible borders
+   ============================================================ */
 #main-drawer {
     grid-area: drawer;
     z-index: 1100;
     overflow-y: auto;
     width: var(--sidebar-width);
-    padding: 20px;
-    background-color: transparent;
-    backdrop-filter: blur(15px);
-    -webkit-backdrop-filter: blur(15px);
-    transition: width 0.3s ease, padding 0.3s ease;
+    padding: 18px 10px 20px 10px;
+
+    background: rgba(12, 12, 14, 0.94);
+    backdrop-filter: blur(48px) saturate(180%) brightness(0.9);
+    -webkit-backdrop-filter: blur(48px) saturate(180%) brightness(0.9);
+
+    /* Hair-thin right border */
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+
+    transition: width 0.32s cubic-bezier(0.4, 0, 0.2, 1),
+                padding 0.32s cubic-bezier(0.4, 0, 0.2, 1);
     display: flex;
     flex-direction: column;
     overflow-x: hidden;
@@ -75,67 +93,79 @@
     display: none;
 }
 
-#main-drawer::-webkit-scrollbar {
-    display: none;
-}
+#main-drawer::-webkit-scrollbar { display: none; }
 
 #app-container:has(#main-drawer.collapsed) {
-    --sidebar-width: 80px;
+    --sidebar-width: 68px;
 }
 
 #main-drawer.collapsed {
     width: var(--sidebar-width);
-    padding: 20px 10px;
+    padding: 18px 8px 20px 8px;
 }
 
+/* ---- Header Row (Logo + Hamburger) ---- */
 .drawer-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 0 15px 0;
-    margin-bottom: 15px;
+    padding: 0 6px 22px 8px;
+    margin-bottom: 2px;
 }
 
 #main-drawer.collapsed .drawer-header {
     justify-content: center;
-    padding-bottom: 15px;
+    padding-bottom: 22px;
 }
 
+/* App title — gradient text for that mac polished look */
 .drawer-title {
-    font-size: 1.2em;
-    font-weight: 500;
-    color: var(--text-color-primary);
+    font-size: 1.0em;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    background: linear-gradient(145deg, rgba(255,255,255,0.92) 0%, rgba(255,255,255,0.44) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
     white-space: nowrap;
+    user-select: none;
 }
 
 #main-drawer.collapsed .drawer-title {
     display: none;
 }
 
+/* Hamburger toggle */
 #drawer-toggle-button {
     background: transparent;
     border: none;
-    color: var(--icon-color);
+    color: rgba(255, 255, 255, 0.28);
     cursor: pointer;
-    padding: 8px;
-    margin-bottom: 0;
-    border-radius: 50%;
+    padding: 6px;
+    border-radius: 7px;
     display: flex;
     align-items: center;
     justify-content: center;
+    transition: background-color 0.18s ease, color 0.18s ease;
+    flex-shrink: 0;
+}
+
+#drawer-toggle-button .material-icons {
+    font-size: 20px;
+    color: inherit;
 }
 
 #drawer-toggle-button:hover {
-    background-color: var(--shadow-color);
+    background-color: rgba(255, 255, 255, 0.07);
+    color: rgba(255, 255, 255, 0.70);
 }
 
+/* ---- Navigation ---- */
 .drawer-navigation {
     flex-grow: 1;
 }
 
-.drawer-navigation::-webkit-scrollbar {
-    display: none;
-}
+.drawer-navigation::-webkit-scrollbar { display: none; }
 
 .drawer-navigation ul {
     list-style: none;
@@ -143,57 +173,10 @@
     margin: 0;
 }
 
-.drawer-navigation .drawer-link {
-    display: flex;
-    align-items: center;
-    padding: 12px 10px;
-    margin-bottom: 8px;
-    border-radius: 6px;
-    color: var(--text-color-secondary);
-    text-decoration: none;
-    transition: background-color 0.2s, color 0.2s;
-    white-space: nowrap;
-}
-
-#main-drawer.collapsed .drawer-link {
-    justify-content: center;
-    padding: 12px;
-}
-
-.drawer-navigation .drawer-link:hover {
-    background-color: var(--shadow-color);
-    color: var(--text-color-primary);
-}
-
-.drawer-navigation .drawer-link.active {
-    background-color: var(--accent-color);
-    color: white;
-}
-
-.drawer-navigation .drawer-link .material-icons {
-    margin-right: 15px;
-    font-size: 24px;
-    color: inherit;
-}
-
-#main-drawer.collapsed .drawer-link .material-icons {
-    margin-right: 0;
-}
-
-.drawer-navigation .drawer-link .link-text {
-    font-size: 0.95em;
-    transition: opacity 0.2s ease;
-}
-
-#main-drawer.collapsed .drawer-link .link-text {
-    display: none;
-}
-
-/* Collections Sub-list */
+/* Section group label */
 .drawer-list-header {
-    padding: 10px 10px 5px 10px;
-    margin-top: 15px;
-    border-top: 1px solid var(--border-color);
+    padding: 18px 12px 6px 12px;
+    margin-top: 4px;
 }
 
 #main-drawer.collapsed .drawer-list-header {
@@ -202,13 +185,110 @@
 
 .drawer-list-header h3 {
     margin: 0;
-    font-size: 0.9em;
-    font-weight: 500;
-    color: var(--text-color-secondary);
+    font-size: 0.65em;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.22);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.85px;
+    user-select: none;
 }
 
+/* Rule above collections section */
+.drawer-list-header::before {
+    content: '';
+    display: block;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.06);
+    margin-bottom: 12px;
+}
+
+/* ---- Individual nav link ---- */
+.drawer-navigation .drawer-link {
+    display: flex;
+    align-items: center;
+    /* Left padding: extra 6px reserves room for the active indicator */
+    padding: 9px 12px 9px 18px;
+    margin-bottom: 1px;
+    border-radius: 8px;
+    /* Default: very muted — this creates maximum contrast with active */
+    color: rgba(255, 255, 255, 0.38);
+    text-decoration: none;
+    position: relative;
+    transition: background-color 0.16s ease, color 0.16s ease;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+/* Left indicator bar — hidden by default */
+.drawer-navigation .drawer-link::before {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 50%;
+    transform: translateY(-50%) scaleY(0);
+    width: 3px;
+    height: 55%;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.8);
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
+                opacity 0.2s ease;
+    opacity: 0;
+}
+
+#main-drawer.collapsed .drawer-link {
+    justify-content: center;
+    padding: 10px;
+}
+
+#main-drawer.collapsed .drawer-link::before {
+    display: none;
+}
+
+.drawer-navigation .drawer-link:hover {
+    background-color: rgba(255, 255, 255, 0.055);
+    color: rgba(255, 255, 255, 0.70);
+}
+
+/* ---- ACTIVE state ---- */
+.drawer-navigation .drawer-link.active {
+    background-color: rgba(255, 255, 255, 0.085);
+    color: rgba(255, 255, 255, 0.95);
+    font-weight: 600;
+}
+
+/* Animate the left indicator bar in */
+.drawer-navigation .drawer-link.active::before {
+    opacity: 1;
+    transform: translateY(-50%) scaleY(1);
+}
+
+/* ---- Icons ---- */
+.drawer-navigation .drawer-link .material-icons {
+    margin-right: 10px;
+    font-size: 19px;
+    color: inherit;
+    flex-shrink: 0;
+    -webkit-font-smoothing: antialiased;
+}
+
+#main-drawer.collapsed .drawer-link .material-icons {
+    margin-right: 0;
+}
+
+/* ---- Link Text ---- */
+.drawer-navigation .drawer-link .link-text {
+    font-size: 0.88em;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+}
+
+#main-drawer.collapsed .drawer-link .link-text {
+    display: none;
+}
+
+/* ============================================================
+   Collections sub-list
+   ============================================================ */
 #local-collections-list {
     list-style: none;
     padding: 0;
@@ -216,26 +296,29 @@
 }
 
 #local-collections-list li a.local-collection-link {
-    padding-left: 15px;
-    font-size: 0.9em;
+    padding-left: 18px;
+    font-size: 0.87em;
 }
 
 #main-drawer.collapsed #local-collections-list li a.local-collection-link .link-text {
     display: none;
 }
 
+/* Collapsed initial-letter badge */
 .drawer-navigation ul#local-collections-list .drawer-link .collection-initial {
     display: none;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
+    width: 26px;
+    height: 26px;
+    border-radius: 7px;
     text-align: center;
-    line-height: 24px;
-    font-weight: bold;
-    color: #fff;
-    margin-right: 16px;
+    line-height: 26px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.88);
+    margin-right: 11px;
     flex-shrink: 0;
-    font-size: 14px;
+    font-size: 12px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
 #main-drawer.collapsed .drawer-navigation ul#local-collections-list .drawer-link .collection-initial {
@@ -252,9 +335,9 @@
 }
 
 #local-collections-list .no-collections-message {
-    padding: 10px 15px;
-    color: var(--text-color-secondary);
-    font-size: 0.85em;
+    padding: 8px 18px;
+    color: rgba(255, 255, 255, 0.20);
+    font-size: 0.78em;
     font-style: italic;
 }
 

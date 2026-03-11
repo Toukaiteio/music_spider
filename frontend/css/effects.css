@@ -11,8 +11,9 @@
 
 .color-band {
     position: absolute;
-    opacity: 0.3;
-    filter: blur(100px);
+    /* Visible enough to give backdrop-filter something to blur */
+    opacity: 0.28;
+    filter: blur(90px);
     border-radius: 50%;
     transition: top 0.8s ease-in-out, left 0.8s ease-in-out, background 0.5s ease-in-out, opacity 0.5s ease-in-out;
     will-change: transform, top, left, background, opacity;
@@ -41,32 +42,36 @@
 }
 
 .band1 {
-    width: 300px;
-    height: 300px;
-    background: linear-gradient(45deg, var(--accent-color), transparent);
-    top: 10%;
-    left: 5%;
+    /* Large warm-silver orb top-left — bleeds under sidebar giving it a material to blur */
+    width: 550px;
+    height: 550px;
+    background: radial-gradient(ellipse, rgba(155, 150, 145, 0.50) 0%, transparent 68%);
+    top: -15%;
+    left: -10%;
+    animation: floatBand 20s ease-in-out infinite;
     animation-delay: 0s;
 }
 
 .band2 {
-    width: 400px;
-    height: 400px;
-    background: linear-gradient(45deg, var(--accent-color-darker), transparent);
-    top: 30%;
-    left: 60%;
-    animation-duration: 25s;
-    animation-delay: -5s;
+    /* Right-side cooler gray orb */
+    width: 580px;
+    height: 580px;
+    background: radial-gradient(ellipse, rgba(75, 78, 88, 0.42) 0%, transparent 68%);
+    top: 18%;
+    left: 52%;
+    animation: floatBand 25s ease-in-out infinite;
+    animation-delay: -7s;
 }
 
 .band3 {
-    width: 250px;
-    height: 250px;
-    background: linear-gradient(45deg, var(--accent-color), var(--secondary-bg-color));
-    top: 70%;
-    left: 20%;
-    animation-duration: 18s;
-    animation-delay: -10s;
+    /* Bottom-left subtle silver shimmer */
+    width: 420px;
+    height: 420px;
+    background: radial-gradient(ellipse, rgba(120, 118, 125, 0.30) 0%, transparent 68%);
+    top: 63%;
+    left: 12%;
+    animation: floatBand 18s ease-in-out infinite;
+    animation-delay: -12s;
 }
 
 @keyframes climaxFlash {

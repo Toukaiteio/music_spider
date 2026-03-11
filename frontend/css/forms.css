@@ -1,258 +1,384 @@
-/* Update Track Page Styles */
-#update-track-page {
-    padding: 20px;
-    margin: 0 auto;
-}
+/* ============================================================
+   forms.css — Upload & Update Track pages
+   Apple Music / macOS design language
+   ============================================================ */
 
-#update-track-page h2 {
-    text-align: center;
-    margin-bottom: 25px;
-}
-
-#update-track-form label {
-    display: block;
-    margin-bottom: 5px;
-    font-weight: 500;
-    color: var(--text-color-secondary);
-}
-
-#update-track-form input[type="text"],
-#update-track-form textarea {
-    width: 100%;
-    padding: 10px;
-    margin-top: 0;
-    border: 1px solid var(--border-color);
-    border-radius: 5px;
-    background-color: var(--primary-bg-color);
-    color: var(--text-color-primary);
-    font-size: 1em;
-}
-
-#update-track-form input[type="text"]:focus,
-#update-track-form textarea:focus {
-    outline: none;
-    border-color: var(--accent-color);
-    box-shadow: 0 0 0 2px rgba(var(--accent-color-rgb), 0.2);
-}
-
-/* Upload Track Page Styles */
+/* ---- Page Wrappers ---- */
+#update-track-page,
 #upload-track-page {
-    padding: 20px;
+    padding: 24px 28px 120px 28px;
     margin: 0 auto;
+    max-width: 1400px;
 }
 
-#upload-track-page h2 {
-    text-align: center;
-    margin-bottom: 25px;
-}
-
-#upload-track-form label {
-    display: block;
-    margin-bottom: 5px;
-    font-weight: 500;
-    color: var(--text-color-secondary);
-}
-
-#upload-track-form input[type="text"],
-#upload-track-form input[type="file"],
-#upload-track-form textarea {
-    width: 100%;
-    padding: 10px;
-    border: 1px solid var(--border-color);
-    border-radius: 5px;
-    background-color: var(--primary-bg-color);
+/* ---- Page Heading ---- */
+#update-track-page > h2,
+#upload-track-page > h2 {
+    font-size: 1.6em;
+    font-weight: 700;
+    letter-spacing: -0.03em;
     color: var(--text-color-primary);
-    font-size: 1em;
+    margin: 0 0 6px 0;
+    text-align: left;
 }
 
-#upload-track-form input[type="text"]:focus,
-#upload-track-form input[type="file"]:focus,
-#upload-track-form textarea:focus {
-    outline: none;
-    border-color: var(--accent-color);
-    box-shadow: 0 0 0 2px rgba(var(--accent-color-rgb), 0.2);
-}
-
-#upload-track-form button {
-    margin-top: 20px;
-    margin-right: 10px;
-    padding: 10px 20px;
-}
-
-#upload-track-form button#cancel-upload-button {
-    background-color: var(--secondary-bg-color);
-    color: var(--text-color-primary);
-    border: 1px solid var(--border-color);
-}
-
-#upload-track-form button#cancel-upload-button:hover {
-    background-color: var(--primary-bg-color);
-}
-
+/* ---- Audio file info banner ---- */
 #upload-file-info {
-    padding: 10px;
-    background-color: var(--primary-bg-color);
-    border: 1px solid var(--border-color);
-    border-radius: 5px;
-    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 18px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    margin-bottom: 24px;
     color: var(--text-color-secondary);
+    font-size: 0.88em;
+}
+
+#upload-file-info::before {
+    content: 'audio_file';
+    font-family: 'Material Icons';
+    font-size: 18px;
+    color: rgba(255, 255, 255, 0.35);
+    font-feature-settings: 'liga';
+    -webkit-font-smoothing: antialiased;
 }
 
 #upload-filename-placeholder {
-    font-style: italic;
     color: var(--text-color-primary);
-}
-
-#upload-cover-preview {
-    max-width: 150px;
-    max-height: 150px;
-    display: none;
-    margin-top: 10px;
-    border-radius: 5px;
-    border: 1px solid var(--border-color);
-}
-
-/* Form Section Styling (Shared) */
-.form-section {
-    background-color: var(--secondary-bg-color);
-    padding: 15px;
-    margin-bottom: 20px;
-    border: 1px solid var(--border-color);
-    border-radius: 5px;
-    width: 100%;
-}
-
-.form-section h3 {
-    margin-top: 0;
-    margin-bottom: 15px;
-    color: var(--text-color-primary);
-    border-bottom: 1px solid var(--border-color);
-    padding-bottom: 10px;
-    font-size: 1.2em;
-}
-
-.form-section label {
-    display: block;
-    margin-bottom: 5px;
     font-weight: 500;
-    color: var(--text-color-secondary);
 }
 
-.form-section input[type="text"],
-.form-section input[type="file"],
-.form-section textarea {
-    width: 100%;
-    padding: 10px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    background-color: var(--primary-bg-color);
-    color: var(--text-color-primary);
-    font-size: 1em;
-    margin-bottom: 10px;
-}
-
-.form-section input[type="text"]:focus,
-.form-section input[type="file"]:focus,
-.form-section textarea:focus {
-    outline: none;
-    border-color: var(--accent-color);
-    box-shadow: 0 0 0 2px rgba(var(--accent-color-rgb), 0.2);
-}
-
-/* Cover Upload Area Messaging */
-.cover-upload-area {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    margin-bottom: 15px;
-}
-
-.cover-upload-button {
-    width: 150px;
-    height: 150px;
-    border: 2px dashed var(--border-color);
-    border-radius: 5px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background-color: var(--primary-bg-color);
-    color: var(--icon-color);
-    cursor: pointer;
-    position: relative;
-    overflow: hidden;
-    padding: 0;
-    transition: border-color 0.2s, background-color 0.2s;
-}
-
-.cover-upload-button:hover {
-    border-color: var(--accent-color);
-    background-color: var(--shadow-color);
-}
-
-.cover-upload-button .initial-icon {
-    font-size: 48px;
-    color: inherit;
-}
-
-.cover-upload-button .cover-preview-image {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: none;
-}
-
-.cover-upload-hint {
-    font-size: 0.8em;
-    color: var(--text-color-secondary);
-    margin-top: 8px;
-    text-align: center;
-}
-
-/* Form Layouts */
+/* ============================================================
+   Form Layout
+   ============================================================ */
 #update-track-form,
 #upload-track-form {
     display: flex;
     flex-wrap: wrap;
-    gap: 20px;
+    gap: 18px;
 }
 
-.track-details-form-column,
+.form-columns-wrapper {
+    display: flex;
+    gap: 18px;
+    width: 100%;
+    flex-wrap: wrap;
+}
+
+.form-column-left,
+.form-column-right {
+    flex: 1;
+    min-width: 300px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+/* ---- Form Section Card (glassmorphism) ---- */
+.form-section {
+    background: rgba(255, 255, 255, 0.045);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 20px 22px;
+    width: 100%;
+    /* Subtle top-edge highlight like a real glass surface */
+    box-shadow: 
+        inset 0 1px 0 rgba(255, 255, 255, 0.07),
+        0 4px 24px rgba(0, 0, 0, 0.25);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.form-section:hover {
+    border-color: rgba(255, 255, 255, 0.12);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.09),
+        0 6px 30px rgba(0, 0, 0, 0.30);
+}
+
+/* Section heading */
+.form-section h3 {
+    margin: 0 0 16px 0;
+    font-size: 0.80em;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.40);
+    text-transform: uppercase;
+    letter-spacing: 0.75px;
+    /* Bottom divider */
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+/* ---- Labels ---- */
+.form-section label,
+#update-track-form label,
+#upload-track-form label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: 0.82em;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.45);
+    letter-spacing: 0.02em;
+    user-select: none;
+}
+
+/* ---- Text Inputs & Textareas ---- */
+.form-section input[type="text"],
+.form-section input[type="file"],
+.form-section textarea,
+#update-track-form input[type="text"],
+#update-track-form textarea,
+#upload-track-form input[type="text"],
+#upload-track-form input[type="file"],
+#upload-track-form textarea {
+    width: 100%;
+    padding: 11px 14px;
+    /* Ghost input: transparent with a subtle bottom border only */
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 10px;
+    color: var(--text-color-primary);
+    font-size: 0.95em;
+    font-family: var(--font-family-primary);
+    margin-bottom: 12px;
+    transition: border-color 0.2s ease,
+                background-color 0.2s ease,
+                box-shadow 0.2s ease;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.form-section textarea,
+#update-track-form textarea,
+#upload-track-form textarea {
+    resize: vertical;
+    min-height: 80px;
+    line-height: 1.55;
+}
+
+/* Focus state — silver glow ring, Apple-style */
+.form-section input[type="text"]:focus,
+.form-section input[type="file"]:focus,
+.form-section textarea:focus,
+#update-track-form input[type="text"]:focus,
+#update-track-form textarea:focus,
+#upload-track-form input[type="text"]:focus,
+#upload-track-form input[type="file"]:focus,
+#upload-track-form textarea:focus {
+    outline: none;
+    background: rgba(255, 255, 255, 0.07);
+    border-color: rgba(255, 255, 255, 0.30);
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08);
+}
+
+/* Placeholder color */
+.form-section input::placeholder,
+#update-track-form input::placeholder,
+#upload-track-form input::placeholder,
+.form-section textarea::placeholder,
+#update-track-form textarea::placeholder,
+#upload-track-form textarea::placeholder {
+    color: rgba(255, 255, 255, 0.20);
+}
+
+/* ============================================================
+   Cover Art Upload Zone
+   ============================================================ */
+.cover-upload-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+}
+
+/* Hide the redundant label for file input since button is self-explanatory */
+.cover-upload-area > label {
+    display: none;
+}
+
+/* The clickable preview/upload button — large album-art square */
+.cover-upload-button {
+    width: 180px;
+    height: 180px;
+    border-radius: 16px;
+    /* Dashed border while empty */
+    border: 2px dashed rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.03);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.28);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    padding: 0;
+    transition: border-color 0.22s ease,
+                background-color 0.22s ease,
+                transform 0.18s ease,
+                box-shadow 0.22s ease;
+    /* Glass inset highlight */
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.cover-upload-button:hover {
+    border-color: rgba(255, 255, 255, 0.32);
+    background: rgba(255, 255, 255, 0.07);
+    transform: scale(1.02);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35),
+                inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.cover-upload-button:active {
+    transform: scale(0.98);
+}
+
+/* When cover image is loaded, the button becomes a polished album art thumbnail */
+.cover-upload-button:has(.cover-preview-image[style*="block"]) {
+    border-style: solid;
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+.cover-upload-button .initial-icon {
+    font-size: 42px;
+    color: inherit;
+    -webkit-font-smoothing: antialiased;
+    transition: transform 0.18s ease;
+}
+
+.cover-upload-button:hover .initial-icon {
+    transform: scale(1.08) translateY(-2px);
+}
+
+.cover-upload-button .cover-preview-image {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: none;
+    border-radius: inherit;
+}
+
+/* Hint text below button */
+.cover-upload-hint {
+    font-size: 0.75em;
+    color: rgba(255, 255, 255, 0.22);
+    text-align: center;
+    line-height: 1.5;
+    max-width: 180px;
+}
+
+/* ============================================================
+   Lyrics Tool Wrapper
+   ============================================================ */
 .lyrics-tool-container-wrapper {
     flex-basis: 100%;
     min-width: 0;
 }
 
+/* ============================================================
+   Form Action Buttons (Save / Cancel)
+   ============================================================ */
 .form-actions {
     flex-basis: 100%;
     display: flex;
     justify-content: flex-end;
     gap: 10px;
-    margin-top: 10px;
+    margin-top: 6px;
+    padding: 16px 0 0 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
+/* Primary action — Upload / Save Changes */
+#upload-track-form #submit-upload-button,
+#update-track-form #save-track-update-button,
+.form-actions .dialog-button.primary {
+    background: rgba(255, 255, 255, 0.14);
+    color: rgba(255, 255, 255, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.20);
+    border-radius: 10px;
+    padding: 10px 24px;
+    font-size: 0.92em;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--font-family-primary);
+    letter-spacing: 0.01em;
+    transition: background-color 0.18s ease,
+                border-color 0.18s ease,
+                transform 0.14s ease,
+                box-shadow 0.18s ease;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12),
+                0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+#upload-track-form #submit-upload-button:hover,
+#update-track-form #save-track-update-button:hover,
+.form-actions .dialog-button.primary:hover {
+    background: rgba(255, 255, 255, 0.22);
+    border-color: rgba(255, 255, 255, 0.35);
+    transform: translateY(-1px);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15),
+                0 4px 14px rgba(0, 0, 0, 0.30);
+}
+
+#upload-track-form #submit-upload-button:active,
+#update-track-form #save-track-update-button:active,
+.form-actions .dialog-button.primary:active {
+    transform: translateY(0);
+    box-shadow: none;
+}
+
+/* Secondary action — Cancel */
+#upload-track-form #cancel-upload-button,
+#update-track-form #cancel-track-update-button,
+.form-actions .dialog-button.secondary {
+    background: transparent;
+    color: rgba(255, 255, 255, 0.40);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 10px 20px;
+    font-size: 0.92em;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: var(--font-family-primary);
+    transition: background-color 0.18s ease,
+                color 0.18s ease,
+                border-color 0.18s ease;
+}
+
+#upload-track-form #cancel-upload-button:hover,
+#update-track-form #cancel-track-update-button:hover,
+.form-actions .dialog-button.secondary:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.70);
+    border-color: rgba(255, 255, 255, 0.14);
+}
+
+/* ============================================================
+   Responsive Layout
+   ============================================================ */
 @media (min-width: 900px) {
-
-    #update-track-form .track-details-form-column,
-    #upload-track-form .track-details-form-column {
-        flex: 2;
-        min-width: 300px;
-    }
-
-    .lyrics-tool-container-wrapper {
+    .form-column-left,
+    .form-column-right {
         flex: 1;
-        min-width: 300px;
+        min-width: 280px;
     }
 }
 
-#update-track-form button#cancel-track-update-button {
-    background-color: var(--secondary-bg-color);
-    color: var(--text-color-primary);
-    border: 1px solid var(--border-color);
-}
-
-#update-track-form button#cancel-track-update-button:hover {
-    background-color: var(--primary-bg-color);
+/* ============================================================
+   Cover preview (standalone img element, not inside button)
+   ============================================================ */
+#upload-cover-preview {
+    max-width: 120px;
+    max-height: 120px;
+    display: none;
+    margin-top: 10px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
 }

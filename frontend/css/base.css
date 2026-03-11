@@ -5,21 +5,25 @@
     --font-family-primary: 'Roboto', sans-serif;
     --font-family-icons: 'Material Icons';
 
-    /* Dark Theme (Only) */
-    --primary-bg-color: #121212;
-    --secondary-bg-color: #1e1e1e;
-    --accent-color-rgb: 0, 123, 255;
-    --text-color-primary: #e0e0e0;
-    --text-color-secondary: #a0a0a0;
-    --accent-color: #007bff;
-    --accent-color-darker: #0056b3;
-    --border-color: #3a3a3a;
-    --shadow-color: rgba(55, 55, 55, 0.3);
-    --glass-bg-color: rgba(30, 30, 30, 0.6);
-    --glass-border-color: rgba(255, 255, 255, 0.1);
-    --scrollbar-thumb-color: #555;
-    --scrollbar-track-color: #333;
-    --icon-color: #a0a0a0;
+    /* Dark Theme — Apple Music / macOS inspired monochrome palette */
+    --primary-bg-color: #111111;
+    --secondary-bg-color: #1c1c1e;
+    --accent-color-rgb: 220, 220, 220;
+    --text-color-primary: #f0f0f0;
+    --text-color-secondary: #8e8e93;
+    /* Neutral silver-white accent — replaces blue */
+    --accent-color: #d4d4d4;
+    --accent-color-darker: #a8a8a8;
+    /* Active/highlight state: subtle white glow */
+    --active-bg-color: rgba(255, 255, 255, 0.10);
+    --active-border-color: rgba(255, 255, 255, 0.18);
+    --border-color: #2c2c2e;
+    --shadow-color: rgba(0, 0, 0, 0.45);
+    --glass-bg-color: rgba(28, 28, 30, 0.65);
+    --glass-border-color: rgba(255, 255, 255, 0.08);
+    --scrollbar-thumb-color: #3a3a3c;
+    --scrollbar-track-color: #1c1c1e;
+    --icon-color: #8e8e93;
 }
 
 body {
@@ -69,27 +73,28 @@ p {
 }
 
 a {
-    color: var(--accent-color);
+    color: var(--text-color-primary);
     text-decoration: none;
+    opacity: 0.75;
 }
 
 a:hover {
-    color: var(--accent-color-darker);
+    opacity: 1;
 }
 
 button {
     font-family: var(--font-family-primary);
-    background-color: var(--accent-color);
-    color: white;
+    background-color: rgba(255, 255, 255, 0.12);
+    color: var(--text-color-primary);
     border: none;
     padding: 10px 15px;
-    border-radius: 5px;
+    border-radius: 8px;
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: background-color 0.2s ease;
 }
 
 button:hover {
-    background-color: var(--accent-color-darker);
+    background-color: rgba(255, 255, 255, 0.18);
 }
 
 /* Utility for icons */
