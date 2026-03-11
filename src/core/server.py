@@ -7,26 +7,19 @@ import atexit
 import uuid # Required by some handlers, though not directly in this file after full refactor
 import time # Required by some handlers
 import shutil # Required by some handlers
-import psutil # Required by some handlers
-import platform # Required by some handlers
-import subprocess # Required by some handlers
 import re # Required by some handlers
 import base64 # Required by some handlers
 # from Crypto.Cipher import AES # AES is used in helpers, not directly here.
 
 from multiprocessing import Queue # Explicitly import Queue for clarity
 
-# Standard library imports for frontend server
-import http.server
-import socketserver
+# Standard library imports
 import threading
-import functools # For functools.partial
 
 # Relative imports for project modules
 # Assuming utils and downloaders are in PYTHONPATH or structured to be found
 
 from downloaders import soundcloud_downloader, bilibili_downloader
-from .custom_request_handler import CustomRequestHandler
 from core.state import (
     DOWNLOADER_MODULES,
     increment_task_execution, get_task_execution, update_task_execution, get_all_task_execution,
@@ -57,7 +50,12 @@ from handlers.initiate_chunked_upload_handler import handle_initiate_chunked_upl
 from handlers.upload_chunk_handler import handle_upload_chunk
 from handlers.finalize_chunked_upload_handler import handle_finalize_chunked_upload
 from handlers.get_music_info_handler import handle_get_music_info
-from handlers.get_system_overview_handler import handle_get_system_overview
+from handlers.get_music_info_handler import handle_get_music_info
+from handlers.analyze_loudness_websocket_handler import (
+    handle_analyze_loudness_single,
+    handle_analyze_loudness_batch,
+    handle_get_loudness_data
+)
 
 # Queues for inter-process communication for downloads
 download_task_queue = get_download_task_queue()
@@ -84,14 +82,16 @@ def download_worker_main(task_queue: Queue, results_queue: Queue, downloads_dir:
 
             if not all([source, track_data, original_cmd_id]):
                 print(f"Worker {os.getpid()}: Invalid task received: {task}")
+                _tid = track_data.get("music_id") or track_data.get("bvid") or track_data.get("id", "unknown") if isinstance(track_data, dict) else "unknown"
                 results_queue.put({
                     "type": "error",
                     "original_cmd_id": original_cmd_id,
                     "error": "Invalid task data in worker",
-                    "track_id": track_data.get("id", "unknown_track_id") if isinstance(track_data, dict) else "unknown_track_id",
+                    "track_id": _tid,
                     "client_id": client_id
                 })
                 continue
+
 
             downloader_module = downloader_modules.get(source)
             if not downloader_module:
@@ -100,10 +100,11 @@ def download_worker_main(task_queue: Queue, results_queue: Queue, downloads_dir:
                     "type": "error",
                     "original_cmd_id": original_cmd_id,
                     "error": f"No downloader for source '{source}'",
-                    "track_id": track_data.get("id"),
+                    "track_id": track_data.get("music_id") or track_data.get("bvid") or track_data.get("id"),
                     "client_id": client_id
                 })
                 continue
+
 
             def progress_callback_mp(track_id, file_type, current_size,status, total_size=None, error_message=None):
                 """Multiprocessing-safe progress callback."""
@@ -113,43 +114,45 @@ def download_worker_main(task_queue: Queue, results_queue: Queue, downloads_dir:
                     "original_cmd_id": original_cmd_id,
                     "track_id": track_id,
                     "progress_type":file_type,
-                    "message_type": status,
+                    "status": status,
                     "current": current_size,
                     "total": total_size,
+
                     "message": error_message,
                     "client_id": client_id
                 })
 
+            # 从 track_data 中提取唯一标识，兼容 TrackAdapter 规范化后的字段名
+            track_id_for_result = track_data.get("music_id") or track_data.get("bvid") or track_data.get("id")
+
             try:
-                print(f"Worker {os.getpid()}: Starting download for track ID {track_data.get('id')} using {source}")
+                print(f"Worker {os.getpid()}: Starting download for track ID {track_id_for_result} using {source}")
                 # Ensure downloads_dir exists (it should, but good for workers to be robust)
                 if not os.path.exists(downloads_dir):
                     os.makedirs(downloads_dir, exist_ok=True)
 
                 # The actual download call
-                # Note: The original download_track function in downloader modules might return a MusicItem
-                # or raise an exception. We need to handle this.
-                music_item =  asyncio.run(downloader_module.download_track(track_data, downloads_dir, progress_callback_mp))
+                music_item = asyncio.run(downloader_module.download_track(track_data, downloads_dir, progress_callback_mp))
 
-                print(f"Worker {os.getpid()}: Download successful for track ID {track_data.get('id')}")
+                print(f"Worker {os.getpid()}: Download successful for track ID {track_id_for_result}")
                 results_queue.put({
                     "type": "success",
                     "original_cmd_id": original_cmd_id,
-                    "track_id": track_data.get("id"),
+                    "track_id": track_id_for_result,
                     "music_item": music_item.data.to_dict(),
                     "client_id": client_id
                 })
 
             except Exception as e:
-                print(f"Worker {os.getpid()}: Error downloading track ID {track_data.get('id')}: {e}")
-                # import traceback; traceback.print_exc() # For debugging in worker
+                print(f"Worker {os.getpid()}: Error downloading track ID {track_id_for_result}: {e}")
                 results_queue.put({
                     "type": "error",
                     "original_cmd_id": original_cmd_id,
-                    "track_id": track_data.get("id"),
+                    "track_id": track_id_for_result,
                     "error": str(e),
                     "client_id": client_id
                 })
+
 
         except EOFError: # Can happen if queue is closed unexpectedly
             print(f"Worker {os.getpid()}: Task queue closed (EOFError), exiting.")
@@ -182,7 +185,9 @@ COMMAND_HANDLERS = {
     "upload_chunk": handle_upload_chunk,
     "finalize_chunked_upload": handle_finalize_chunked_upload,
     "try_get_music_lyrics": handle_get_music_info,
-    "get_system_overview": handle_get_system_overview,
+    "analyze_loudness_single": handle_analyze_loudness_single,
+    "analyze_loudness_batch": handle_analyze_loudness_batch,
+    "get_loudness_data": handle_get_loudness_data,
 }
 
 # Main WebSocket connection handler
@@ -292,17 +297,22 @@ async def process_download_results(results_queue: Queue):
                         "message": result_message.get("message")
                     })
                 elif message_type == "success":
+                    t_id = result_message.get("track_id")
+                    if not t_id and result_message.get("music_item"):
+                        t_id = result_message.get("music_item", {}).get("music_id")
+
                     data_to_send.update({
-                        "status": "completed_track", # Matches old final_response_data
-                        "file_type": result_message.get("progress_type"), # Assuming progress_type maps to file_type
-                        "track_id": result_message.get("track_id"),
-                        "current_size": result_message.get("current"),
-                        "total_size": result_message.get("total"),
-                        "progress_percent": round((result_message.get("current", 0) / result_message.get("total", 1)) * 100, 2) if result_message.get("total") else 0,
+                        "status": "completed_track",
+                        "file_type": result_message.get("progress_type", "track"),
+                        "track_id": t_id,
+                        "current_size": result_message.get("current", 1),
+                        "total_size": result_message.get("total", 1),
+                        "progress_percent": 100.0,
                         "status_type":"download_progress",
                         "message": f"Track '{result_message.get('music_item', {}).get('title', 'N/A')}' downloaded successfully.",
                         "track_details": result_message.get("music_item")
                     })
+
                 elif message_type == "error":
                      data_to_send.update({
                         "status": "error",
@@ -365,7 +375,6 @@ async def start_server(): # Renamed from 'main' to 'start_server' for clarity
 
     # HOST and WEBSOCKET_PORT are now imported from src.config
 
-    frontend_process = None
     download_workers = []
     num_download_workers = 2 # Configurable number of download workers
     results_processor_task = None # To hold the asyncio task for process_download_results
@@ -383,12 +392,11 @@ async def start_server(): # Renamed from 'main' to 'start_server' for clarity
             download_workers.append(worker_process)
             print(f"Download worker {i+1} started with PID: {worker_process.pid}")
 
-        # Start Frontend Server Process
-        print("Starting frontend server process...")
-        frontend_process = multiprocessing.Process(target=start_frontend_server)
-        frontend_process.start()
-        print(f"Frontend server process started with PID: {frontend_process.pid}")
-        # threading.Thread(target=start_frontend_server, daemon=True).start()
+        # Start Frontend Server Thread (Flask - must run in thread, not process)
+        print("Starting Flask frontend server thread...")
+        frontend_thread = threading.Thread(target=start_frontend_server, daemon=True)
+        frontend_thread.start()
+        print("Flask frontend server thread started.")
         # load_task_execution_stats()
         atexit.register(save_task_execution_stats)
 
@@ -450,18 +458,8 @@ async def start_server(): # Renamed from 'main' to 'start_server' for clarity
                 print(f"Error during download worker {worker.pid} shutdown: {e}")
         print("All download worker processes stopped.")
 
-        # Shutdown Frontend Server Process
-        if frontend_process and frontend_process.is_alive():
-            print("Terminating frontend server process...")
-            frontend_process.terminate()
-            frontend_process.join(timeout=5) # Wait for 5 seconds
-            if frontend_process.is_alive():
-                print("Frontend process did not terminate gracefully, killing.")
-                frontend_process.kill() # Force kill if terminate didn't work
-                frontend_process.join() # Wait for kill
-            print("Frontend server process stopped.")
-        else:
-            print("Frontend server process was not running or already stopped.")
+        # Flask frontend runs as daemon thread - exits automatically with main process
+        print("Flask frontend thread will exit with main process (daemon).")
 
         # Close queues if they are still open (optional, as OS should clean up, but good practice)
         try:
@@ -478,45 +476,57 @@ async def start_server(): # Renamed from 'main' to 'start_server' for clarity
         print("Triggering final save of task execution stats.")
         save_task_execution_stats()
 
-# --- Frontend HTTP Server ---
+# --- Frontend Server (Flask) ---
 def start_frontend_server():
-    """Starts a simple HTTP server for the frontend in a daemon thread."""
+    """使用 Flask 提供前端静态文件服务（在线程中运行）。"""
     try:
-        frontend_dir = os.path.join(os.getcwd(), FRONTEND_DIR)
-        downloads_dir = os.path.join(os.getcwd(), DOWNLOADS_DIR)
+        from core.flask_app import flask_app
+        from flask import send_from_directory, request as flask_request
+
+        frontend_dir = os.path.abspath(os.path.join(os.getcwd(), FRONTEND_DIR))
+        downloads_dir = os.path.abspath(os.path.join(os.getcwd(), DOWNLOADS_DIR))
+
         if not os.path.isdir(frontend_dir):
             print(f"Warning: Frontend directory '{frontend_dir}' not found. Creating it.")
-            os.makedirs(frontend_dir) # Create if it doesn't exist
-            # A very basic index.html if it was just created
-            with open(os.path.join(frontend_dir, "index.html"), "w") as f:
-                f.write("<h1>Frontend Directory Created - Placeholder</h1>")
+            os.makedirs(frontend_dir, exist_ok=True)
 
-        if not os.path.isdir(downloads_dir):
-                print(f"Warning: Downloads directory '{downloads_dir}' not found. Creating it.")
-                os.makedirs(downloads_dir)
-        # Use functools.partial to set the directory for the handler
-        print(f"Frontend dir: {frontend_dir}")
-        print(f"Downloads dir: {downloads_dir}")
-        Handler = functools.partial(CustomRequestHandler, directory=frontend_dir)
+        print(f"Flask frontend dir: {frontend_dir}")
+        print(f"Flask downloads dir: {downloads_dir}")
 
-        # Ensure HOST is correctly used. If HOST is '0.0.0.0', it's fine for TCPServer.
-        # If HOST can be a hostname, TCPServer might resolve it.
-        # For simplicity, assuming HOST is an IP address or resolvable hostname.
-        httpd = socketserver.TCPServer((HOST, FRONTEND_PORT), Handler)
+        # 音频文件下载支持 Range 请求（流式播放）
+        @flask_app.route('/downloads/<path:filename>')
+        def serve_download(filename):
+            return send_from_directory(downloads_dir, filename, conditional=True)
 
-        print(f"Frontend HTTP server starting on http://{HOST}:{FRONTEND_PORT}")
-        print(f"Serving files from: {frontend_dir}")
+        # SPA fallback：所有非 /api、非静态文件的路由都返回 index.html
+        @flask_app.route('/', defaults={'path': ''})
+        @flask_app.route('/<path:path>')
+        def serve_frontend(path):
+            # 如果是 /api/ 开头，不在这里处理（交给 API 蓝图）
+            if path.startswith('api/'):
+                from flask import abort
+                abort(404)
+            # 尝试直接返回静态文件
+            target = os.path.join(frontend_dir, path)
+            if path and os.path.isfile(target):
+                return send_from_directory(frontend_dir, path)
+            # 否则返回 SPA 入口
+            return send_from_directory(frontend_dir, 'index.html')
 
-        
-        httpd.serve_forever()
+        print(f"Flask frontend server starting on http://{HOST}:{FRONTEND_PORT}")
+        # threaded=True 使 Flask 可以并发处理多个请求
+        # use_reloader=False 避免与 asyncio 事件循环冲突
+        flask_app.run(host=HOST, port=FRONTEND_PORT, threaded=True, use_reloader=False)
 
     except OSError as e:
-        if e.errno == 98: # Address already in use
-            print(f"Error: Frontend port {FRONTEND_PORT} is already in use. Frontend server not started.")
+        if e.errno == 98 or e.errno == 10048:  # Address already in use (Linux/Windows)
+            print(f"Error: Frontend port {FRONTEND_PORT} is already in use. Flask server not started.")
         else:
-            print(f"Error starting frontend server: {e}")
+            print(f"Error starting Flask frontend server: {e}")
     except Exception as e:
-        print(f"An unexpected error occurred while starting the frontend server: {e}")
+        import traceback
+        print(f"An unexpected error occurred while starting the Flask server: {e}")
+        traceback.print_exc()
 
 
 if __name__ == '__main__':

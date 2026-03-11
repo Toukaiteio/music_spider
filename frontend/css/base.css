@@ -1,0 +1,118 @@
+@import url('../third_party/roboto.css');
+@import url('../third_party/material.css');
+
+:root {
+    --font-family-primary: 'Roboto', sans-serif;
+    --font-family-icons: 'Material Icons';
+
+    /* Dark Theme — Apple Music / macOS inspired monochrome palette */
+    --primary-bg-color: #111111;
+    --secondary-bg-color: #1c1c1e;
+    --accent-color-rgb: 220, 220, 220;
+    --text-color-primary: #f0f0f0;
+    --text-color-secondary: #8e8e93;
+    /* Neutral silver-white accent — replaces blue */
+    --accent-color: #d4d4d4;
+    --accent-color-darker: #a8a8a8;
+    /* Active/highlight state: subtle white glow */
+    --active-bg-color: rgba(255, 255, 255, 0.10);
+    --active-border-color: rgba(255, 255, 255, 0.18);
+    --border-color: #2c2c2e;
+    --shadow-color: rgba(0, 0, 0, 0.45);
+    --glass-bg-color: rgba(28, 28, 30, 0.65);
+    --glass-border-color: rgba(255, 255, 255, 0.08);
+    --scrollbar-thumb-color: #3a3a3c;
+    --scrollbar-track-color: #1c1c1e;
+    --icon-color: #8e8e93;
+}
+
+body {
+    margin: 0;
+    font-family: var(--font-family-primary);
+    background-color: var(--primary-bg-color);
+    color: var(--text-color-primary);
+    line-height: 1.6;
+    overflow-x: hidden;
+}
+
+* {
+    box-sizing: border-box;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb-color) var(--scrollbar-track-color);
+}
+
+*::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+    background: var(--scrollbar-track-color);
+    border-radius: 4px;
+}
+
+*::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb-color);
+    border-radius: 4px;
+    border: 2px solid var(--scrollbar-track-color);
+}
+
+/* Basic placeholder text styles */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+    color: var(--text-color-primary);
+    font-weight: 500;
+}
+
+p {
+    color: var(--text-color-secondary);
+}
+
+a {
+    color: var(--text-color-primary);
+    text-decoration: none;
+    opacity: 0.75;
+}
+
+a:hover {
+    opacity: 1;
+}
+
+button {
+    font-family: var(--font-family-primary);
+    background-color: rgba(255, 255, 255, 0.12);
+    color: var(--text-color-primary);
+    border: none;
+    padding: 10px 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+button:hover {
+    background-color: rgba(255, 255, 255, 0.18);
+}
+
+/* Utility for icons */
+.material-icons {
+    font-family: 'Material Icons';
+    font-weight: normal;
+    font-style: normal;
+    font-size: 24px;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    -webkit-font-feature-settings: 'liga';
+    font-feature-settings: 'liga';
+    -webkit-font-smoothing: antialiased;
+    color: var(--icon-color);
+    user-select: none;
+}

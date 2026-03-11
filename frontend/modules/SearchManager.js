@@ -58,7 +58,7 @@ class SearchManager {
       console.error("SearchManager: Search input not found during init.");
     }
     await this.fetchAvailableSources();
-    
+
     // Listen for download status changes
     document.addEventListener('download-status-changed', this.updateDownloadButtonStatus);
 
@@ -341,8 +341,8 @@ class SearchManager {
         const trackId = track.id
           ? String(track.id)
           : track.bvid
-          ? track.bvid
-          : null; // Ensure track.id exists and is a string for isFavorite
+            ? track.bvid
+            : null; // Ensure track.id exists and is a string for isFavorite
         const isDownloaded =
           this.appState.library &&
           this.appState.library.some(
@@ -377,7 +377,7 @@ class SearchManager {
     parentElement.addEventListener("click", this.handleDownloadButtonClick);
     parentElement.addEventListener('click', this.handleSongCardClick.bind(this));
   }
-showTrackDetailsDialog(track) {
+  showTrackDetailsDialog(track) {
     // Create dialog HTML
     const dialogHTML = `
     <div class="track-details-dialog" id="track-details-dialog">
@@ -386,38 +386,34 @@ showTrackDetailsDialog(track) {
                 <span class="material-icons">close</span>
             </button>
             <div class="track-cover">
-                <img src="${
-                    track.artwork_url || "./assets/default-cover.png"
-                }"
+                <img src="${track.artwork_url || "./assets/default-cover.png"
+      }"
                          alt="${track.title} cover">
             </div>
             <div class="track-info">
                 <h3>${track.title || "Unknown Title"}</h3>
-                <p class="artist">${
-                    track.artist || "Unknown Artist"
-                }</p>
-                <p class="duration">${
-                    track.duration
-                        ? this.formatDuration(track.duration)
-                        : "Unknown duration"
-                }</p>
-                ${
-                    track.description
-                        ? `<div class="description">${track.description}</div>`
-                        : ""
-                }
+                <p class="artist">${track.artist || "Unknown Artist"
+      }</p>
+                <p class="duration">${track.duration
+        ? this.formatDuration(track.duration)
+        : "Unknown duration"
+      }</p>
+                ${track.description
+        ? `<div class="description">${track.description}</div>`
+        : ""
+      }
             </div>
         </div>
     </div>
 `;
     const isDownloaded =
-        this.appState.library &&
-        this.appState.library.some(
-            (libraryTrack) =>
-                libraryTrack.music_id === (track.id ? String(track.id) : track.bvid || "") ||
-                libraryTrack.bvid === (track.bvid || "") ||
-                (libraryTrack.id && String(libraryTrack.id) === (track.id ? String(track.id) : ""))
-        );
+      this.appState.library &&
+      this.appState.library.some(
+        (libraryTrack) =>
+          libraryTrack.music_id === (track.id ? String(track.id) : track.bvid || "") ||
+          libraryTrack.bvid === (track.bvid || "") ||
+          (libraryTrack.id && String(libraryTrack.id) === (track.id ? String(track.id) : ""))
+      );
 
     // 动态创建下载按钮
     const downloadButton = document.createElement("button");
@@ -428,16 +424,16 @@ showTrackDetailsDialog(track) {
 
     // 如果已下载则禁用按钮
     if (isDownloaded) {
-        downloadButton.disabled = true;
-        downloadButton.title = "Already downloaded";
+      downloadButton.disabled = true;
+      downloadButton.title = "Already downloaded";
     }
 
     // 绑定点击事件：下载并关闭dialog
     downloadButton.addEventListener("click", (event) => {
-        this.handleDownloadButtonClick(event);
-        // 关闭弹窗
-        const dialog = document.getElementById("track-details-dialog");
-        if (dialog) dialog.remove();
+      this.handleDownloadButtonClick(event);
+      // 关闭弹窗
+      const dialog = document.getElementById("track-details-dialog");
+      if (dialog) dialog.remove();
     });
 
     // 插入到dialog内容
@@ -456,7 +452,7 @@ showTrackDetailsDialog(track) {
     }
     return;
 
-}
+  }
   handleSongCardClick(event) {
     const songCard = event.target.closest(".song-card");
     if (!songCard) return;
@@ -477,10 +473,10 @@ showTrackDetailsDialog(track) {
     }
   }
   formatDuration(seconds) {
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
-}
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
 
   handleDownloadButtonClick(event) {
     const downloadButton = event.target.closest(
@@ -528,7 +524,7 @@ showTrackDetailsDialog(track) {
             track_data: trackObject,
           })
           .then((response) => {
-            queueItem.original_cmd_id = response ? response.cmd_id : null;
+            queueItem.original_cmd_id = response.data ? response.data.original_cmd_id : null;
             this.uiManager.renderTaskQueue();
             this.uiManager.updateMainTaskQueueIcon();
           })
@@ -539,8 +535,7 @@ showTrackDetailsDialog(track) {
               error
             );
             alert(
-              `Failed to start download for: ${trackObject.title}. Error: ${
-                error.message || "Unknown error"
+              `Failed to start download for: ${trackObject.title}. Error: ${error.message || "Unknown error"
               }`
             );
 
@@ -572,56 +567,56 @@ showTrackDetailsDialog(track) {
 
   updateDownloadButtonStatus(event) {
     const { trackId, status } = event.detail;
-    
+
     // This is called on any download status change, so we need to check if the search results page is visible.
     const resultsContainer = document.getElementById("search-results-container");
     if (!resultsContainer || !document.body.contains(resultsContainer)) {
-        return; // Not on the search results page
+      return; // Not on the search results page
     }
 
     // Find the specific song card by its track ID (which could be music_id, id, or bvid)
     const songCard = resultsContainer.querySelector(`[data-song-id="${trackId}"]`);
     if (!songCard) {
-        return; // This track is not in the current search results
+      return; // This track is not in the current search results
     }
 
     const downloadButton = songCard.querySelector('.search-result-download-button, .action-button-disabled');
     if (!downloadButton) {
-        return; // No download button found on this card
+      return; // No download button found on this card
     }
 
     switch (status) {
-        case 'downloading':
-        case 'processing':
-        case 'downloading_segments':
-        case 'all_segments_downloaded':
-        case 'concatenating_segments':
-            downloadButton.innerHTML = '<span class="material-icons">downloading</span>';
-            downloadButton.disabled = true;
-            break;
-        case 'completed_track':
-            // Replace the button with a "check" icon button
-            const checkButton = document.createElement('button');
-            checkButton.className = 'icon-button action-button-disabled';
-            checkButton.disabled = true;
-            checkButton.title = 'Already in your library';
-            checkButton.innerHTML = '<span class="material-icons">check_circle</span>';
-            downloadButton.replaceWith(checkButton);
-            break;
-        case 'error':
-            // Re-enable the download button and show a download icon
-            downloadButton.innerHTML = '<span class="material-icons">download</span>';
-            downloadButton.disabled = false;
-            // Optionally, we could show an error icon for a short time
-            // For now, just revert to downloadable state.
-            break;
-        case 'pending':
-            downloadButton.innerHTML = '<span class="material-icons">hourglass_top</span>';
-            downloadButton.disabled = true;
-            break;
-        default:
-            // For other states, do nothing, or revert to a default state if necessary
-            break;
+      case 'downloading':
+      case 'processing':
+      case 'downloading_segments':
+      case 'all_segments_downloaded':
+      case 'concatenating_segments':
+        downloadButton.innerHTML = '<span class="material-icons">downloading</span>';
+        downloadButton.disabled = true;
+        break;
+      case 'completed_track':
+        // Replace the button with a "check" icon button
+        const checkButton = document.createElement('button');
+        checkButton.className = 'icon-button action-button-disabled';
+        checkButton.disabled = true;
+        checkButton.title = 'Already in your library';
+        checkButton.innerHTML = '<span class="material-icons">check_circle</span>';
+        downloadButton.replaceWith(checkButton);
+        break;
+      case 'error':
+        // Re-enable the download button and show a download icon
+        downloadButton.innerHTML = '<span class="material-icons">download</span>';
+        downloadButton.disabled = false;
+        // Optionally, we could show an error icon for a short time
+        // For now, just revert to downloadable state.
+        break;
+      case 'pending':
+        downloadButton.innerHTML = '<span class="material-icons">hourglass_top</span>';
+        downloadButton.disabled = true;
+        break;
+      default:
+        // For other states, do nothing, or revert to a default state if necessary
+        break;
     }
   }
 

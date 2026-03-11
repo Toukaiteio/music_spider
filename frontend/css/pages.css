@@ -1,0 +1,415 @@
+#song-detail-overlay {
+    position: fixed;
+    top: 70px; /* Leave Header visible */
+    left: var(--sidebar-width);
+    width: calc(100vw - var(--sidebar-width));
+    height: calc(100vh - 70px);
+    background: transparent;
+    z-index: 1500; 
+    overflow-y: auto;
+    pointer-events: none;
+    transform-origin: bottom center;
+    transform: translateY(100%) scale(0.8);
+    opacity: 0;
+    backdrop-filter: blur(0px);
+    -webkit-backdrop-filter: blur(0px);
+    visibility: hidden;
+    
+    transition: 
+        transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1),
+        opacity 0.4s ease,
+        visibility 0.4s ease,
+        backdrop-filter 0.4s ease,
+        -webkit-backdrop-filter 0.4s ease,
+        left 0.3s ease,
+        width 0.3s ease;
+}
+
+#song-detail-overlay.active {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    backdrop-filter: blur(40px); /* 激活时才有模糊 */
+    -webkit-backdrop-filter: blur(40px);
+}
+
+#song-detail-overlay.hidden {
+    display: none;
+}
+
+#home-page h2 {
+    margin-bottom: 20px;
+    font-size: 1.8em;
+}
+
+#no-songs-message {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+/* Home Page Header Search (Alternative search) */
+.home-page-header {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    padding-right: 12px;
+    font-size: 1.8em;
+    box-sizing: border-box;
+    margin-bottom: 12px;
+}
+
+.home-page-header-search-container {
+    display: flex;
+    align-items: center;
+    background-color: var(--glass-bg-color);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 25px;
+    border: 1px solid var(--glass-border-color);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    min-width: 220px;
+    max-width: 380px;
+    width: 300px;
+    font-size: 16px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-sizing: border-box;
+    padding: 0 8px;
+}
+
+.home-page-header-search-container:hover,
+.home-page-header-search-container:focus-within {
+    background-color: rgba(255, 255, 255, 0.05);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+    border-color: rgba(255, 255, 255, 0.2);
+    width: 380px;
+}
+
+.home-page-header-search-container .search-icon {
+    color: var(--text-color-secondary);
+    margin-left: 15px;
+    margin-right: 10px;
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.home-page-header-search {
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--text-color-primary);
+    font-size: 16px;
+    width: 100%;
+    padding: 6px 0;
+}
+
+/* Search Page */
+#search-page {
+    padding: 0;
+}
+
+#search-page h2 {
+    margin-bottom: 25px;
+    font-size: 1.8em;
+    text-align: center;
+}
+
+.search-input-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 30px;
+    padding: 20px;
+    background-color: var(--secondary-bg-color);
+    border-radius: 8px;
+    box-shadow: 0 2px 8px var(--shadow-color);
+    transition: margin-bottom 0.5s ease-out, transform 0.5s ease-out;
+}
+
+.search-input-area.results-visible {
+    margin-bottom: 20px;
+}
+
+#search-page-input {
+    width: 100%;
+    max-width: 600px;
+    padding: 15px 20px;
+    font-size: 1.1em;
+    border: 1px solid var(--border-color);
+    border-radius: 25px;
+    margin-bottom: 15px;
+    text-align: center;
+    background-color: var(--primary-bg-color);
+    color: var(--text-color-primary);
+}
+
+#song-detail-page {
+    display: flex;
+    flex-direction: column; /* Stack handle on top */
+    height: 100%;
+    width: calc(100vw - var(--sidebar-width) - 40px);
+    max-width: 1300px;
+    margin: 0 auto;
+    padding: 0 0 40px 0; /* Adjust padding for handle */
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    position: relative;
+    padding-bottom: 140px; /* Space for the floating player */
+}
+
+#song-detail-overlay.active #song-detail-page {
+    opacity: 1;
+}
+
+/* Drag Handle Styles */
+.drag-handle-container {
+    padding: 20px 0;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    cursor: grab;
+    z-index: 110; /* Ensure its on top */
+    flex-shrink: 0;
+}
+
+.drag-handle-container:active {
+    cursor: grabbing;
+}
+
+.drag-handle {
+    width: 36px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
+    transition: background 0.3s ease, transform 0.2s ease;
+}
+
+.drag-handle-container:hover .drag-handle {
+    background: rgba(255, 255, 255, 0.3);
+    transform: scaleX(1.1);
+}
+
+.song-detail-main-content {
+    display: flex;
+    flex: 1;
+    gap: 60px;
+    padding: 20px 0;
+    overflow: hidden;
+}
+
+#song-detail-overlay.dragging {
+    transition: none !important;
+    user-select: none !important;
+    cursor: grabbing !important;
+}
+
+#song-detail-overlay.dragging * {
+    pointer-events: none !important; /* Prevent interaction with children while dragging */
+}
+
+#song-detail-overlay.dragging .drag-handle-container {
+    pointer-events: auto !important;
+}
+
+.song-detail-left {
+    display: flex;
+    flex-direction: column;
+    width: 40%;
+    max-width: 500px;
+    justify-content: center;
+    padding-top: 20px;
+}
+
+.detail-cover-container {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+    margin-bottom: 25px;
+}
+
+#detail-cover-art {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.detail-info-group #detail-title {
+    margin: 0;
+    font-size: 2em;
+    font-weight: 700;
+}
+
+.detail-info-group #detail-artist {
+    font-size: 1.2em;
+    color: var(--text-color-secondary, #aaa);
+    margin: 10px 0 30px 0;
+}
+
+#detail-action-buttons {
+    display: flex;
+    gap: 15px;
+}
+
+.song-detail-right {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding-left: 0;
+    border-left: none; /* Remove separator */
+}
+
+#lyrics-display-area {
+    height: 60vh;
+    mask-image: linear-gradient(to bottom, transparent, black 15%, black 85%, transparent);
+    -webkit-mask-image: linear-gradient(to bottom, transparent, black 15%, black 85%, transparent);
+    overflow: hidden;
+    position: relative;
+}
+
+#lyrics-display-area p {
+    font-size: 1.8em;
+    font-weight: 600;
+    line-height: 1.5;
+    color: var(--text-color-primary);
+}
+
+/* 隐藏主内容区域滚动条 */
+#main-content {
+    scrollbar-width: none;
+    /* Firefox */
+    -ms-overflow-style: none;
+    /* IE and Edge */
+}
+
+#main-content::-webkit-scrollbar {
+    display: none;
+    /* Chrome, Safari and Opera */
+}
+
+
+/* Song Detail Dialog (Old style, keeping for compatibility) */
+.track-details-dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.track-details-dialog .dialog-content {
+    background: var(--secondary-bg-color);
+    padding: 2rem;
+    border-radius: 8px;
+    max-width: 600px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+}
+
+.track-details-dialog .close-dialog-button {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--icon-color);
+}
+
+.track-details-dialog .track-cover img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+}
+
+.track-details-dialog .track-info {
+    margin-top: 1.5rem;
+}
+
+.track-details-dialog .description {
+    margin-top: 1rem;
+    color: var(--text-color-secondary);
+}
+
+/* Overview Page */
+#overview-page {
+    padding: 20px;
+}
+
+#overview-page h2 {
+    text-align: center;
+    margin-bottom: 30px;
+    font-size: 2em;
+}
+
+.overview-section-container {
+    display: flex;
+    width: 100%;
+    gap: 25px;
+}
+
+.overview-section {
+    background-color: var(--secondary-bg-color);
+    padding: 20px;
+    margin-bottom: 25px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px var(--shadow-color);
+    border: 1px solid var(--border-color);
+    width: 100%;
+}
+
+.overview-section#task-section {
+    background-color: var(--primary-bg-color);
+}
+
+/* Data Table Styling */
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+
+.data-table th,
+.data-table td {
+    border: 1px solid var(--border-color);
+    padding: 12px 15px;
+    text-align: left;
+    font-size: 0.95em;
+}
+
+.data-table th {
+    background-color: var(--primary-bg-color);
+    font-weight: 600;
+}
+
+/* Progress Bar Styling (System) */
+.progress-bar-container {
+    width: 100%;
+    background-color: var(--border-color);
+    border-radius: 4px;
+    height: 22px;
+    overflow: hidden;
+    margin-top: 5px;
+    margin-bottom: 5px;
+}
+
+.progress-bar {
+    height: 100%;
+    background-color: rgba(200, 200, 210, 0.6);
+    text-align: center;
+    line-height: 22px;
+    color: var(--text-color-primary);
+    border-radius: 4px;
+    font-size: 0.8em;
+    font-weight: 500;
+    transition: width 0.3s ease-in-out;
+}

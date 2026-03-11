@@ -3,20 +3,6 @@ class UIManager {
   constructor() {
     throw new Error("UIManager cannot be instantiated");
   }
-  static applyTheme(themeName) {
-    document.body.classList.remove("light-theme", "dark-theme");
-    document.body.classList.add(themeName);
-    localStorage.setItem("theme", themeName); // Save preference
-    const themeSwitcher = document.getElementById("theme-switcher");
-    // Update icon based on theme (optional)
-    if (themeSwitcher) {
-      const icon = themeSwitcher.querySelector(".material-icons");
-      if (icon) {
-        icon.textContent =
-          themeName === "dark-theme" ? "light_mode" : "dark_mode";
-      }
-    }
-  }
   // Example static method
   static updateTaskQueueProgress(percentage) {
     const progressBar = document.querySelector(
@@ -302,21 +288,6 @@ class UIManager {
     });
   }
 
-  static initThemeSwitcher() {
-    const themeSwitcher = document.getElementById("theme-switcher");
-    if (themeSwitcher) {
-      themeSwitcher.addEventListener("click", () => {
-        const currentTheme = document.body.classList.contains("dark-theme")
-          ? "dark-theme"
-          : "light-theme";
-        const newTheme =
-          currentTheme === "dark-theme" ? "light-theme" : "dark-theme";
-        UIManager.applyTheme(newTheme); // applyTheme will also update the icon
-      });
-    } else {
-      console.warn("Theme switcher element (#theme-switcher) not found.");
-    }
-  }
 
   static initTaskQueueControls() {
     const taskQueueButton = document.getElementById("task-queue-button");
@@ -522,6 +493,126 @@ class UIManager {
 
     // Focus confirm button for accessibility
     setTimeout(() => btnConfirm.focus(), 0);
+  }
+
+  static toggleSongDetail(show, trackObject = null, appState = {}, managers = {}) {
+    const overlay = document.getElementById('song-detail-overlay');
+    const player = document.getElementById('main-player');
+    const playerContent = document.getElementById('player-content');
+    const showButton = document.getElementById('player-show-button');
+    
+    if (!overlay || !player) return;
+
+    if (show) {
+      // 存储进入前的展开状态，以便退出时恢复
+      this._prevPlayerExpanded = !playerContent.classList.contains('hidden');
+      
+      // 1. 如果播放器是隐藏状态，强制显示并将其贴底
+      if (!this._prevPlayerExpanded) {
+        playerContent.classList.remove('hidden');
+        showButton.classList.add('hidden');
+      }
+      
+      // 2. 赋予贴底类，触发弹性动画
+      player.classList.add('attached-to-detail');
+      
+      // 2.5 隐藏收起按钮 (因为贴底状态不允许收起，否则布局会乱)
+      const hideBtn = document.getElementById('player-hide-button');
+      if (hideBtn) hideBtn.style.display = 'none';
+
+      // 2.6 同步播放器：如果查看的歌曲不是当前播放的，强制切换
+      if (trackObject && managers.playerManager) {
+        const pm = managers.playerManager;
+        const currentId = String(pm.currentLoadedTrack?.music_id || pm.currentLoadedTrack?.id || "");
+        const targetId = String(trackObject.music_id || trackObject.id || "");
+        
+        if (targetId && currentId !== targetId) {
+          const idx = pm.playlist.findIndex(t => String(t.music_id || t.id) === targetId);
+          if (idx !== -1) {
+            pm.loadTrack(idx);
+            pm.play();
+          }
+        }
+      }
+
+      // 3. 渲染歌曲详情
+      const SongDetailPage = managers.navigationManager.pageModulesRegistry['home'].constructor.name; // Use existing imports via registry
+      // Here we assume SongDetailPage is accessible via the registry if we didn't remove the import in NM
+      // For safety, we can use the constructor passed from NM
+      const DetailPageClass = managers.navigationManager.pageModulesRegistry['song-detail'] || managers.navigationManager.activePageModule.constructor; // Fallback logic
+      
+      // Let's directly use the track for rendering
+      import('../pages/SongDetailPage.js').then(module => {
+        const page = new module.default();
+        overlay.innerHTML = page.getHTML();
+        
+        // Remove 'hidden' first, then add 'active' in next frame for transition
+        overlay.classList.remove('hidden');
+        requestAnimationFrame(() => {
+          overlay.classList.add('active');
+        });
+
+        const trackId = trackObject ? (trackObject.music_id || trackObject.id) : null;
+        page.onLoad(overlay, String(trackId), appState, managers);
+      });
+      
+    } else {
+      // 1. 退出动画
+      overlay.classList.remove('active');
+      player.classList.remove('attached-to-detail');
+      
+      // 如果进入前是收起状态，现在立即触发收起动画，使其直接从贴底状态过渡到气泡状态
+      if (!this._prevPlayerExpanded) {
+        playerContent.classList.add('hidden');
+        showButton.classList.remove('hidden');
+      }
+
+      // 2. 延迟隐藏容器，等待动画结束
+      setTimeout(() => {
+        // 先彻底隐藏容器，防止清理 HTML 时产生视觉跳动
+        overlay.classList.add('hidden');
+        overlay.innerHTML = '';
+        
+        // 重置可能的内联样式（拖拽遗留）
+        overlay.style.transform = '';
+        overlay.style.opacity = '';
+        overlay.style.backdropFilter = '';
+        overlay.style.webkitBackdropFilter = '';
+
+        // 4. 恢复收起按钮显示
+        const hideBtn = document.getElementById('player-hide-button');
+        if (hideBtn) hideBtn.style.display = '';
+      }, 600); // 严格匹配 CSS 0.6s 的过渡动画
+    }
+  }
+
+  static initGlobalMarqueeListener() {
+    document.addEventListener('mouseover', (e) => {
+      const card = e.target.closest('.song-card');
+      if (card) {
+        const scroller = card.querySelector('.song-card-title-scroller');
+        if (scroller) {
+          const title = scroller.querySelector('.song-card-title');
+        // Only check if not already checked to avoid layout thrashing
+        if (title && !title.classList.contains('can-scroll-checked')) {
+          // Temporarily remove ellipsis to measure real width
+          const originalStyle = title.style.textOverflow;
+          const originalWidth = title.style.width;
+          title.style.textOverflow = 'clip';
+          title.style.width = 'fit-content';
+          
+          if (title.scrollWidth > scroller.offsetWidth) {
+            title.classList.add('can-scroll');
+          }
+          
+          // Restore and mark as checked
+          title.style.textOverflow = originalStyle;
+          title.style.width = originalWidth;
+          title.classList.add('can-scroll-checked');
+        }
+      }
+    }
+    });
   }
 }
 

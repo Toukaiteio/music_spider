@@ -1,8 +1,7 @@
 import uuid # For generating unique client IDs
 from threading import Lock
-import psutil
 import time
-from downloaders import soundcloud_downloader,bilibili_downloader
+from downloaders import soundcloud_downloader, bilibili_downloader
 from types import MappingProxyType
 from multiprocessing import Queue
 
@@ -27,29 +26,17 @@ _DOWNLOADER_MODULES = {
 }
 
 DOWNLOADER_MODULES = MappingProxyType(_DOWNLOADER_MODULES)
-# 全局网络IO状态
-_NET_IO_LOCK = Lock()
-previous_net_io_global = psutil.net_io_counters(pernic=True)
-time_of_previous_net_io_global = time.time()
 
-def update_net_io_global():
-    global previous_net_io_global, time_of_previous_net_io_global
-    with _NET_IO_LOCK:
-        previous_net_io_global = psutil.net_io_counters(pernic=True)
-        time_of_previous_net_io_global = time.time()
-    return previous_net_io_global,time_of_previous_net_io_global
-
-def get_net_io_global():
-    with _NET_IO_LOCK:
-        return previous_net_io_global.copy(), time_of_previous_net_io_global
 # 任务执行状态
 TASK_EXECUTION = {
+
     "totalTasksExecuted": 0,
     "successfulTasks": 0,
     "failedTasks": 0,
     "runningTasks": 0,
 }
 _TASK_EXECUTION_LOCK = Lock()
+
 
 def update_task_execution(key, value):
     with _TASK_EXECUTION_LOCK:

@@ -14,9 +14,7 @@ import {
 } from "./modules/LyricsEditor.js";
 // Removed LyricsEditor imports as they are page-specific or handled by page modules / UIManager
 
-const applyTheme = UIManager.applyTheme;
-const savedTheme = localStorage.getItem("theme") || "light-theme";
-applyTheme(savedTheme);
+
 
 document.addEventListener("DOMContentLoaded", () => {
   const webSocketManager = new WebSocketManager();
@@ -27,11 +25,19 @@ document.addEventListener("DOMContentLoaded", () => {
     coverImgElement: document.getElementById("player-album-art"),
   });
 
+  const mainPlayer = document.getElementById("main-player");
+  if (mainPlayer) {
+    mainPlayer.classList.add("no-transition");
+    setTimeout(() => {
+      mainPlayer.classList.remove("no-transition");
+    }, 100);
+  }
+
   const CHUNK_SIZE = 256 * 1024; // 256KB
 
-  UIManager.initThemeSwitcher();
   UIManager.initTaskQueueControls();
   UIManager.initDrawerControls();
+  UIManager.initGlobalMarqueeListener();
   if (!localStorage.getItem("favSongs")) {
     localStorage.setItem("favSongs", "[]");
   }
@@ -320,13 +326,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const musicId =
           currentTrack?.bvid || currentTrack?.music_id || currentTrack?.id;
         if (musicId) {
-          navigationManager.navigateTo(
-            "song-detail",
-            currentTrack.title || "Track Detail",
-            "#song-detail/" + musicId,
-            false,
-            musicId
-          );
+          navigationManager.navigateToSongDetail(currentTrack);
         }
       }
     });

@@ -1,0 +1,656 @@
+.search-bar-container {
+    grid-column: 2;
+    display: flex;
+    align-items: center;
+    background-color: var(--glass-bg-color);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    padding: 8px 20px;
+    border-radius: 25px;
+    border: 1px solid var(--glass-border-color);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    width: 480px;
+    transition: all 0.3s ease;
+}
+
+.search-bar-container:hover,
+.search-bar-container:focus-within {
+    background-color: rgba(255, 255, 255, 0.05);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+    border-color: rgba(255, 255, 255, 0.2);
+    width: 520px;
+}
+
+.search-bar-container .search-icon {
+    margin-right: 10px;
+    color: var(--text-color-secondary);
+}
+
+#header-search-input {
+    border: none;
+    outline: none;
+    background-color: transparent !important;
+    color: var(--text-color-primary);
+    font-size: 1em;
+    width: 100%;
+}
+
+#header-search-input::placeholder {
+    color: var(--text-color-secondary);
+}
+
+/* Task Queue */
+.task-queue-container {
+    position: relative;
+}
+
+#task-queue-button {
+    position: relative;
+    width: 48px;
+    height: 48px;
+    padding: 0;
+    background-color: transparent;
+    border: none;
+    color: var(--icon-color);
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#task-queue-button:hover {
+    background-color: var(--shadow-color);
+}
+
+#task-queue-button .material-icons {
+    font-size: 24px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+    color: var(--icon-color);
+}
+
+.circular-progress {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+    z-index: 1;
+}
+
+.circular-progress .progress-background {
+    stroke: var(--border-color);
+}
+
+.circular-progress .progress-bar {
+    stroke: var(--text-color-primary);
+    stroke-linecap: round;
+    transition: stroke-dasharray 0.3s ease;
+}
+
+.circular-progress.hidden {
+    display: none;
+}
+
+/* Expanded Task List */
+.expanded-task-list {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    width: 380px;
+    max-height: 400px;
+    overflow-y: auto;
+    background-color: var(--secondary-bg-color);
+    border-radius: 8px;
+    box-shadow: 0 4px 15px var(--shadow-color);
+    border: 1px solid var(--border-color);
+    z-index: 1100;
+    padding: 15px;
+    opacity: 0;
+    transform: translateY(-10px) scale(0.95);
+    visibility: hidden;
+    transition: opacity 0.2s ease-out, transform 0.2s ease-out, visibility 0s 0.2s;
+}
+
+.expanded-task-list.visible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    visibility: visible;
+    transition: opacity 0.2s ease-out, transform 0.2s ease-out, visibility 0s 0s;
+}
+
+.expanded-task-list h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 1.1em;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 8px;
+}
+
+.expanded-task-list ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.task-item {
+    display: flex;
+    align-items: flex-start;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.task-item:last-child {
+    border-bottom: none;
+}
+
+.task-item.clickable {
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.2s ease-in-out;
+}
+
+.task-item.clickable:hover {
+    background-color: var(--shadow-color);
+}
+
+.task-item-cover {
+    width: 50px;
+    height: 50px;
+    object-fit: cover;
+    border-radius: 4px;
+    margin-right: 12px;
+    flex-shrink: 0;
+}
+
+.task-item-info {
+    flex-grow: 1;
+    overflow: hidden;
+    margin-right: 10px;
+}
+
+.task-item-info h4,
+.task-item-info p {
+    margin: 0 0 4px 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.task-item-title {
+    font-size: 0.95em;
+    font-weight: 500;
+}
+
+.task-item-artist,
+.task-item-album {
+    font-size: 0.8em;
+}
+
+.task-item-description {
+    font-size: 0.75em;
+}
+
+.task-item-progress {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 24px;
+}
+
+.task-item-progress .material-icons {
+    font-size: 20px;
+    color: var(--text-color-primary);
+    opacity: 0.7;
+}
+
+.empty-queue-message {
+    text-align: center;
+    color: var(--text-color-secondary);
+    padding: 20px;
+    position: static;
+    margin-left: 15px;
+}
+
+/* Song Card Grid and Items */
+#song-card-grid,
+.search-results-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 20px;
+}
+
+.song-card {
+    position: relative;
+    background-color: var(--glass-bg-color);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 16px;
+    padding: 15px;
+    border: 1px solid var(--glass-border-color);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), 
+                box-shadow 0.3s ease, 
+                background-color 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.song-card:hover {
+    transform: translateY(-8px) scale(1.02);
+    background-color: rgba(255, 255, 255, 0.05);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.card-art-container {
+    position: relative;
+    width: 100%;
+    padding-bottom: 100%;
+    margin-bottom: 15px;
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.song-card-art {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+}
+
+.song-card:hover .song-card-art {
+    transform: scale(1.05);
+}
+
+.play-on-card-button {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    /* Apple Music style: frosted white pill */
+    background-color: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: #111;
+    border: none;
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transform: translateY(15px);
+    transition: all 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+}
+
+.song-card:hover .play-on-card-button {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.play-on-card-button .material-icons {
+    font-size: 24px;
+    color: #111111;
+}
+
+.play-on-card-button:hover {
+    background-color: rgba(255, 255, 255, 1);
+    transform: translateY(0) scale(1.1);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.55);
+}
+
+.lossless-tag {
+    position: absolute;
+    bottom: 8px;
+    left: 8px;
+    background-color: rgba(0, 0, 0, 0.75);
+    color: white;
+    padding: 3px 7px;
+    font-size: 0.65em;
+    font-weight: bold;
+    border-radius: 4px;
+    z-index: 1;
+}
+
+.song-card-info {
+    text-align: left;
+    overflow: hidden;
+    flex-grow: 1;
+    margin-bottom: 0;
+}
+
+.song-card-title-scroller {
+    overflow: hidden;
+    width: 100%;
+    position: relative;
+    white-space: nowrap;
+    /* 默认不应用遮罩，避免对普通文本渲染造成负担 */
+    -webkit-mask-image: none;
+    mask-image: none;
+}
+
+/* 仅在 Hover 且文本可滚动时，在该固定容器上应用遮罩 */
+.song-card:hover .song-card-title.can-scroll {
+    margin-right: 0; /* 确保不影响容器宽度 */
+}
+
+.song-card:hover .song-card-title-scroller:has(.can-scroll) {
+    mask-image: linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%);
+}
+
+.song-card-title {
+    font-size: 1.05em;
+    font-weight: 600;
+    margin: 0 0 8px 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text-color-primary);
+    display: block;
+    transition: color 0.3s ease;
+}
+
+.song-card:hover .song-card-title.can-scroll {
+    overflow: visible;
+    text-overflow: clip;
+    width: fit-content;
+    animation: songCardMarquee 8s linear infinite;
+    padding-right: 50px;
+}
+
+.song-card:hover .song-card-title.can-scroll::after {
+    content: attr(data-title);
+    padding-left: 50px;
+    display: inline-block;
+}
+
+@keyframes songCardMarquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+}
+
+.song-card-artist {
+    font-size: 0.9em;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text-color-secondary);
+    opacity: 0.8;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    /* 核心修复：强制高度与图标按钮一致 */
+    height: 36px;
+    line-height: 36px;
+    display: block;
+}
+
+.song-card:hover .song-card-artist {
+    opacity: 0;
+    transform: translateY(8px); /* 稍微减小偏移量，让切换更紧凑 */
+    pointer-events: none;
+}
+
+.song-card-actions {
+    position: absolute;
+    /* 微调 bottom 值，使其中心点与歌手名完全重合 */
+    bottom: 15px; 
+    right: 15px;
+    height: 36px; /* 明确高度 */
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 4px;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(8px);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 10;
+}
+
+.song-card:hover .song-card-actions {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+
+.icon-button,
+.remove-from-collection-button,
+.favorite-button,
+.search-result-download-button,
+.add-to-collection-button,
+.delete-track-button,
+.add-to-download-queue-button {
+    background: transparent;
+    border: none;
+    color: var(--icon-color);
+    padding: 6px;
+    border-radius: 50%;
+    height: 36px;
+    width: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.icon-button:hover,
+.remove-from-collection-button:hover,
+.favorite-button:hover,
+.search-result-download-button:hover,
+.add-to-collection-button:hover,
+.delete-track-button:hover,
+.add-to-download-queue-button:hover {
+    background-color: var(--shadow-color);
+}
+
+.remove-from-collection-button {
+    color: rgb(239, 83, 80);
+}
+
+.delete-track-button {
+    color: rgb(239, 83, 80);
+}
+
+.add-to-download-queue-button {
+    color: var(--text-color-primary);
+    opacity: 0.8;
+}
+
+.remove-from-collection-button:hover {
+    color: rgb(229, 57, 53);
+}
+
+.delete-track-button:hover {
+    color: rgb(211, 47, 47);
+}
+
+.add-to-download-queue-button:hover {
+    color: var(--text-color-primary);
+    opacity: 1;
+}
+
+/* Dialog Styles */
+.dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0s 0.3s;
+}
+
+.dialog-overlay.visible {
+    opacity: 1;
+    visibility: visible;
+    transition-delay: 0s;
+}
+
+.dialog-box {
+    background-color: var(--secondary-bg-color);
+    padding: 25px;
+    border-radius: 8px;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+    width: 90%;
+    max-width: 450px;
+    position: relative;
+    transform: scale(0.9);
+    transition: transform 0.3s ease;
+}
+
+.dialog-overlay.visible .dialog-box {
+    transform: scale(1);
+}
+
+.dialog-box h3,
+.dialog-box h4 {
+    margin-top: 0;
+    margin-bottom: 15px;
+}
+
+.dialog-box label {
+    display: block;
+    margin-top: 10px;
+    margin-bottom: 3px;
+    font-size: 0.9em;
+}
+
+.dialog-box input[type="text"],
+.dialog-box textarea {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--primary-bg-color);
+    color: var(--text-color-primary);
+    font-size: 0.95em;
+}
+
+.dialog-button {
+    padding: 8px 15px;
+    margin-top: 15px;
+    margin-right: 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.9em;
+}
+
+.dialog-button.primary {
+    background-color: rgba(255, 255, 255, 0.15);
+    color: var(--text-color-primary);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.dialog-button.secondary {
+    background-color: var(--border-color);
+}
+
+.dialog-close-button {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: transparent;
+    border: none;
+    padding: 8px;
+    border-radius: 50%;
+}
+
+/* Custom Context Menu */
+.custom-context-menu {
+    background-color: var(--secondary-bg-color);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 2px 10px var(--shadow-color);
+    border-radius: 6px;
+    padding: 5px 0;
+    min-width: 180px;
+    position: fixed;
+    z-index: 2100;
+}
+
+.custom-context-menu ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.custom-context-menu li {
+    padding: 8px 15px;
+    cursor: pointer;
+    font-size: 0.9em;
+}
+
+.custom-context-menu li:hover {
+    background-color: rgba(255, 255, 255, 0.10);
+    color: var(--text-color-primary);
+}
+
+/* Lyrics Tool Sub-component */
+.lyrics-tool-container {
+    padding: 20px 22px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.045);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.07),
+        0 4px 24px rgba(0, 0, 0, 0.25);
+}
+
+#lyrics-waveform-placeholder,
+#lyrics-playback-controls-placeholder {
+    height: 80px;
+    background-color: rgba(0, 0, 0, 0.25);
+    border: 1px dashed rgba(255, 255, 255, 0.10);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 10px;
+    border-radius: 10px;
+    color: rgba(255, 255, 255, 0.25);
+    font-size: 0.85em;
+}
+
+#lrc-input-area,
+#lrc-preview-area {
+    width: 100%;
+    min-height: 150px;
+    padding: 12px 14px;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-color-primary);
+    font-size: 0.92em;
+    line-height: 1.6;
+    font-family: var(--font-family-primary);
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+#lrc-input-area:focus,
+#lrc-preview-area:focus {
+    outline: none;
+    border-color: rgba(255, 255, 255, 0.28);
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.07);
+}

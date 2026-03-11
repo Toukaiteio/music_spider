@@ -8,10 +8,10 @@ import SongDetailPage from '../pages/SongDetailPage.js';
 import SearchResultsPage from '../pages/SearchResultsPage.js';
 import UpdateTrackPage from '../pages/UpdateTrackPage.js';
 import UploadTrackPage from '../pages/UploadTrackPage.js';
-import OverviewPage from '../pages/OverviewPage.js';
+import UIManager from '../modules/UIManager.js';
 
 // Utility Imports (keep if still used directly by NM)
-import { getFileExtension } from "./Utils.js"; 
+import { getFileExtension } from "./Utils.js";
 // LyricsEditor imports are removed as they are now page-specific or handled by page modules
 
 class NavigationManager {
@@ -29,16 +29,16 @@ class NavigationManager {
   }) {
     this.mainContent = mainContentElement;
     this.drawerLinksElements = document.querySelectorAll(drawerLinksSelector);
-    this.webSocketManager = webSocketManager; 
+    this.webSocketManager = webSocketManager;
     this.playerManager = playerManager;
     this.uiManager = uiManager;
     this.renderDrawerCollections = renderDrawerCollectionsCallback;
-    if (getCollectionsCallback) this.getCollections = getCollectionsCallback; 
+    if (getCollectionsCallback) this.getCollections = getCollectionsCallback;
     this.appState = appState;
-    
-    this.searchManager = null; 
-    this.favoriteManager = null; 
-    this.collectionManager = null; 
+
+    this.searchManager = null;
+    this.favoriteManager = null;
+    this.collectionManager = null;
     this.uploadManager = null; // Added
 
     this.navigationHistory = [];
@@ -46,29 +46,27 @@ class NavigationManager {
     this.currentSubPageId = null;
     this.currentPath = null;
     this.currentTitle = null;
-    this.activePageModule = null; 
+    this.activePageModule = null;
 
     this.pageModuleInstances = {};
     this.pageModulesRegistry = {
-        'home': HomePage,
-        'collections': CollectionsPage,
-        'collection-detail': CollectionDetailPage,
-        'song-detail': SongDetailPage,
-        'search-results': SearchResultsPage,
-        'update-track': UpdateTrackPage,
-        'upload-track': UploadTrackPage,
-        'overview': OverviewPage // Add this line
+      'home': HomePage,
+      'collections': CollectionsPage,
+      'collection-detail': CollectionDetailPage,
+      'search-results': SearchResultsPage,
+      'update-track': UpdateTrackPage,
+      'upload-track': UploadTrackPage
     };
 
     // Bind methods
     this.navigateTo = this.navigateTo.bind(this);
-    this.navigateBack = this.navigateBack.bind(this); 
+    this.navigateBack = this.navigateBack.bind(this);
     this.updateActiveDrawerLink = this.updateActiveDrawerLink.bind(this);
     this.handlePopState = this.handlePopState.bind(this);
     this.handleInitialLoad = this.handleInitialLoad.bind(this);
     this.handleMainContentClick = this.handleMainContentClick.bind(this); // If kept
-    this.handleFavoriteChange = this.handleFavoriteChange.bind(this); 
-    this._animateColorBands = this._animateColorBands.bind(this); 
+    this.handleFavoriteChange = this.handleFavoriteChange.bind(this);
+    this._animateColorBands = this._animateColorBands.bind(this);
   }
 
   init() {
@@ -104,7 +102,7 @@ class NavigationManager {
     document.addEventListener(
       "collectionChanged",
       this.handleCollectionChange.bind(this)
-    ); 
+    );
   }
 
   getCollections() {
@@ -112,7 +110,7 @@ class NavigationManager {
   }
 
   updateActiveDrawerLink(pageId, subPageId = null) {
-    this.drawerLinksElements = document.querySelectorAll(".drawer-link"); 
+    this.drawerLinksElements = document.querySelectorAll(".drawer-link");
     this.drawerLinksElements.forEach((link) => {
       link.classList.remove("active");
       const linkPage = link.dataset.page;
@@ -145,44 +143,20 @@ class NavigationManager {
       return;
     }
 
-    if (
-      this.currentPageId === "song-detail" &&
-      pageId !== "song-detail" &&
-      !skipPushState
-    ) {
-      const songDetailPageElement =
-        this.mainContent.querySelector("#song-detail-page");
-      if (songDetailPageElement) {
-        songDetailPageElement.classList.add("song-detail-page-exit");
-        songDetailPageElement.addEventListener(
-          "animationend",
-          () => {
-            this._performNavigateTo(
-              pageId,
-              title,
-              path,
-              skipPushState,
-              subPageId
-            );
-          },
-          { once: true }
-        );
-        return; 
-      }
-    }
+    this._performNavigateTo(pageId, title, path, skipPushState, subPageId);
     this._performNavigateTo(pageId, title, path, skipPushState, subPageId);
   }
 
   _performNavigateTo(pageId, title, path, skipPushState = false, subPageId = null) {
     if (!this.mainContent) {
-        console.error("Main content area not found in _performNavigateTo!");
-        return;
+      console.error("Main content area not found in _performNavigateTo!");
+      return;
     }
 
     // Call onUnload for the previous active page module if it exists and has the method
     if (this.activePageModule && typeof this.activePageModule.onUnload === 'function') {
-        this.activePageModule.onUnload();
-        this.activePageModule = null; // Reset active module
+      this.activePageModule.onUnload();
+      this.activePageModule = null; // Reset active module
     }
 
     // Clear previous page's state if necessary (specific cases like update-track)
@@ -192,15 +166,15 @@ class NavigationManager {
 
     // Manage navigation history (remains largely the same)
     if (this.currentPageId && this.currentPageId !== "song-detail" && !skipPushState) {
-        if (this.currentPath && this.currentPath !== path) {
-            this.navigationHistory.push({
-                pageId: this.currentPageId,
-                subPageId: this.currentSubPageId,
-                path: this.currentPath,
-                title: this.currentTitle,
-            });
-            if (this.navigationHistory.length > 10) this.navigationHistory.shift();
-        }
+      if (this.currentPath && this.currentPath !== path) {
+        this.navigationHistory.push({
+          pageId: this.currentPageId,
+          subPageId: this.currentSubPageId,
+          path: this.currentPath,
+          title: this.currentTitle,
+        });
+        if (this.navigationHistory.length > 10) this.navigationHistory.shift();
+      }
     }
 
     // Set global upload page active state (if still needed at this level)
@@ -209,37 +183,37 @@ class NavigationManager {
 
     const PageModuleClass = this.pageModulesRegistry[pageId];
     if (!PageModuleClass) {
-        this.mainContent.innerHTML = `<h2>Page Not Found</h2><p>The page module for "${pageId}" does not exist.</p>`;
-        document.title = "Page Not Found - Music Downloader";
-        this.updateActiveDrawerLink('error'); // Or some other way to indicate error
-        // Update current page trackers to avoid inconsistent state
-        this.currentPageId = pageId; 
-        this.currentSubPageId = subPageId;
-        this.currentPath = path;
-        this.currentTitle = "Page Not Found";
-        return;
+      this.mainContent.innerHTML = `<h2>Page Not Found</h2><p>The page module for "${pageId}" does not exist.</p>`;
+      document.title = "Page Not Found - Music Downloader";
+      this.updateActiveDrawerLink('error'); // Or some other way to indicate error
+      // Update current page trackers to avoid inconsistent state
+      this.currentPageId = pageId;
+      this.currentSubPageId = subPageId;
+      this.currentPath = path;
+      this.currentTitle = "Page Not Found";
+      return;
     }
 
     // Instantiate page module if not already done (simple caching)
     let pageModuleInstance = this.pageModuleInstances[pageId];
     if (!pageModuleInstance) {
-        pageModuleInstance = new PageModuleClass();
-        this.pageModuleInstances[pageId] = pageModuleInstance;
-        // If the new instance has an init method, call it.
-        if (typeof pageModuleInstance.init === 'function') {
-            // We need to pass the managers object to init as well.
-            const managers = {
-                webSocketManager: this.webSocketManager,
-                playerManager: this.playerManager,
-                uiManager: this.uiManager,
-                searchManager: this.searchManager,
-                favoriteManager: this.favoriteManager,
-                collectionManager: this.collectionManager,
-                uploadManager: this.uploadManager,
-                navigationManager: this
-            };
-            pageModuleInstance.init(this.appState, managers);
-        }
+      pageModuleInstance = new PageModuleClass();
+      this.pageModuleInstances[pageId] = pageModuleInstance;
+      // If the new instance has an init method, call it.
+      if (typeof pageModuleInstance.init === 'function') {
+        // We need to pass the managers object to init as well.
+        const managers = {
+          webSocketManager: this.webSocketManager,
+          playerManager: this.playerManager,
+          uiManager: this.uiManager,
+          searchManager: this.searchManager,
+          favoriteManager: this.favoriteManager,
+          collectionManager: this.collectionManager,
+          uploadManager: this.uploadManager,
+          navigationManager: this
+        };
+        pageModuleInstance.init(this.appState, managers);
+      }
     }
     this.activePageModule = pageModuleInstance; // Set current active module
 
@@ -248,44 +222,46 @@ class NavigationManager {
     document.title = title + " - Music Downloader";
 
     if (!skipPushState) {
-        history.pushState({ pageId: pageId, subPageId: subPageId }, title, path);
+      history.pushState({ pageId: pageId, subPageId: subPageId }, title, path);
+    } else {
+      history.replaceState({ pageId: pageId, subPageId: subPageId }, title, path);
     }
     this.updateActiveDrawerLink(pageId, subPageId);
 
     // Prepare the managers object to pass to the page module
     const managers = {
-        webSocketManager: this.webSocketManager,
-        playerManager: this.playerManager,
-        uiManager: this.uiManager,
-        searchManager: this.searchManager,
-        favoriteManager: this.favoriteManager,
-        collectionManager: this.collectionManager,
-        uploadManager: this.uploadManager, 
-        navigationManager: this 
+      webSocketManager: this.webSocketManager,
+      playerManager: this.playerManager,
+      uiManager: this.uiManager,
+      searchManager: this.searchManager,
+      favoriteManager: this.favoriteManager,
+      collectionManager: this.collectionManager,
+      uploadManager: this.uploadManager,
+      navigationManager: this
     };
 
     // Apply transition and then call onLoad
     this.mainContent.style.opacity = "0";
     requestAnimationFrame(() => {
-        this.mainContent.style.transition = "opacity 0.3s ease-in-out";
-        this.mainContent.style.opacity = "1";
+      this.mainContent.style.transition = "opacity 0.3s ease-in-out";
+      this.mainContent.style.opacity = "1";
 
-        if (pageId === "song-detail") {
-            const songDetailPageElement = this.mainContent.querySelector("#song-detail-page");
-            if (songDetailPageElement) {
-                requestAnimationFrame(() => { 
-                    songDetailPageElement.classList.add("song-detail-page-enter");
-                    songDetailPageElement.addEventListener("animationend", () => {
-                        songDetailPageElement.style.opacity = "1";
-                        songDetailPageElement.classList.remove("song-detail-page-enter");
-                    }, { once: true });
-                });
-            }
+      if (pageId === "song-detail") {
+        const songDetailPageElement = this.mainContent.querySelector("#song-detail-page");
+        if (songDetailPageElement) {
+          requestAnimationFrame(() => {
+            songDetailPageElement.classList.add("song-detail-page-enter");
+            songDetailPageElement.addEventListener("animationend", () => {
+              songDetailPageElement.style.opacity = "1";
+              songDetailPageElement.classList.remove("song-detail-page-enter");
+            }, { once: true });
+          });
         }
-        
-        if (typeof pageModuleInstance.onLoad === 'function') {
-            pageModuleInstance.onLoad(this.mainContent, subPageId, this.appState, managers);
-        }
+      }
+
+      if (typeof pageModuleInstance.onLoad === 'function') {
+        pageModuleInstance.onLoad(this.mainContent, subPageId, this.appState, managers);
+      }
     });
 
     this.currentPageId = pageId;
@@ -336,9 +312,9 @@ class NavigationManager {
     }
 
     const newPositions = [];
-    const overlapThreshold = 20; 
+    const overlapThreshold = 20;
     const maxRetries = 5;
-    const positionRange = 70; 
+    const positionRange = 70;
 
     bands.forEach((band) => {
       let isTooClose;
@@ -381,7 +357,7 @@ class NavigationManager {
   }
 
   handleFavoriteChange(event) {
-    const { songId, isFavorite } = event.detail; 
+    const { songId, isFavorite } = event.detail;
     console.log(
       `NavigationManager: favoritesChanged event for songId ${songId}, isFavorite: ${isFavorite}`
     );
@@ -394,31 +370,31 @@ class NavigationManager {
     // or 'home' (library view) or 'song-detail' (detail of a song)
     // we might need to refresh to show updated favorite status.
     if (relevantPages.includes(currentPageId)) {
-        // For 'collections' page (favorites), a change always means refresh.
-        // For 'collection-detail', if a song's favorite status changes, the heart icon needs update.
-        // For 'home', similar to 'collection-detail'.
-        // For 'song-detail', the favorite button on that page needs update.
-        // The most straightforward way is to re-trigger onLoad for the current page module.
-        if (this.activePageModule && typeof this.activePageModule.onLoad === 'function') {
-            console.log(`NavigationManager: Re-loading page ${currentPageId} due to favorite change.`);
-            const managers = { /* construct managers object again */
-                webSocketManager: this.webSocketManager, playerManager: this.playerManager,
-                uiManager: this.uiManager, searchManager: this.searchManager,
-                favoriteManager: this.favoriteManager, collectionManager: this.collectionManager,
-                uploadManager: this.uploadManager, navigationManager: this
-            };
-            // We need to pass mainContent itself, not a query.
-            this.activePageModule.onLoad(this.mainContent, currentSubPageId, this.appState, managers);
-        } else {
-             // Fallback to full navigate if re-triggering onLoad is not feasible/implemented
-            this.navigateTo(
-                currentPageId,
-                this.currentTitle, // Use stored title
-                this.currentPath,  // Use stored path
-                true, // skipPushState
-                currentSubPageId
-            );
-        }
+      // For 'collections' page (favorites), a change always means refresh.
+      // For 'collection-detail', if a song's favorite status changes, the heart icon needs update.
+      // For 'home', similar to 'collection-detail'.
+      // For 'song-detail', the favorite button on that page needs update.
+      // The most straightforward way is to re-trigger onLoad for the current page module.
+      if (this.activePageModule && typeof this.activePageModule.onLoad === 'function') {
+        console.log(`NavigationManager: Re-loading page ${currentPageId} due to favorite change.`);
+        const managers = { /* construct managers object again */
+          webSocketManager: this.webSocketManager, playerManager: this.playerManager,
+          uiManager: this.uiManager, searchManager: this.searchManager,
+          favoriteManager: this.favoriteManager, collectionManager: this.collectionManager,
+          uploadManager: this.uploadManager, navigationManager: this
+        };
+        // We need to pass mainContent itself, not a query.
+        this.activePageModule.onLoad(this.mainContent, currentSubPageId, this.appState, managers);
+      } else {
+        // Fallback to full navigate if re-triggering onLoad is not feasible/implemented
+        this.navigateTo(
+          currentPageId,
+          this.currentTitle, // Use stored title
+          this.currentPath,  // Use stored path
+          true, // skipPushState
+          currentSubPageId
+        );
+      }
     }
   }
 
@@ -441,51 +417,51 @@ class NavigationManager {
       // If a collection is deleted and we are on the main 'collections' page,
       // we should also re-render the drawer.
       if (action === "deleted" && currentPageId === "collections" && typeof this.renderDrawerCollections === 'function') {
-          this.renderDrawerCollections();
+        this.renderDrawerCollections();
       }
-      
+
       // Re-trigger onLoad for the current page module.
       if (this.activePageModule && typeof this.activePageModule.onLoad === 'function') {
-          const managers = { /* construct managers object again */
-              webSocketManager: this.webSocketManager, playerManager: this.playerManager,
-              uiManager: this.uiManager, searchManager: this.searchManager,
-              favoriteManager: this.favoriteManager, collectionManager: this.collectionManager,
-              uploadManager: this.uploadManager, navigationManager: this
-          };
-          this.activePageModule.onLoad(this.mainContent, currentSubPageId, this.appState, managers);
+        const managers = { /* construct managers object again */
+          webSocketManager: this.webSocketManager, playerManager: this.playerManager,
+          uiManager: this.uiManager, searchManager: this.searchManager,
+          favoriteManager: this.favoriteManager, collectionManager: this.collectionManager,
+          uploadManager: this.uploadManager, navigationManager: this
+        };
+        this.activePageModule.onLoad(this.mainContent, currentSubPageId, this.appState, managers);
       } else {
-           this.navigateTo(
-              currentPageId,
-              this.currentTitle,
-              this.currentPath,
-              true,
-              currentSubPageId
-          );
+        this.navigateTo(
+          currentPageId,
+          this.currentTitle,
+          this.currentPath,
+          true,
+          currentSubPageId
+        );
       }
     }
-     // If a song is added/removed from ANY collection, and we are on the home page, refresh home.
-     // This is because song cards on home show "add to collection" status which might change.
-     // Or, more simply, if the current song detail page is open and that song is added/removed from a collection.
-     else if (currentPageId === "home" || (currentPageId === "song-detail" && (this.appState.currentSongDetail?.music_id === songId || this.appState.currentSongDetail?.id === songId ))) {
-        if (this.activePageModule && typeof this.activePageModule.onLoad === 'function') {
-            console.log(`NavigationManager: Re-loading page ${currentPageId} due to collection change impacting it.`);
-            const managers = { /* construct managers object again */
-                webSocketManager: this.webSocketManager, playerManager: this.playerManager,
-                uiManager: this.uiManager, searchManager: this.searchManager,
-                favoriteManager: this.favoriteManager, collectionManager: this.collectionManager,
-                uploadManager: this.uploadManager, navigationManager: this
-            };
-            this.activePageModule.onLoad(this.mainContent, currentSubPageId, this.appState, managers);
-        }
-     }
+    // If a song is added/removed from ANY collection, and we are on the home page, refresh home.
+    // This is because song cards on home show "add to collection" status which might change.
+    // Or, more simply, if the current song detail page is open and that song is added/removed from a collection.
+    else if (currentPageId === "home" || (currentPageId === "song-detail" && (this.appState.currentSongDetail?.music_id === songId || this.appState.currentSongDetail?.id === songId))) {
+      if (this.activePageModule && typeof this.activePageModule.onLoad === 'function') {
+        console.log(`NavigationManager: Re-loading page ${currentPageId} due to collection change impacting it.`);
+        const managers = { /* construct managers object again */
+          webSocketManager: this.webSocketManager, playerManager: this.playerManager,
+          uiManager: this.uiManager, searchManager: this.searchManager,
+          favoriteManager: this.favoriteManager, collectionManager: this.collectionManager,
+          uploadManager: this.uploadManager, navigationManager: this
+        };
+        this.activePageModule.onLoad(this.mainContent, currentSubPageId, this.appState, managers);
+      }
+    }
   }
-  
+
   getCurrentPageId() { // Keep one definition
-      return this.currentPageId || (location.hash.substring(1).split("/")[0] || "home");
+    return this.currentPageId || (location.hash.substring(1).split("/")[0] || "home");
   }
 
   getCurrentSubPageId() {
-    return this.currentSubPageId || (location.hash.substring(1).split("/")[1] || null) ;
+    return this.currentSubPageId || (location.hash.substring(1).split("/")[1] || null);
   }
 
   handlePopState(event) {
@@ -496,10 +472,12 @@ class NavigationManager {
       let title =
         pageIdFromState.charAt(0).toUpperCase() + pageIdFromState.slice(1);
       if (pageIdFromState === "search-results") title = "Search Results";
-      if (pageIdFromState === "collection-detail" && subPageIdFromState)
-        title = subPageIdFromState;
+      if (pageIdFromState === "song-detail") {
+        this.navigateTo("home", "Home", "#home", true);
+        return;
+      }
 
-      if (!this.pageModulesRegistry[pageIdFromState]) { // Changed from this.pageContents
+      if (!this.pageModulesRegistry[pageIdFromState]) {
         console.warn(
           `Invalid page ID in popstate: "${pageIdFromState}". Redirecting to home.`
         );
@@ -508,8 +486,7 @@ class NavigationManager {
         this.navigateTo(
           pageIdFromState,
           title,
-          `#${pageIdFromState}${
-            subPageIdFromState ? "/" + subPageIdFromState : ""
+          `#${pageIdFromState}${subPageIdFromState ? "/" + subPageIdFromState : ""
           }`,
           true,
           subPageIdFromState
@@ -532,12 +509,16 @@ class NavigationManager {
   }
 
   handleInitialLoad() {
-    const hash = location.hash.substring(1);
+    const hash = (location.hash || '#home').substring(1);
     const parts = hash.split("/");
     let initialPage = parts[0] || "home";
     const initialSubPageId = parts[1] || null;
 
-    if (!this.pageModulesRegistry[initialPage]) { // Changed from this.pageContents
+    if (initialPage === "song-detail") {
+      initialPage = "home";
+    }
+
+    if (!this.pageModulesRegistry[initialPage]) {
       console.warn(
         `Invalid page ID in URL hash: "${initialPage}". Defaulting to home.`
       );
@@ -548,7 +529,7 @@ class NavigationManager {
     if (initialPage === "search-results") {
       initialTitle = "Search Results";
     } else if (initialPage === "collection-detail" && initialSubPageId) {
-      initialTitle = initialSubPageId; 
+      initialTitle = initialSubPageId;
     } else {
       const initialLink = document.querySelector(
         `.drawer-link[data-page="${initialPage}"]`
@@ -558,9 +539,8 @@ class NavigationManager {
         initialPage.charAt(0).toUpperCase() + initialPage.slice(1);
     }
 
-    const initialPath = `#${initialPage}${
-      initialSubPageId ? "/" + initialSubPageId : ""
-    }`;
+    const initialPath = `#${initialPage}${initialSubPageId ? "/" + initialSubPageId : ""
+      }`;
 
     history.replaceState(
       { pageId: initialPage, subPageId: initialSubPageId },
@@ -578,9 +558,9 @@ class NavigationManager {
       );
 
     if (
-      initialPage === "home" || (this.webSocketManager && 
-      typeof this.webSocketManager.isSocketNeededForPage === 'function' && 
-      this.webSocketManager.isSocketNeededForPage(initialPage))
+      initialPage === "home" || (this.webSocketManager &&
+        typeof this.webSocketManager.isSocketNeededForPage === 'function' &&
+        this.webSocketManager.isSocketNeededForPage(initialPage))
     ) {
       if (
         this.webSocketManager.socket &&
@@ -593,7 +573,7 @@ class NavigationManager {
           .then(navigateLogic)
           .catch((err) => {
             console.error("Socket connection failed for initial load:", err);
-            navigateLogic(); 
+            navigateLogic();
           });
       }
     } else {
@@ -601,8 +581,8 @@ class NavigationManager {
     }
     console.log(
       "NavigationManager initialized. Initial page: " +
-        initialPage +
-        (initialSubPageId ? `/${initialSubPageId}` : "")
+      initialPage +
+      (initialSubPageId ? `/${initialSubPageId}` : "")
     );
   }
 
@@ -622,19 +602,23 @@ class NavigationManager {
 
   navigateToSongDetail(trackObject) {
     this.appState.currentSongDetail = trackObject;
-    const songHash = trackObject.music_id || trackObject.id || Date.now(); 
-    this.navigateTo(
-      "song-detail",
-      trackObject.title || "Song Detail",
-      `#song-detail/${songHash}`
-    );
+    UIManager.toggleSongDetail(true, trackObject, this.appState, {
+      webSocketManager: this.webSocketManager,
+      playerManager: this.playerManager,
+      uiManager: this.uiManager,
+      searchManager: this.searchManager,
+      favoriteManager: this.favoriteManager,
+      collectionManager: this.collectionManager,
+      uploadManager: this.uploadManager,
+      navigationManager: this
+    });
   }
-  
+
   // Removed handleUpdateCoverFileSelect, handleUpdateTrackSubmit, handleDeleteTrack
   // These are now handled by UIManager or specific managers/page modules.
 
   handleMainContentClick(event) {
-    const inlineLink = event.target.closest(".inline-nav-link"); 
+    const inlineLink = event.target.closest(".inline-nav-link");
     if (inlineLink && inlineLink.dataset.page) {
       event.preventDefault();
       const pageId = inlineLink.dataset.page;

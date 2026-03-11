@@ -5,8 +5,10 @@
 
 // 假设有鼓点检测和高潮检测算法
 // 可用如 music-beat-detector、music-tempo、ml5.js pitch detection等库、或简单实现
-import { pauseEditorAndResetButton } from './LyricsEditor.js'; // Import the function
+import { pauseEditorAndResetButton } from './LyricsEditor.js';
 import UIManager from "./UIManager.js";
+import TrackAdapter from './TrackAdapter.js';
+
 const ALLOWED_PLAY_MODE = ["list-loop", "single-loop", "random"];
 const PLAY_MODE_MAPPED_ICON = ["repeat", "repeat_one", "shuffle"];
 class PlayerManager {
@@ -77,7 +79,7 @@ class PlayerManager {
       // 根据 audio 事件更新播放按钮图标
       const updatePlayPauseIcon = () => {
         if (icon) {
-          icon.textContent = this.audio.paused ? "play_arrow" : "pause_arrow";
+          icon.textContent = this.audio.paused ? "play_arrow" : "pause";
         }
       };
 
@@ -118,12 +120,17 @@ class PlayerManager {
       this.playerVolumeSlider.addEventListener("input", (e) => {
         const value = Number(e.target.value);
         const normalizedVolume = value / 100;
-        
-        // 使用volumeGainNode来控制音量，而不是直接设置audio.volume
-        if (this.volumeGainNode) {
+
+        // 使用volumeGainNode来控制音量，确保AudioContext已恢复
+        if (this.volumeGainNode && this.audioCtx.state !== 'suspended') {
           this.volumeGainNode.gain.setValueAtTime(normalizedVolume, this.audioCtx.currentTime);
+        } else if (this.volumeGainNode) {
+          // 如果AudioContext被挂起，先恢复再设置音量
+          this.audioCtx.resume().then(() => {
+            this.volumeGainNode.gain.setValueAtTime(normalizedVolume, this.audioCtx.currentTime);
+          });
         }
-        
+
         // 保存音量设置到localStorage
         localStorage.setItem('player_volume', normalizedVolume);
       });
@@ -182,6 +189,12 @@ class PlayerManager {
         // 设置进度条最大值为音乐总时长
         this.playerProgressBar.max = this.audio.duration * 100;
         this.playerProgressBar.value = this.audio.currentTime * 100;
+      }
+      // Update circular progress on show button
+      const showButtonProgress = document.querySelector("#player-show-button .progress-bar");
+      if (showButtonProgress && this.audio.duration) {
+        const percentage = (this.audio.currentTime / this.audio.duration) * 100;
+        showButtonProgress.style.strokeDasharray = `${percentage}, 100`;
       }
       if (this.playerCurrentTime) {
         const min = Math.floor(this.audio.currentTime / 60);
@@ -278,8 +291,8 @@ class PlayerManager {
       };
     }
   }
-  getCurrentTime(){
-    if(this.audio && this.audio.currentTime) {
+  getCurrentTime() {
+    if (this.audio && this.audio.currentTime) {
       return this.audio.currentTime;
     }
   }
@@ -287,111 +300,200 @@ class PlayerManager {
     this.playlist = playlist;
     this.currentIndex = 0;
   }
+
+  // 智能跑马灯检测：仅在文本溢出时开启滚动
+  checkMarquee(elementId) {
+    const scroller = document.getElementById(elementId);
+    if (!scroller) return;
+    const textContainer = scroller.querySelector('.marquee-text');
+    const innerText = textContainer.firstElementChild;
+
+    // 重置状态
+    scroller.classList.remove('can-scroll');
+    textContainer.style.animation = 'none';
+
+    // 强制同步布局检查
+    requestAnimationFrame(() => {
+      // 在 inline-block 模式下，innerText.offsetWidth 代表内容的实际渲染宽度
+      if (innerText.offsetWidth > scroller.offsetWidth) {
+        scroller.classList.add('can-scroll');
+        const text = innerText.textContent;
+        textContainer.setAttribute('data-content', text);
+        // 让动画即刻生效
+        textContainer.style.animation = '';
+      }
+    });
+  }
   setupAudioContext() {
     this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     this.analyser = this.audioCtx.createAnalyser();
     this.analyser.fftSize = 2048;
-    
-    // 创建增益节点用于响度归一化
-    this.gainNode = this.audioCtx.createGain();
-    this.gainNode.gain.value = 1.0; // 初始增益为1
-    
-    // 创建增益节点用于音量控制
+
+    // 创建智能增益节点（用于响度均衡）
+    this.smartGainNode = this.audioCtx.createGain();
+    this.smartGainNode.gain.value = 1.0;
+
+    // 创建用户音量控制节点
     this.volumeGainNode = this.audioCtx.createGain();
-    this.volumeGainNode.gain.value = 1.0; // 初始音量为1
-    
+    this.volumeGainNode.gain.value = 0.2;
+
+
     this.source = this.audioCtx.createMediaElementSource(this.audio);
-    
-    // 重新设置音频节点连接链：source -> normalization -> volume -> analyser -> destination
-    this.source.connect(this.gainNode);
-    this.gainNode.connect(this.volumeGainNode);
+
+    // 音频节点连接链：source -> smartGain -> volume -> analyser -> destination
+    this.source.connect(this.smartGainNode);
+    this.smartGainNode.connect(this.volumeGainNode);
     this.volumeGainNode.connect(this.analyser);
     this.analyser.connect(this.audioCtx.destination);
-    
+
+    // 音频间响度均衡相关变量
+    this.targetLoudness = -23; // EBU R128 标准目标响度
+    this.trackLoudnessCache = new Map(); // 缓存后端获取的响度数据
+
+    // 响度均衡强度设置 (0-1, 0=关闭, 1=最大)
+    this.loudnessNormalizationStrength = parseFloat(localStorage.getItem('loudness_normalization_strength') || '0.8');
+
+    // WebSocket连接用于获取响度数据
+    this.websocket = null;
+    this.connectWebSocket();
+
     // 设置初始音量
     const savedVolume = localStorage.getItem('player_volume');
-    if (savedVolume !== null) {
-      const volume = parseFloat(savedVolume);
-      this.volumeGainNode.gain.setValueAtTime(volume, this.audioCtx.currentTime);
-      if (this.playerVolumeSlider) {
-        this.playerVolumeSlider.value = volume * 100;
-      }
+    const volume = (savedVolume !== null) ? parseFloat(savedVolume) : 0.2;
+    this.volumeGainNode.gain.setValueAtTime(volume, this.audioCtx.currentTime);
+    if (this.playerVolumeSlider) {
+      this.playerVolumeSlider.value = volume * 100;
     }
+
   }
 
-  // 计算音频的LUFS值
-  async calculateLUFS() {
-    if (!this.audio.src) return -14; // 如果没有音频源，返回目标LUFS值
-    
-    const audioData = await this.getAudioData();
-    if (!audioData) return -14;
-    
-    // 简化的LUFS计算
-    // 实际的LUFS计算需要考虑K加权滤波和门限处理
-    // 这里使用RMS作为简化的替代方案
-    const rms = this.calculateRMS(audioData);
-    // 将RMS转换为近似LUFS值
-    // 这是一个简化的转换，实际LUFS计算更复杂
-    const lufs = 20 * Math.log10(rms) - 23;
-    
-    return lufs;
-  }
+  // WebSocket连接管理
+  connectWebSocket() {
+    if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+      return;
+    }
 
-  // 获取音频数据
-  async getAudioData() {
     try {
-      const response = await fetch(this.audio.src);
-      const arrayBuffer = await response.arrayBuffer();
-      const audioBuffer = await this.audioCtx.decodeAudioData(arrayBuffer);
-      
-      // 合并所有声道
-      const numberOfChannels = audioBuffer.numberOfChannels;
-      const length = audioBuffer.length;
-      const mergedData = new Float32Array(length);
-      
-      for (let channel = 0; channel < numberOfChannels; channel++) {
-        const channelData = audioBuffer.getChannelData(channel);
-        for (let i = 0; i < length; i++) {
-          mergedData[i] += channelData[i] / numberOfChannels;
-        }
-      }
-      
-      return mergedData;
+      this.websocket = new WebSocket('ws://localhost:8765');
+
+      this.websocket.onopen = () => {
+        console.log('Loudness WebSocket connected');
+      };
+
+      this.websocket.onmessage = (event) => {
+        this.handleWebSocketMessage(event.data);
+      };
+
+      this.websocket.onclose = () => {
+        console.log('Loudness WebSocket disconnected');
+        // 尝试重连
+        setTimeout(() => this.connectWebSocket(), 3000);
+      };
+
+      this.websocket.onerror = (error) => {
+        console.error('Loudness WebSocket error:', error);
+      };
     } catch (error) {
-      console.error('Error getting audio data:', error);
-      return null;
+      console.error('Failed to create WebSocket:', error);
     }
   }
 
-  // 计算RMS值
-  calculateRMS(data) {
-    let sum = 0;
-    for (let i = 0; i < data.length; i++) {
-      sum += data[i] * data[i];
+  // 处理WebSocket消息
+  handleWebSocketMessage(data) {
+    try {
+      const message = JSON.parse(data);
+      if (message.cmd_id && message.cmd_id.startsWith('loudness_')) {
+        this.handleLoudnessResponse(message);
+      }
+    } catch (error) {
+      console.error('Error parsing WebSocket message:', error);
     }
-    return Math.sqrt(sum / data.length);
   }
 
-  // 应用响度归一化
-  async applyLoudnessNormalization() {
-    const targetLUFS = -14; // 目标LUFS值
-    const maxGainDB = 6; // 最大增益限制(dB)
-    
-    const currentLUFS = await this.calculateLUFS();
-    
-    // 计算需要的增益
-    let gainDB = targetLUFS - currentLUFS;
-    
-    // 限制最大增益
-    gainDB = Math.min(gainDB, maxGainDB);
-    
-    // 将dB转换为线性增益
-    const linearGain = Math.pow(10, gainDB / 20);
-    
-    // 应用增益
-    if (this.gainNode) {
-      this.gainNode.gain.setValueAtTime(linearGain, this.audioCtx.currentTime);
+  // 处理响度数据响应
+  handleLoudnessResponse(message) {
+    if (message.code === 200 && message.data.has_loudness_data) {
+      const { music_id, gain_adjustment } = message.data;
+
+      // 缓存响度数据
+      this.trackLoudnessCache.set(music_id, message.data);
+
+      // 如果是当前播放的音频，立即应用增益
+      const currentTrack = this.getCurrentTrack();
+      if (currentTrack && currentTrack.music_id === music_id) {
+        this.applyLoudnessGain(gain_adjustment);
+      }
     }
+  }
+
+  // 应用响度增益
+  applyLoudnessGain(gainAdjustment) {
+    if (!this.smartGainNode || this.loudnessNormalizationStrength === 0) {
+      return;
+    }
+
+    // 应用响度均衡强度设置
+    const adjustedGain = 1.0 + (gainAdjustment - 1.0) * this.loudnessNormalizationStrength;
+
+    // 平滑应用增益
+    this.smartGainNode.gain.setTargetAtTime(
+      adjustedGain,
+      this.audioCtx.currentTime,
+      0.1 // 100ms平滑过渡
+    );
+
+    console.log(`Applied loudness gain: ${adjustedGain.toFixed(2)}`);
+  }
+
+  // 从后端获取响度数据
+  async fetchLoudnessData(musicId) {
+    if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) {
+      console.warn('WebSocket not connected, cannot fetch loudness data');
+      return;
+    }
+
+    // 检查缓存
+    if (this.trackLoudnessCache.has(musicId)) {
+      const cachedData = this.trackLoudnessCache.get(musicId);
+      if (cachedData.has_loudness_data) {
+        this.applyLoudnessGain(cachedData.gain_adjustment);
+        return;
+      }
+    }
+
+    // 从后端获取
+    const message = {
+      cmd: 'get_loudness_data',
+      cmd_id: `loudness_${Date.now()}`,
+      music_id: musicId
+    };
+
+    this.websocket.send(JSON.stringify(message));
+  }
+
+  // 重置响度分析（切换歌曲时调用）
+  resetLoudnessAnalysis() {
+    // 重置增益为默认值
+    if (this.smartGainNode) {
+      this.smartGainNode.gain.setValueAtTime(1.0, this.audioCtx.currentTime);
+    }
+
+    // 获取当前音频的响度数据
+    const currentTrack = this.getCurrentTrack();
+    if (currentTrack && currentTrack.music_id) {
+      this.fetchLoudnessData(currentTrack.music_id);
+    }
+  }
+
+  // 设置响度均衡强度
+  setLoudnessNormalizationStrength(strength) {
+    this.loudnessNormalizationStrength = Math.max(0, Math.min(1, strength));
+    localStorage.setItem('loudness_normalization_strength', this.loudnessNormalizationStrength.toString());
+  }
+
+  // 获取响度均衡强度
+  getLoudnessNormalizationStrength() {
+    return this.loudnessNormalizationStrength;
   }
 
   setupThemeListener() {
@@ -418,22 +520,28 @@ class PlayerManager {
     if (!this.playlist[index]) return;
     this.currentLoadedTrack = this.playlist[index];
     this.currentIndex = index;
-    this.audio.src = "." + this.playlist[index].audio_path;
+
+    const audioPath = TrackAdapter.getAudioPath(this.playlist[index]);
+    if (audioPath) {
+      this.audio.src = audioPath;
+    } else {
+      console.warn('[PlayerManager] Track has no local audio_path:', this.playlist[index]);
+    }
+
     if (this.coverImgElement) {
-      this.coverImgElement.src = this.playlist[index].cover_path
-          ? "." + this.playlist[index].cover_path
-          : this.playlist[index].artwork_url || 'placeholder_album_art.png';
-      this.coverImgElement.onload = () => this.extractCoverColor();
+      this.coverImgElement.src = TrackAdapter.getCoverUrl(this.playlist[index]);
+      this.coverImgElement.onload = () => {
+        this.extractCoverColor();
+        // 更新 UI 后检查跑马灯
+        this.checkMarquee('title-scroller');
+        this.checkMarquee('artist-scroller');
+      };
     }
     this.climaxDetected = false;
-    
-    // 在音频加载完成后应用响度归一化
-    this.audio.addEventListener('loadeddata', () => {
-      this.applyLoudnessNormalization().catch(err => 
-        console.error('Error applying loudness normalization:', err)
-      );
-    }, { once: true }); // 只执行一次
+    // 重置响度分析
+    this.resetLoudnessAnalysis();
   }
+
   findTrackById(id) {
     return this.playlist.findIndex((track) => track.music_id === id);
   }
@@ -453,7 +561,7 @@ class PlayerManager {
   play() {
     // Pause LyricsEditor audio if it's playing
     if (this.lyricsEditorAudioRef && !this.lyricsEditorAudioRef.paused) {
-        pauseEditorAndResetButton(); // This function is imported from LyricsEditor.js
+      pauseEditorAndResetButton(); // This function is imported from LyricsEditor.js
     }
 
     this.audioCtx.resume(); // Ensure AudioContext is resumed
@@ -476,31 +584,52 @@ class PlayerManager {
       return;
     }
     try {
-      const trackInfo = JSON.parse(trackInfoString);
-      if (this.playerTrackTitle) {
-        this.playerTrackTitle.textContent = trackInfo.title || "Unknown Title";
-      }
-      if (this.playerTrackArtist) {
-        this.playerTrackArtist.textContent = trackInfo.artist || "Unknown Artist";
-      }
-      
-      this.playTrackById(trackInfo.music_id); // This should load and play the track
-      
-      UIManager.setPlayerVisibility(true); // Make player visible
+      const rawTrack = JSON.parse(trackInfoString);
+      const track = TrackAdapter.normalize(rawTrack);
 
-      // Update the main player's play/pause button icon to 'pause'
-      if (this.playerPlayPauseButton) {
-        const icon = this.playerPlayPauseButton.querySelector(".material-icons");
-        if (icon) {
-          icon.textContent = "pause_arrow"; 
+      if (this.playerTrackTitle) this.playerTrackTitle.textContent = track.title || "Unknown Title";
+      if (this.playerTrackArtist) this.playerTrackArtist.textContent = TrackAdapter.getArtist(track) || "Unknown Artist";
+
+      // 先尝试在 playlist 中找该曲（playlist 有完整本地路径）
+      const playlistIndex = this.findTrackById(track.music_id);
+      if (playlistIndex !== -1) {
+        this.loadTrack(playlistIndex);
+        this.play();
+      } else {
+        // playlist 中没有（下载完成但尚未刷新 playlist）：
+        // 直接用适配器解析出的路径播放
+        const audioPath = TrackAdapter.getAudioPath(track);
+        if (audioPath) {
+          this.audio.src = audioPath;
+          this.currentLoadedTrack = track;
+          if (this.coverImgElement) {
+            this.coverImgElement.src = TrackAdapter.getCoverUrl(track);
+            this.coverImgElement.onload = () => this.extractCoverColor();
+          }
+          this.play();
+        } else {
+          console.warn('[PlayerManager] Track not in playlist and no audio_path:', track);
+          UIManager.showToast('Cannot play: track not yet downloaded.', 'warning');
         }
       }
+
+      UIManager.setPlayerVisibility(true);
+
+      if (this.playerPlayPauseButton) {
+        const icon = this.playerPlayPauseButton.querySelector(".material-icons");
+        if (icon) icon.textContent = "pause";
+      }
+
+      // 检查跑马灯
+      this.checkMarquee('title-scroller');
+      this.checkMarquee('artist-scroller');
     } catch (e) {
       console.error("Failed to parse track info for playTrackFromCard:", e);
       UIManager.showToast("Error playing track: Invalid track data.", "error");
     }
   }
-  
+
+
   // Allow external modules (like LyricsEditor) to pause the main player.
   pauseTrack() {
     this.pause();
@@ -569,24 +698,61 @@ class PlayerManager {
     return this.currentLoadedTrack || null;
   }
   extractCoverColor() {
-    if (!this.coverImgElement.complete) return;
+    if (!this.coverImgElement || !this.coverImgElement.complete) return;
     const colorThief = new ColorThief();
-    let color = [200, 200, 200];
     try {
-      color = colorThief.getColor(this.coverImgElement);
-    } catch (e) {}
-    color = this.adjustColorForTheme(color, this.theme);
-    if (this.onColorChange) this.onColorChange(color);
-    this.setBackgroundBandsColor(color);
+      // 1. 扩大采样至 10 个关键色
+      const palette = colorThief.getPalette(this.coverImgElement, 10);
+      if (!palette || palette.length < 1) return;
+
+      // 2. 环境色彩过滤器：过滤掉过于接近白色或灰色的颜色
+      const filteredPalette = palette.filter(color => {
+        const [r, g, b] = color;
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        const saturation = (max - min) / (max || 1);
+        const brightness = max / 255;
+        // 剔除高亮度低饱和度的杂色
+        return !(brightness > 0.8 && saturation < 0.2);
+      });
+
+      // 3. 核心优化：权重倾斜。按照亮度升序排列，让“深色”排在最前面
+      filteredPalette.sort((a, b) => {
+        const brightA = (a[0] * 299 + a[1] * 587 + a[2] * 114) / 1000;
+        const brightB = (b[0] * 299 + b[1] * 587 + b[2] * 114) / 1000;
+        return brightA - brightB;
+      });
+
+      const finalPalette = filteredPalette.length >= 2 ? filteredPalette : palette;
+      
+      const color1 = this.adjustColorForTheme(finalPalette[0], this.theme);
+      const color2 = this.adjustColorForTheme(finalPalette[1] || finalPalette[0], this.theme);
+
+      // 构建渐变背景
+      const gradient = `linear-gradient(135deg, rgba(${color1[0]}, ${color1[1]}, ${color1[2]}, 0.85), rgba(${color2[0]}, ${color2[1]}, ${color2[2]}, 0.85))`;
+      if (this.playerFooter) {
+        this.playerFooter.style.setProperty('--player-bg-gradient', gradient);
+      }
+
+      if (this.onColorChange) this.onColorChange(color1);
+      this.setBackgroundBandsColor(color1);
+    } catch (e) {
+      console.error("ColorThief failed:", e);
+    }
   }
 
   adjustColorForTheme(color, theme) {
-    // color: [r,g,b]
     let [r, g, b] = color;
     if (theme === "dark") {
-      r = Math.floor(r * 0.6);
-      g = Math.floor(g * 0.6);
-      b = Math.floor(b * 0.6);
+      // 计算原始亮度 (0-255)
+      const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+      
+      // 动态压暗系数：如果颜色本身很亮，压暗力度加大 (0.2x)；如果已经很深，保持温和 (0.4x)
+      const factor = brightness > 150 ? 0.2 : 0.35;
+      
+      r = Math.floor(r * factor);
+      g = Math.floor(g * factor);
+      b = Math.floor(b * factor);
     } else {
       r = Math.min(255, Math.floor(r * 1.2));
       g = Math.min(255, Math.floor(g * 1.2));
@@ -648,6 +814,8 @@ class PlayerManager {
     const animate = (now) => {
       this.analyser.getByteFrequencyData(dataArray);
 
+      // 不再需要实时分析，响度数据由后端提供
+
       // 计算低频能量（均方根 RMS）
       let bassSum = 0;
       for (let i = lowFreqStart; i <= lowFreqEnd; i++) {
@@ -707,6 +875,9 @@ class PlayerManager {
       });
     }
     this.triggerClimaxAnimation(false);
+
+    // 重置帧计数
+    this.frameCount = 0;
   }
 
   triggerBeatAnimation(bands) {
@@ -740,7 +911,7 @@ class PlayerManager {
  * 订阅播放器状态变化。
  * @param {function} callback 当播放状态改变时调用的回调函数。
  */
-PlayerManager.prototype.onStateChange = function(callback) {
+PlayerManager.prototype.onStateChange = function (callback) {
   this.stateChangeCallbacks.add(callback);
 };
 
@@ -748,14 +919,14 @@ PlayerManager.prototype.onStateChange = function(callback) {
  * 取消订阅播放器状态变化。
  * @param {function} callback 要移除的回调函数。
  */
-PlayerManager.prototype.offStateChange = function(callback) {
+PlayerManager.prototype.offStateChange = function (callback) {
   this.stateChangeCallbacks.delete(callback);
 };
 
 /**
  * 通知所有订阅者状态已改变。
  */
-PlayerManager.prototype.notifyStateChange = function() {
+PlayerManager.prototype.notifyStateChange = function () {
   const state = {
     isPlaying: this.isPlaying,
     track: this.getCurrentTrack()
