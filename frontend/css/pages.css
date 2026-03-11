@@ -4,7 +4,7 @@
     left: var(--sidebar-width);
     width: calc(100vw - var(--sidebar-width));
     height: calc(100vh - 70px);
-    background: rgba(255, 255, 255, 0.01); /* Minimal tint for glass feel */
+    background: transparent; /* 完全透明背景 */
     z-index: 1500; 
     overflow-y: auto;
     
@@ -137,12 +137,12 @@
 
 #song-detail-page {
     display: flex;
+    flex-direction: column; /* Stack handle on top */
     height: 100%;
     width: calc(100vw - var(--sidebar-width) - 40px);
     max-width: 1300px;
     margin: 0 auto;
-    padding: 40px 0;
-    gap: 60px;
+    padding: 0 0 40px 0; /* Adjust padding for handle */
     opacity: 0;
     transition: opacity 0.4s ease;
     position: relative;
@@ -153,27 +153,54 @@
     opacity: 1;
 }
 
-#song-detail-back-button.glass-button {
-    position: absolute;
-    top: 20px;
-    left: 20px;
-    z-index: 10;
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(10px);
-    border-radius: 50%;
-    width: 40px;
-    height: 40px;
+/* Drag Handle Styles */
+.drag-handle-container {
+    padding: 20px 0;
+    width: 100%;
     display: flex;
-    align-items: center;
     justify-content: center;
-    color: var(--text-color-primary);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    transition: all 0.3s ease;
+    cursor: grab;
+    z-index: 110; /* Ensure its on top */
+    flex-shrink: 0;
 }
 
-#song-detail-back-button.glass-button:hover {
-    background: rgba(255, 255, 255, 0.2);
-    transform: translateY(-2px);
+.drag-handle-container:active {
+    cursor: grabbing;
+}
+
+.drag-handle {
+    width: 36px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
+    transition: background 0.3s ease, transform 0.2s ease;
+}
+
+.drag-handle-container:hover .drag-handle {
+    background: rgba(255, 255, 255, 0.3);
+    transform: scaleX(1.1);
+}
+
+.song-detail-main-content {
+    display: flex;
+    flex: 1;
+    gap: 60px;
+    padding: 20px 0;
+    overflow: hidden;
+}
+
+#song-detail-overlay.dragging {
+    transition: none !important;
+    user-select: none !important;
+    cursor: grabbing !important;
+}
+
+#song-detail-overlay.dragging * {
+    pointer-events: none !important; /* Prevent interaction with children while dragging */
+}
+
+#song-detail-overlay.dragging .drag-handle-container {
+    pointer-events: auto !important;
 }
 
 .song-detail-left {

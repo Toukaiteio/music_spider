@@ -14,29 +14,31 @@ class SongDetailPage {
   getHTML() {
     return `
             <div id="song-detail-page">
-                <button id="song-detail-back-button" class="icon-button glass-button" aria-label="Go Back">
-                  <span class="material-icons">expand_more</span>
-                </button>
-                <div class="song-detail-left">
-                    <div class="detail-cover-container">
-                      <img src="placeholder_album_art.png" alt="Album Art" id="detail-cover-art">
-                    </div>
-                    <div class="detail-info-group">
-                      <h2 id="detail-title">Track Title</h2>
-                      <p id="detail-artist">Artist Name</p>
-                    </div>
-                    <div id="detail-action-buttons">
-                        <button class="detail-add-to-collection-button icon-button" title="Add to Collection"><span class="material-icons">playlist_add</span></button>
-                        <button class="detail-update-button icon-button" aria-label="Update Track Info" title="Edit Track Info"><span class="material-icons">edit</span></button>
-                    </div>
+                <div class="drag-handle-container">
+                  <div class="drag-handle"></div>
                 </div>
-                <div class="song-detail-right">
-                    <div id="lyrics-display-area" class="lyrics-display-area-no-lyrics">
-                        <p>正在加载歌词...</p>
+                <div class="song-detail-main-content">
+                    <div class="song-detail-left">
+                        <div class="detail-cover-container">
+                          <img src="placeholder_album_art.png" alt="Album Art" id="detail-cover-art">
+                        </div>
+                        <div class="detail-info-group">
+                          <h2 id="detail-title">Track Title</h2>
+                          <p id="detail-artist">Artist Name</p>
+                        </div>
+                        <div id="detail-action-buttons">
+                            <button class="detail-add-to-collection-button icon-button" title="Add to Collection"><span class="material-icons">playlist_add</span></button>
+                            <button class="detail-update-button icon-button" aria-label="Update Track Info" title="Edit Track Info"><span class="material-icons">edit</span></button>
+                        </div>
                     </div>
-                    <button id="upload-lyrics-button" class="icon-button" style="display: none;">
-                        <span class="material-icons">upload_file</span>
-                    </button>
+                    <div class="song-detail-right">
+                        <div id="lyrics-display-area" class="lyrics-display-area-no-lyrics">
+                            <p>正在加载歌词...</p>
+                        </div>
+                        <button id="upload-lyrics-button" class="icon-button" style="display: none;">
+                            <span class="material-icons">upload_file</span>
+                        </button>
+                    </div>
                 </div>
             </div>
     `;
@@ -128,20 +130,97 @@ class SongDetailPage {
       if (songId) addToCollectionButtonEl.dataset.songId = songId;
     }
 
-    // Back button for song detail page
-    const backButton = mainContentElement.querySelector(
-      "#song-detail-back-button"
-    );
-    if (backButton && managers.navigationManager) {
-      // Remove previous listener if any, to avoid multiple attachments if page is reloaded somehow
-      // This is a simple way; a more robust way would be to store and remove the exact bound function.
-      const newBackButton = backButton.cloneNode(true);
-      backButton.parentNode.replaceChild(newBackButton, backButton);
-      newBackButton.addEventListener(
-        "click",
-        () => UIManager.toggleSongDetail(false, null, appState, managers)
-      );
+    // --- Interactive Close Logic ---
+    const overlay = document.getElementById('song-detail-overlay');
+    const dragHandle = mainContentElement.querySelector('.drag-handle-container');
+    
+    // 1. Drag to Close (Vertical Swipe)
+    let startY = 0;
+    let currentY = 0;
+    let isDragging = false;
+
+    if (dragHandle && overlay) {
+      // Ensure overlay starts clean
+      overlay.style.transform = '';
+      overlay.style.opacity = '';
+
+      const startDrag = (e) => {
+        // Stop events from reaching layers below
+        e.stopPropagation();
+        
+        startY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+        isDragging = true;
+        overlay.classList.add('dragging');
+        
+        window.addEventListener('mousemove', onDrag, { passive: false });
+        window.addEventListener('touchmove', onDrag, { passive: false });
+        window.addEventListener('mouseup', stopDrag);
+        window.addEventListener('touchend', stopDrag);
+      };
+
+      const onDrag = (e) => {
+        if (!isDragging) return;
+        e.stopPropagation();
+        if (e.cancelable) e.preventDefault(); // Prevent scrolling/selection while dragging
+        
+        currentY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
+        const deltaY = Math.max(0, currentY - startY); // Only allow dragging down
+        
+        // Apply visual feedback
+        overlay.style.setProperty('transform', `translateY(${deltaY}px) scale(${1 - (deltaY / 3000)})`, 'important');
+        overlay.style.setProperty('opacity', 1 - (deltaY / 1200), 'important');
+      };
+
+      const stopDrag = (e) => {
+        if (!isDragging) return;
+        if (e) e.stopPropagation();
+        
+        isDragging = false;
+        overlay.classList.remove('dragging');
+        const deltaY = currentY - startY;
+        
+        if (deltaY > 150) {
+          // Trigger close
+          UIManager.toggleSongDetail(false, null, appState, managers);
+          // UIManager.toggleSongDetail handles the rest, 
+          // but we reset styles in onUnload to be safe for next expansion
+        } else {
+          // Snap back
+          overlay.style.transform = '';
+          overlay.style.opacity = '';
+        }
+
+        window.removeEventListener('mousemove', onDrag);
+        window.removeEventListener('touchmove', onDrag);
+        window.removeEventListener('mouseup', stopDrag);
+        window.removeEventListener('touchend', stopDrag);
+      };
+
+      dragHandle.addEventListener('mousedown', startDrag);
+      dragHandle.addEventListener('touchstart', startDrag, { passive: false });
+      
+      // Store references for cleanup
+      this._dragStartListener = startDrag;
+      this._dragMoveListener = onDrag;
+      this._dragEndListener = stopDrag;
     }
+
+    // 2. Double Click on Empty Area (Left/Right margins) to Close
+    mainContentElement.addEventListener('dblclick', (e) => {
+      // If the click is directly on the #song-detail-page or .song-detail-content-wrapper (if we had one)
+      // or just check if the target is an "empty" container
+      if (e.target.id === 'song-detail-page' || e.target.classList.contains('song-detail-left') || e.target.classList.contains('song-detail-right')) {
+        UIManager.toggleSongDetail(false, null, appState, managers);
+      }
+    });
+
+    // 3. ESC Key to Close
+    const handleEscKey = (e) => {
+      if (e.key === 'Escape' && overlay && overlay.classList.contains('active')) {
+        UIManager.toggleSongDetail(false, null, appState, managers);
+      }
+    };
+    window.addEventListener('keydown', handleEscKey);
 
     // Lyrics and Upload Lyrics button logic
     const lyricsDisplayArea = mainContentElement.querySelector(
@@ -462,6 +541,8 @@ class SongDetailPage {
         }
       });
     }
+
+    this._keyListener = handleEscKey;
   }
 
   // It's good practice to have a cleanup method for event listeners or animation frames
@@ -476,6 +557,37 @@ class SongDetailPage {
 
     if (this.playerStateCallback && this.playerManager) {
       this.playerManager.offStateChange(this.playerStateCallback);
+    }
+    
+    // Clean up key listener (ESC key)
+    if (this._keyListener) {
+      window.removeEventListener('keydown', this._keyListener);
+    }
+
+    // Clean up double-click listener
+    const songDetailOverlay = document.getElementById('song-detail-overlay');
+    if (songDetailOverlay && this._doubleClickListener) {
+      songDetailOverlay.removeEventListener('dblclick', this._doubleClickListener);
+    }
+
+    // Clean up drag listeners
+    if (this._dragStartListener) {
+      const dragHandle = songDetailOverlay ? songDetailOverlay.querySelector('.drag-handle') : null;
+      if (dragHandle) {
+        dragHandle.removeEventListener('mousedown', this._dragStartListener);
+        dragHandle.removeEventListener('touchstart', this._dragStartListener);
+      }
+      window.removeEventListener('mousemove', this._dragMoveListener);
+      window.removeEventListener('touchmove', this._dragMoveListener);
+      window.removeEventListener('mouseup', this._dragEndListener);
+      window.removeEventListener('touchend', this._dragEndListener);
+    }
+    
+    // Clean up styles modified during dragging if any
+    const overlay = document.getElementById('song-detail-overlay');
+    if (overlay) {
+      overlay.style.transform = '';
+      overlay.style.opacity = '';
     }
   }
 }
