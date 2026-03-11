@@ -5,24 +5,7 @@
     --font-family-primary: 'Roboto', sans-serif;
     --font-family-icons: 'Material Icons';
 
-    /* Light Theme (Default) */
-    --primary-bg-color: #f4f6f8;
-    --secondary-bg-color: #ffffff;
-    --text-color-primary: #212121;
-    --text-color-secondary: #5f6368;
-    --accent-color: #ff6f00;
-    --accent-color-darker: #e65100;
-    --border-color: #e0e0e0;
-    --shadow-color: rgba(0, 0, 0, 0.1);
-    --glass-bg-color: rgba(255, 255, 255, 0.6);
-    --glass-border-color: rgba(255, 255, 255, 0.3);
-    --scrollbar-thumb-color: #c1c1c1;
-    --scrollbar-track-color: #f1f1f1;
-    --icon-color: #5f6368;
-    --accent-color-rgb: 255, 111, 0;
-}
-
-body.dark-theme {
+    /* Dark Theme (Only) */
     --primary-bg-color: #121212;
     --secondary-bg-color: #1e1e1e;
     --accent-color-rgb: 0, 123, 255;
@@ -45,7 +28,6 @@ body {
     background-color: var(--primary-bg-color);
     color: var(--text-color-primary);
     line-height: 1.6;
-    transition: background-color 0.3s, color 0.3s;
     overflow-x: hidden;
 }
 

@@ -46,32 +46,6 @@
     width: 106px;
 }
 
-/* Theme Switcher Button */
-#theme-switcher {
-    background-color: transparent;
-    height: 48px;
-    width: 48px;
-    color: var(--icon-color);
-    border: none;
-    padding: 8px;
-    border-radius: 50%;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: static;
-    margin-left: 0;
-}
-
-#theme-switcher:hover {
-    background-color: var(--shadow-color);
-}
-
-#theme-switcher .material-icons {
-    font-size: 24px;
-    color: var(--icon-color);
-}
-
 /* Main Content Area */
 #main-content {
     grid-area: content;

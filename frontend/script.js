@@ -14,9 +14,7 @@ import {
 } from "./modules/LyricsEditor.js";
 // Removed LyricsEditor imports as they are page-specific or handled by page modules / UIManager
 
-const applyTheme = UIManager.applyTheme;
-const savedTheme = localStorage.getItem("theme") || "light-theme";
-applyTheme(savedTheme);
+
 
 document.addEventListener("DOMContentLoaded", () => {
   const webSocketManager = new WebSocketManager();
@@ -29,7 +27,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const CHUNK_SIZE = 256 * 1024; // 256KB
 
-  UIManager.initThemeSwitcher();
   UIManager.initTaskQueueControls();
   UIManager.initDrawerControls();
   if (!localStorage.getItem("favSongs")) {

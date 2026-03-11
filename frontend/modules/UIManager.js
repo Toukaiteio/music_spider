@@ -3,20 +3,6 @@ class UIManager {
   constructor() {
     throw new Error("UIManager cannot be instantiated");
   }
-  static applyTheme(themeName) {
-    document.body.classList.remove("light-theme", "dark-theme");
-    document.body.classList.add(themeName);
-    localStorage.setItem("theme", themeName); // Save preference
-    const themeSwitcher = document.getElementById("theme-switcher");
-    // Update icon based on theme (optional)
-    if (themeSwitcher) {
-      const icon = themeSwitcher.querySelector(".material-icons");
-      if (icon) {
-        icon.textContent =
-          themeName === "dark-theme" ? "light_mode" : "dark_mode";
-      }
-    }
-  }
   // Example static method
   static updateTaskQueueProgress(percentage) {
     const progressBar = document.querySelector(
@@ -302,21 +288,6 @@ class UIManager {
     });
   }
 
-  static initThemeSwitcher() {
-    const themeSwitcher = document.getElementById("theme-switcher");
-    if (themeSwitcher) {
-      themeSwitcher.addEventListener("click", () => {
-        const currentTheme = document.body.classList.contains("dark-theme")
-          ? "dark-theme"
-          : "light-theme";
-        const newTheme =
-          currentTheme === "dark-theme" ? "light-theme" : "dark-theme";
-        UIManager.applyTheme(newTheme); // applyTheme will also update the icon
-      });
-    } else {
-      console.warn("Theme switcher element (#theme-switcher) not found.");
-    }
-  }
 
   static initTaskQueueControls() {
     const taskQueueButton = document.getElementById("task-queue-button");
