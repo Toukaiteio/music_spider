@@ -41,9 +41,9 @@
       this.track = document.createElement('div');
       this.track.style.position = 'relative';
       this.track.style.width = '100%';
-      this.track.style.height = '5px';
-      this.track.style.backgroundColor = 'var(--border-color, #e5e7eb)';
-      this.track.style.borderRadius = '5px';
+      this.track.style.height = 'var(--dys-range-track-height, 5px)';
+      this.track.style.backgroundColor = 'var(--dys-range-track-bg, var(--border-color, #e5e7eb))';
+      this.track.style.borderRadius = 'var(--dys-range-track-height, 5px)';
       this.track.style.overflow = 'hidden';
 
       // Progress element (filled part)
@@ -52,14 +52,14 @@
       this.progress.style.left = '0';
       this.progress.style.top = '0';
       this.progress.style.height = '100%';
-      this.progress.style.backgroundColor = 'var(--icon-color, #4f46e5)';
+      this.progress.style.backgroundColor = 'var(--dys-range-fill-bg, var(--icon-color, #4f46e5))';
 
       // Thumb element
       this.thumb = document.createElement('div');
       this.thumb.style.position = 'absolute';
-      this.thumb.style.width = '10px';
-      this.thumb.style.height = '10px';
-      this.thumb.style.backgroundColor = 'var(--icon-color, #4f46e5)';
+      this.thumb.style.width = '12px';
+      this.thumb.style.height = '12px';
+      this.thumb.style.backgroundColor = 'var(--dys-range-fill-bg, var(--icon-color, #4f46e5))';
       this.thumb.style.borderRadius = '50%';
       // this.thumb.style.border = '2px solid var(--icon-color, #4f46e5)';
       this.thumb.style.boxShadow = '0 0 2px rgba(0,0,0,0.3)';
@@ -80,6 +80,7 @@
           display: inline-block;
           width: 100%;
           touch-action: none;
+          --dys-range-track-height: 4px;
         }
         :host([disabled]) {
           opacity: 0.6;
