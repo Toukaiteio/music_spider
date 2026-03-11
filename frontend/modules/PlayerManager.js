@@ -701,20 +701,38 @@ class PlayerManager {
     if (!this.coverImgElement || !this.coverImgElement.complete) return;
     const colorThief = new ColorThief();
     try {
-      const palette = colorThief.getPalette(this.coverImgElement, 5);
-      if (palette && palette.length >= 2) {
-        const color1 = this.adjustColorForTheme(palette[0], this.theme);
-        const color2 = this.adjustColorForTheme(palette[1], this.theme);
+      // 1. 扩大采样至 10 个关键色
+      const palette = colorThief.getPalette(this.coverImgElement, 10);
+      if (!palette || palette.length < 1) return;
 
-        // 构建渐变背景
-        const gradient = `linear-gradient(135deg, rgba(${color1[0]}, ${color1[1]}, ${color1[2]}, 0.85), rgba(${color2[0]}, ${color2[1]}, ${color2[2]}, 0.85))`;
-        if (this.playerFooter) {
-          this.playerFooter.style.setProperty('--player-bg-gradient', gradient);
-        }
+      // 2. 环境色彩过滤器：过滤掉过于接近白色或灰色的颜色
+      const filteredPalette = palette.filter(color => {
+        const [r, g, b] = color;
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        const saturation = (max - min) / (max || 1);
+        const brightness = max / 255;
 
-        if (this.onColorChange) this.onColorChange(color1);
-        this.setBackgroundBandsColor(color1);
+        // 剔除：亮度过高(>0.85 且 饱和度过低<0.15) 的亮灰色
+        // 剔除：纯白色区域
+        const isWhiteOrGray = brightness > 0.8 && saturation < 0.2;
+        return !isWhiteOrGray;
+      });
+
+      // 如果过滤后没剩多少，就用原始的
+      const finalPalette = filteredPalette.length >= 2 ? filteredPalette : palette;
+      
+      const color1 = this.adjustColorForTheme(finalPalette[0], this.theme);
+      const color2 = this.adjustColorForTheme(finalPalette[1] || finalPalette[0], this.theme);
+
+      // 构建渐变背景
+      const gradient = `linear-gradient(135deg, rgba(${color1[0]}, ${color1[1]}, ${color1[2]}, 0.85), rgba(${color2[0]}, ${color2[1]}, ${color2[2]}, 0.85))`;
+      if (this.playerFooter) {
+        this.playerFooter.style.setProperty('--player-bg-gradient', gradient);
       }
+
+      if (this.onColorChange) this.onColorChange(color1);
+      this.setBackgroundBandsColor(color1);
     } catch (e) {
       console.error("ColorThief failed:", e);
     }
@@ -724,9 +742,9 @@ class PlayerManager {
     // color: [r,g,b]
     let [r, g, b] = color;
     if (theme === "dark") {
-      r = Math.floor(r * 0.6);
-      g = Math.floor(g * 0.6);
-      b = Math.floor(b * 0.6);
+      r = Math.floor(r * 0.4);
+      g = Math.floor(g * 0.4);
+      b = Math.floor(b * 0.4);
     } else {
       r = Math.min(255, Math.floor(r * 1.2));
       g = Math.min(255, Math.floor(g * 1.2));
