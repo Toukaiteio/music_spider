@@ -29,6 +29,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   UIManager.initTaskQueueControls();
   UIManager.initDrawerControls();
+  UIManager.initGlobalMarqueeListener();
   if (!localStorage.getItem("favSongs")) {
     localStorage.setItem("favSongs", "[]");
   }

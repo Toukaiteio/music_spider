@@ -494,6 +494,35 @@ class UIManager {
     // Focus confirm button for accessibility
     setTimeout(() => btnConfirm.focus(), 0);
   }
+
+  static initGlobalMarqueeListener() {
+    document.addEventListener('mouseover', (e) => {
+      const card = e.target.closest('.song-card');
+      if (card) {
+        const scroller = card.querySelector('.song-card-title-scroller');
+        if (scroller) {
+          const title = scroller.querySelector('.song-card-title');
+        // Only check if not already checked to avoid layout thrashing
+        if (title && !title.classList.contains('can-scroll-checked')) {
+          // Temporarily remove ellipsis to measure real width
+          const originalStyle = title.style.textOverflow;
+          const originalWidth = title.style.width;
+          title.style.textOverflow = 'clip';
+          title.style.width = 'fit-content';
+          
+          if (title.scrollWidth > scroller.offsetWidth) {
+            title.classList.add('can-scroll');
+          }
+          
+          // Restore and mark as checked
+          title.style.textOverflow = originalStyle;
+          title.style.width = originalWidth;
+          title.classList.add('can-scroll-checked');
+        }
+      }
+    }
+    });
+  }
 }
 
 export default UIManager;

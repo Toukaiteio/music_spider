@@ -95,7 +95,9 @@ class SongCardRenderer {
                     ` : ''}
                 </div>
                 <div class="song-card-info">
-                    <h3 class="song-card-title">${title}</h3>
+                    <div class="song-card-title-scroller">
+                        <h3 class="song-card-title" data-title="${title}">${title}</h3>
+                    </div>
                     <p class="song-card-artist">${artist}</p>
                 </div>
                 <div class="song-card-actions">

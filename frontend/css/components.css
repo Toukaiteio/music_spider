@@ -1,19 +1,24 @@
-/* Search Bar */
 .search-bar-container {
     grid-column: 2;
     display: flex;
     align-items: center;
-    background-color: var(--secondary-bg-color);
-    padding: 8px 15px;
+    background-color: var(--glass-bg-color);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    padding: 8px 20px;
     border-radius: 25px;
-    box-shadow: 0 1px 3px var(--shadow-color);
-    width: 450px;
-    transition: background-color 0.3s;
+    border: 1px solid var(--glass-border-color);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    width: 480px;
+    transition: all 0.3s ease;
 }
 
 .search-bar-container:hover,
-.search-bar-container input:focus-within {
-    background-color: var(--primary-bg-color);
+.search-bar-container:focus-within {
+    background-color: rgba(255, 255, 255, 0.05);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+    border-color: rgba(255, 255, 255, 0.2);
+    width: 520px;
 }
 
 .search-bar-container .search-icon {
@@ -220,29 +225,38 @@
 }
 
 .song-card {
-    background-color: var(--secondary-bg-color);
-    border-radius: 8px;
+    position: relative;
+    background-color: var(--glass-bg-color);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 16px;
     padding: 15px;
-    box-shadow: 0 2px 8px var(--shadow-color);
-    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+    border: 1px solid var(--glass-border-color);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), 
+                box-shadow 0.3s ease, 
+                background-color 0.3s ease;
     display: flex;
     flex-direction: column;
     overflow: hidden;
 }
 
 .song-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 5px 15px var(--shadow-color);
+    transform: translateY(-8px) scale(1.02);
+    background-color: rgba(255, 255, 255, 0.05);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+    border-color: rgba(255, 255, 255, 0.2);
 }
 
 .card-art-container {
     position: relative;
     width: 100%;
     padding-bottom: 100%;
-    margin-bottom: 10px;
-    border-radius: 6px;
+    margin-bottom: 15px;
+    border-radius: 12px;
     overflow: hidden;
     cursor: pointer;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
 }
 
 .song-card-art {
@@ -261,20 +275,22 @@
 
 .play-on-card-button {
     position: absolute;
-    bottom: 8px;
-    right: 8px;
+    bottom: 12px;
+    right: 12px;
+    background-color: var(--accent-color);
     color: white;
     border: none;
     border-radius: 50%;
-    width: 40px;
-    height: 40px;
+    width: 44px;
+    height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     opacity: 0;
-    transform: translateY(10px);
-    transition: opacity 0.2s ease, transform 0.2s ease;
+    transform: translateY(15px);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 15px rgba(var(--accent-color-rgb), 0.4);
 }
 
 .song-card:hover .play-on-card-button {
@@ -288,7 +304,9 @@
 }
 
 .play-on-card-button:hover {
-    background-color: rgba(0, 0, 0, 0.6);
+    background-color: var(--accent-color-darker);
+    transform: translateY(0) scale(1.1);
+    box-shadow: 0 6px 20px rgba(var(--accent-color-rgb), 0.6);
 }
 
 .lossless-tag {
@@ -308,31 +326,102 @@
     text-align: left;
     overflow: hidden;
     flex-grow: 1;
-    margin-bottom: 10px;
+    margin-bottom: 0;
+}
+
+.song-card-title-scroller {
+    overflow: hidden;
+    width: 100%;
+    position: relative;
+    white-space: nowrap;
+    /* 默认不应用遮罩，避免对普通文本渲染造成负担 */
+    -webkit-mask-image: none;
+    mask-image: none;
+}
+
+/* 仅在 Hover 且文本可滚动时，在该固定容器上应用遮罩 */
+.song-card:hover .song-card-title.can-scroll {
+    margin-right: 0; /* 确保不影响容器宽度 */
+}
+
+.song-card:hover .song-card-title-scroller:has(.can-scroll) {
+    mask-image: linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%);
 }
 
 .song-card-title {
-    font-size: 1em;
-    font-weight: 500;
-    margin: 0 0 4px 0;
+    font-size: 1.05em;
+    font-weight: 600;
+    margin: 0 0 8px 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    color: var(--text-color-primary);
+    display: block;
+    transition: color 0.3s ease;
+}
+
+.song-card:hover .song-card-title.can-scroll {
+    overflow: visible;
+    text-overflow: clip;
+    width: fit-content;
+    animation: songCardMarquee 8s linear infinite;
+    padding-right: 50px;
+}
+
+.song-card:hover .song-card-title.can-scroll::after {
+    content: attr(data-title);
+    padding-left: 50px;
+    display: inline-block;
+}
+
+@keyframes songCardMarquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
 }
 
 .song-card-artist {
-    font-size: 0.85em;
+    font-size: 0.9em;
     margin: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    color: var(--text-color-secondary);
+    opacity: 0.8;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    /* 核心修复：强制高度与图标按钮一致 */
+    height: 36px;
+    line-height: 36px;
+    display: block;
+}
+
+.song-card:hover .song-card-artist {
+    opacity: 0;
+    transform: translateY(8px); /* 稍微减小偏移量，让切换更紧凑 */
+    pointer-events: none;
 }
 
 .song-card-actions {
+    position: absolute;
+    /* 微调 bottom 值，使其中心点与歌手名完全重合 */
+    bottom: 15px; 
+    right: 15px;
+    height: 36px; /* 明确高度 */
     display: flex;
     justify-content: flex-end;
     align-items: center;
-    margin-top: auto;
+    gap: 4px;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(8px);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 10;
+}
+
+.song-card:hover .song-card-actions {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
 }
 
 .icon-button,
