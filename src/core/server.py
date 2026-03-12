@@ -19,7 +19,7 @@ import threading
 # Relative imports for project modules
 # Assuming utils and downloaders are in PYTHONPATH or structured to be found
 
-from downloaders import soundcloud_downloader, bilibili_downloader
+from downloaders import bilibili_downloader
 from core.state import (
     DOWNLOADER_MODULES,
     increment_task_execution, get_task_execution, update_task_execution, get_all_task_execution,
@@ -56,12 +56,14 @@ from handlers.analyze_loudness_websocket_handler import (
     handle_analyze_loudness_batch,
     handle_get_loudness_data
 )
-from handlers.auth_handler import (
-    handle_get_all_auth_status,
+from handlers.source_handler import (
+    handle_get_all_source_status,
     handle_get_auth_action,
     handle_poll_auth_status,
     handle_login_with_params,
-    handle_logout
+    handle_logout,
+    handle_enable_source,
+    handle_disable_source
 )
 
 # Queues for inter-process communication for downloads
@@ -195,11 +197,13 @@ COMMAND_HANDLERS = {
     "analyze_loudness_single": handle_analyze_loudness_single,
     "analyze_loudness_batch": handle_analyze_loudness_batch,
     "get_loudness_data": handle_get_loudness_data,
-    "get_all_auth_status": handle_get_all_auth_status,
+    "get_all_auth_status": handle_get_all_source_status,
     "get_auth_action": handle_get_auth_action,
     "poll_auth_status": handle_poll_auth_status,
     "login_with_params": handle_login_with_params,
     "logout": handle_logout,
+    "enable_source": handle_enable_source,
+    "disable_source": handle_disable_source,
 }
 
 # Main WebSocket connection handler

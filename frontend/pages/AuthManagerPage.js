@@ -1,15 +1,17 @@
-// frontend/pages/AuthManagerPage.js
+// frontend/pages/AuthManagerPage.js - Version 1.3
 
 import UIManager from '../modules/UIManager.js';
 
 const SOURCE_ICONS = {
-  bilibili: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M17.813 4.653h.854c1.51.054 2.769.578 3.773 1.574 1.004.995 1.524 2.249 1.56 3.76v7.36c-.036 1.51-.556 2.769-1.56 3.773s-2.262 1.524-3.773 1.56H5.333c-1.51-.036-2.769-.556-3.773-1.56S.036 18.858 0 17.347v-7.36c.036-1.511.556-2.765 1.56-3.76 1.004-.996 2.262-1.52 3.773-1.574h.774l-1.174-1.12a1.234 1.234 0 0 1-.373-.906c0-.356.124-.658.373-.907l.027-.027c.267-.249.573-.373.92-.373.347 0 .653.124.92.373L9.653 4.44c.071.071.134.142.187.213h4.267a.836.836 0 0 1 .16-.213l2.853-2.747c.267-.249.573-.373.92-.373.347 0 .662.151.929.4.267.249.391.551.391.907 0 .355-.124.657-.373.906zM5.333 7.24c-.746.018-1.373.276-1.88.773-.506.498-.769 1.13-.786 1.894v7.52c.017.764.28 1.395.786 1.893.507.498 1.134.756 1.88.773h13.334c.746-.017 1.373-.275 1.88-.773.506-.498.769-1.129.786-1.893v-7.52c-.017-.765-.28-1.396-.786-1.894-.507-.497-1.134-.755-1.88-.773zM8 11.107c.373 0 .684.124.933.373.25.249.383.569.4.96v1.173c-.017.391-.15.711-.4.96-.249.25-.56.374-.933.374s-.684-.125-.933-.374c-.25-.249-.383-.569-.4-.96V12.44c0-.373.129-.689.386-.947.258-.257.574-.386.947-.386zm8 0c.373 0 .684.124.933.373.25.249.383.569.4.96v1.173c-.017.391-.15.711-.4.96-.249.25-.56.374-.933.374s-.684-.125-.933-.374c-.25-.249-.383-.569-.4-.96V12.44c.017-.391.15-.711.4-.96.249-.249.56-.373.933-.373z"/></svg>`,
-  soundcloud: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M1.175 12.225C.513 12.225 0 12.75 0 13.413v.013c0 .663.513 1.188 1.175 1.188.663 0 1.176-.525 1.176-1.188v-.013c0-.663-.513-1.188-1.176-1.188zm2.213 1.025c-.013-.65-.525-1.175-1.187-1.175-.65 0-1.176.525-1.188 1.175v1.188c0 .65.526 1.175 1.188 1.175.662 0 1.187-.525 1.187-1.175v-1.188zm2.2-2.75c-.013-.65-.526-1.175-1.188-1.175-.65 0-1.175.525-1.188 1.175v3.938c0 .65.525 1.175 1.188 1.175.662 0 1.187-.525 1.187-1.175V10.5zm2.2-1.25c-.013-.65-.525-1.175-1.188-1.175-.65 0-1.175.525-1.187 1.175v5.188c0 .65.525 1.175 1.187 1.175.663 0 1.188-.525 1.188-1.175V9.25zm2.2-.7c-.013-.65-.526-1.175-1.188-1.175-.662 0-1.187.525-1.187 1.175v5.888c0 .65.525 1.175 1.187 1.175.662 0 1.188-.525 1.188-1.175V8.55zm3.362-3.525c-1.025 0-1.988.338-2.763.9-.35-2.1-2.175-3.7-4.375-3.7-2.45 0-4.438 1.988-4.438 4.438 0 .175.013.35.038.513C1.3 7.438.163 8.688.163 10.2c0 1.663 1.35 3.013 3.012 3.013h.013V9.25c0-.65.525-1.175 1.187-1.175.663 0 1.188.525 1.188 1.175v5.888c0 .65-.525 1.175-1.188 1.175-.662 0-1.187-.525-1.187-1.175V13.7h-.013C1.35 13.7 0 12.35 0 10.688c0-1.45 1.012-2.663 2.375-2.962-.013-.163-.025-.325-.025-.488C2.35 4.8 4.15 3 6.387 3c1.7 0 3.175 1 3.863 2.45.525-.25 1.112-.4 1.737-.4C13.863 5.05 15.5 6.7 15.5 8.712c0 .375-.063.738-.163 1.076C16.625 10.188 17.5 11.25 17.5 12.5c0 1.613-1.313 2.913-2.938 2.913H10.7V8.55c0-.65-.525-1.175-1.188-1.175-.662 0-1.187.525-1.187 1.175v6.863h6.237C16.988 15.413 18.5 13.9 18.5 12.063c0-1.625-1.1-3-2.65-3.4.063-.363.1-.737.1-1.113 0-2.475-2-4.475-4.5-4.475z"/></svg>`,
+  bilibili: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M17.813 4.653h.854c1.51.054 2.769.578 3.773 1.574 1.004.995 1.524 2.249 1.56 3.76v7.36c-.036 1.51-.556 2.769-1.56 3.765-1.004.995-2.263 1.519-3.773 1.573H5.32c-1.51-.054-2.769-.578-3.773-1.573-1.004-.996-1.524-2.25-1.56-3.766V10c.036-1.511.556-2.765 1.56-3.76 1.004-.996 2.263-1.52 3.773-1.574h.774L4.388 2.962a.75.75 0 0 1 1.06-1.06l3.833 3.833h5.438l3.833-3.833a.75.75 0 0 1 1.06 1.06L17.813 4.653zM5.32 6.173c-1.084.027-1.984.396-2.7 1.107-.716.711-1.085 1.61-1.112 2.695v7.387c.027 1.084.396 1.984 1.112 2.7.716.715 1.616 1.083 2.7 1.11h13.36c1.084-.027 1.984-.395 2.7-1.11.716-.716 1.085-1.616 1.112-2.7V10c-.027-1.085-.396-1.984-1.112-2.695-.716-.711-1.616-1.08-2.7-1.107H5.32zm3.18 3.827c.746 0 1.35.603 1.35 1.347v1.347c0 .747-.604 1.35-1.35 1.35-.747 0-1.35-.603-1.35-1.35V11.35c0-.744.603-1.347 1.35-1.347zm7 0c.746 0 1.35.603 1.35 1.347v1.347c0 .747-.604 1.35-1.35 1.35-.747 0-1.35-.603-1.35-1.35V11.35c0-.744.603-1.347 1.35-1.347z"/></svg>`,
+  netease: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm5.845 13.5c-.234.375-.54.7-.9.96-.36.26-.76.45-1.18.56-.42.11-.86.17-1.3.17-.44 0-.88-.06-1.3-.17-.42-.11-.82-.3-1.18-.56-.36-.26-.666-.585-.9-.96-.234-.375-.41-.795-.52-1.24-.11-.445-.17-.91-.17-1.38 0-.47.06-.935.17-1.38.11-.445.286-.865.52-1.24.234-.375.54-.7.9-.96.36-.26.76-.45 1.18-.56.42-.11.86-.17 1.3-.17.44 0 .88.06 1.3.17.42.11.82.3 1.18.56.36.26.666.585.9.96.234.375.41.795.52 1.24.11.445.17.91.17 1.38 0 .47-.06.935-.17 1.38-.11.445-.286.865-.52 1.24z"/></svg>`,
+  kugou: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v10h-2z"/></svg>`
 };
 
 class AuthManagerPage {
   constructor() {
     this.managers = null;
+    this.sources = [];
     this.pollingIntervals = {};
   }
 
@@ -19,13 +21,34 @@ class AuthManagerPage {
 
   getHTML() {
     return `
-      <div id="auth-manager-page">
-        <h2>Authorization Manager</h2>
-        <div id="auth-sources-container" class="form-columns-wrapper">
-          <div style="text-align: center; color: rgba(255,255,255,0.3); width: 100%; padding: 60px 0;">
-            <span class="material-icons" style="font-size: 28px; animation: spin 1.2s infinite linear; display: block; margin: 0 auto 12px;">sync</span>
-            Loading...
-          </div>
+      <div id="source-manager-page" class="page-container">
+        <div class="page-header">
+            <h2>Source Manager</h2>
+            <p class="subtitle">Manage and toggle music sources</p>
+        </div>
+
+        <div class="source-manager-columns">
+            <div class="source-column" id="enabled-column">
+                <div class="column-header">
+                    <span class="material-icons">check_circle</span>
+                    <h3>Enabled Sources</h3>
+                    <span class="count-badge" id="enabled-count">0</span>
+                </div>
+                <div class="source-list" id="enabled-list">
+                    <!-- Enabled sources here -->
+                </div>
+            </div>
+
+            <div class="source-column" id="disabled-column">
+                <div class="column-header">
+                    <span class="material-icons">block</span>
+                    <h3>Disabled Sources</h3>
+                    <span class="count-badge" id="disabled-count">0</span>
+                </div>
+                <div class="source-list" id="disabled-list">
+                    <!-- Disabled sources here -->
+                </div>
+            </div>
         </div>
       </div>
     `;
@@ -34,7 +57,7 @@ class AuthManagerPage {
   async onLoad(containerElement, subPageId, appState, managers) {
     this.managers = managers;
     this.container = containerElement;
-    await this.loadAuthStatuses();
+    await this.loadSourceStatuses();
   }
 
   onUnload() {
@@ -44,254 +67,289 @@ class AuthManagerPage {
     this.pollingIntervals = {};
   }
 
-  async loadAuthStatuses() {
+  async loadSourceStatuses() {
     try {
       const response = await this.managers.webSocketManager.sendWebSocketCommand('get_all_auth_status', {});
-      const statuses = response.data?.statuses || [];
-      this.renderSources(statuses);
+      this.sources = response.data?.statuses || [];
+      this.renderSources();
     } catch (error) {
-      console.error("Failed to load auth statuses", error);
-      UIManager.showToast("Failed to load authorization statuses", "error");
+      console.error("[AuthManager] Failed to load source statuses", error);
+      UIManager.showToast("Failed to load sources", "error");
     }
   }
 
-  renderSources(statuses) {
-    const container = this.container.querySelector('#auth-sources-container');
-    if (!container) return;
+  renderSources() {
+    const enabledList = this.container.querySelector('#enabled-list');
+    const disabledList = this.container.querySelector('#disabled-list');
+    const enabledCount = this.container.querySelector('#enabled-count');
+    const disabledCount = this.container.querySelector('#disabled-count');
 
-    container.innerHTML = '';
+    if (!enabledList || !disabledList) return;
 
-    if (statuses.length === 0) {
-      container.innerHTML = `<p style="color: rgba(255,255,255,0.3); padding: 40px 0;">No authorization sources are currently enabled.</p>`;
-      return;
-    }
+    enabledList.innerHTML = '';
+    disabledList.innerHTML = '';
 
-    statuses.forEach(status => {
-      const section = document.createElement('div');
-      section.className = 'form-section auth-source-section';
-      section.style.cssText = `flex: 1; min-width: 280px; max-width: 480px;`;
+    const enabledSources = this.sources.filter(s => s.enabled);
+    const disabledSources = this.sources.filter(s => !s.enabled);
 
-      const sourceName = status.source.charAt(0).toUpperCase() + status.source.slice(1);
-      const icon = SOURCE_ICONS[status.source] || `<span class="material-icons" style="font-size:28px;">cloud</span>`;
+    enabledCount.textContent = enabledSources.length;
+    disabledCount.textContent = disabledSources.length;
 
-      // Header row: icon + name on left, status badge on right
-      const headerRow = document.createElement('div');
-      headerRow.style.cssText = `display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.07);`;
+    enabledSources.forEach(source => {
+        enabledList.appendChild(this.createSourceItem(source, true));
+    });
 
-      const headerLeft = document.createElement('div');
-      headerLeft.style.cssText = `display: flex; align-items: center; gap: 12px;`;
-      headerLeft.innerHTML = `
-        <div style="color: rgba(255,255,255,0.55);">${icon}</div>
-        <span style="font-size: 1.05em; font-weight: 600; color: var(--text-color-primary);">${sourceName}</span>
-      `;
-
-      const badge = document.createElement('span');
-      if (status.is_logged_in) {
-        badge.textContent = 'Authorized';
-        badge.style.cssText = `padding: 3px 10px; border-radius: 20px; font-size: 0.72em; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; background: rgba(52,199,89,0.13); color: #34C759; border: 1px solid rgba(52,199,89,0.20);`;
-      } else {
-        badge.textContent = 'Not Authorized';
-        badge.style.cssText = `padding: 3px 10px; border-radius: 20px; font-size: 0.72em; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; background: rgba(255,59,48,0.10); color: rgba(255,100,90,0.85); border: 1px solid rgba(255,59,48,0.18);`;
-      }
-
-      headerRow.appendChild(headerLeft);
-      headerRow.appendChild(badge);
-      section.appendChild(headerRow);
-
-      // Content + action row: info text on left, button(s) on right — side by side
-      const bodyRow = document.createElement('div');
-      bodyRow.style.cssText = `display: flex; align-items: center; justify-content: space-between; gap: 16px;`;
-
-      const contentArea = document.createElement('div');
-      contentArea.className = `auth-content-${status.source}`;
-      contentArea.style.cssText = `flex: 1; min-width: 0;`;
-
-      const actionArea = document.createElement('div');
-      actionArea.className = 'form-actions';
-      actionArea.style.cssText = `flex-basis: auto !important; flex-shrink: 0; display: flex; gap: 8px; align-items: center; padding: 0; border: none; margin: 0;`;
-
-      this._renderIdleState(status, contentArea, actionArea);
-
-      bodyRow.appendChild(contentArea);
-      bodyRow.appendChild(actionArea);
-      section.appendChild(bodyRow);
-
-      container.appendChild(section);
+    disabledSources.forEach(source => {
+        disabledList.appendChild(this.createSourceItem(source, false));
     });
   }
 
-  _renderIdleState(status, contentArea, actionArea) {
-    if (status.is_logged_in) {
-      contentArea.innerHTML = `<p style="font-size: 0.88em; color: rgba(255,255,255,0.38); margin: 0; line-height: 1.5;">Session active. You can access all features for this source.</p>`;
-      actionArea.innerHTML = '';
-      const logoutBtn = document.createElement('button');
-      logoutBtn.className = 'dialog-button secondary';
-      logoutBtn.textContent = 'Logout';
-      logoutBtn.onclick = () => this.handleLogout(status.source);
-      actionArea.appendChild(logoutBtn);
-    } else {
-      contentArea.innerHTML = `<p style="font-size: 0.88em; color: rgba(255,255,255,0.38); margin: 0; line-height: 1.5;">Authorization required to download from this source.</p>`;
-      actionArea.innerHTML = '';
-      const loginBtn = document.createElement('button');
-      loginBtn.className = 'dialog-button primary';
-      loginBtn.textContent = 'Authorize';
-      loginBtn.onclick = () => this.handleLoginInit(status.source, contentArea, actionArea);
-      actionArea.appendChild(loginBtn);
-    }
-  }
+  createSourceItem(source, isEnabled) {
+    const item = document.createElement('div');
+    const isLoggedIn = source.is_logged_in === true || source.is_logged_in === "true";
+    item.className = `source-card ${isLoggedIn ? 'authorized' : 'unauth'}`;
+    item.id = `source-card-${source.source}`;
+    
+    const sourceIcon = SOURCE_ICONS[source.source] || '<span class="material-icons">cloud</span>';
+    const statusText = isLoggedIn ? 'Authorized' : 'Unauthorized';
 
-  async handleLogout(source) {
-    try {
-      const resp = await this.managers.webSocketManager.sendWebSocketCommand('logout', { source });
-      if (resp.code === 0) {
-        UIManager.showToast(`Logged out from ${source}`, "success");
-        await this.loadAuthStatuses();
-      } else {
-        UIManager.showToast(`Logout failed: ${resp.error}`, "error");
-      }
-    } catch (err) {
-      UIManager.showToast(`Error: ${err.message}`, "error");
-    }
-  }
-
-  async handleLoginInit(source, contentArea, actionArea) {
-    try {
-      actionArea.innerHTML = `<span class="material-icons" style="animation: spin 1.2s infinite linear; color: rgba(255,255,255,0.4); font-size: 20px;">sync</span>`;
-      const resp = await this.managers.webSocketManager.sendWebSocketCommand('get_auth_action', { source });
-
-      if (resp.code !== 0) {
-        UIManager.showToast(`Failed: ${resp.error}`, "error");
-        await this.loadAuthStatuses();
-        return;
-      }
-
-      const data = resp.data;
-      if (data.type === 'qrcode') {
-        this.renderQRCodeLogin(source, data, contentArea, actionArea);
-      } else if (data.type === 'manual') {
-        this.renderManualLogin(source, data, contentArea, actionArea);
-      }
-    } catch (error) {
-      UIManager.showToast(`Error: ${error.message}`, "error");
-      await this.loadAuthStatuses();
-    }
-  }
-
-  renderQRCodeLogin(source, data, contentArea, actionArea) {
-    // Switch to a vertical stacked layout for QR code
-    const bodyRow = contentArea.parentElement;
-    bodyRow.style.flexDirection = 'column';
-    bodyRow.style.alignItems = 'flex-start';
-
-    contentArea.style.width = '100%';
-    contentArea.innerHTML = `
-      <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
-        <div style="background: #fff; padding: 8px; border-radius: 10px; display: inline-block; flex-shrink: 0;">
-          <img src="${data.qrcode_base64}" alt="QR Code" style="width: 110px; height: 110px; display: block;">
+    item.innerHTML = `
+        <div class="source-main-row">
+            <div class="source-item-left">
+                <div class="source-item-icon">${sourceIcon}</div>
+                <div class="source-item-info">
+                    <span class="source-item-name">${source.source.charAt(0).toUpperCase() + source.source.slice(1)}</span>
+                    <span class="source-status-pill ${isLoggedIn ? 'pill-green' : 'pill-red'}">${statusText}</span>
+                </div>
+            </div>
+            <div class="source-item-actions">
+                ${isLoggedIn ? 
+                    `<button class="text-button btn-logout-action">Logout</button>` :
+                    `<button class="text-button btn-login-action">Login</button>`
+                }
+                <button class="btn-move-circle" title="${isEnabled ? 'Disable' : 'Enable'}">
+                    <span class="material-icons">${isEnabled ? 'chevron_right' : 'chevron_left'}</span>
+                </button>
+            </div>
         </div>
-        <div>
-          <p style="font-size: 0.88em; color: rgba(255,255,255,0.55); margin: 0 0 8px 0;">Scan with the official app to login.</p>
-          <p class="qr-status-text" style="font-size: 0.82em; color: rgba(255,255,255,0.35); margin: 0;">Waiting for scan...</p>
+        <div class="source-auth-expansion" id="expansion-${source.source}">
+            <div class="expansion-content"></div>
         </div>
-      </div>
     `;
 
-    actionArea.innerHTML = '';
-    actionArea.style.cssText = `flex-shrink: 0; display: flex; gap: 8px; align-items: center; width: 100%; justify-content: flex-end; margin-top: 14px;`;
-
-    const cancelBtn = document.createElement('button');
-    cancelBtn.className = 'dialog-button secondary';
-    cancelBtn.textContent = 'Cancel';
-    cancelBtn.onclick = () => {
-      clearInterval(this.pollingIntervals[source]);
-      this.loadAuthStatuses();
+    const moveBtn = item.querySelector('.btn-move-circle');
+    moveBtn.onclick = (e) => {
+        e.stopPropagation();
+        this.handleToggleSource(source.source, !isEnabled);
     };
-    actionArea.appendChild(cancelBtn);
 
-    const statusText = contentArea.querySelector('.qr-status-text');
+    const loginBtn = item.querySelector('.btn-login-action');
+    if (loginBtn) {
+        loginBtn.onclick = (e) => {
+            e.stopPropagation();
+            this.handleLogin(source.source);
+        };
+    }
+
+    const logoutBtn = item.querySelector('.btn-logout-action');
+    if (logoutBtn) {
+        logoutBtn.onclick = (e) => {
+            e.stopPropagation();
+            this.showCustomConfirm(`Logout from ${source.source}?`, () => this.handleLogout(source.source));
+        };
+    }
+
+    return item;
+  }
+
+  async handleToggleSource(source, enabled) {
+    const cmd = enabled ? 'enable_source' : 'disable_source';
+    try {
+      const resp = await this.managers.webSocketManager.sendWebSocketCommand(cmd, { source });
+      if (resp.code === 0) {
+        UIManager.showToast(`${source} ${enabled ? 'enabled' : 'disabled'}`, "success");
+        await this.loadSourceStatuses();
+      } else {
+        UIManager.showToast(resp.error || "Action failed", "error");
+      }
+    } catch (err) {
+      UIManager.showToast(err.message, "error");
+    }
+  }
+
+  async handleLogin(source) {
+    const expansion = this.container.querySelector(`#expansion-${source}`);
+    const content = expansion.querySelector('.expansion-content');
+    
+    // Toggle if already open
+    if (expansion.classList.contains('expanded')) {
+        expansion.classList.remove('expanded');
+        return;
+    }
+
+    try {
+        const resp = await this.managers.webSocketManager.sendWebSocketCommand('get_auth_action', { source });
+        if (resp.code !== 0) {
+            UIManager.showToast(resp.error, "error");
+            return;
+        }
+        
+        const data = resp.data;
+        content.innerHTML = '';
+        
+        if (data.type === 'qrcode') {
+            this.renderQRInExpansion(source, data, content);
+        } else if (data.type === 'manual') {
+            this.renderManualInExpansion(source, data, content);
+        }
+        
+        expansion.classList.add('expanded');
+    } catch (error) {
+        UIManager.showToast("Login failed: " + error.message, "error");
+    }
+  }
+
+  renderQRInExpansion(source, action, container) {
+    container.innerHTML = `
+        <div class="qr-expansion-wrapper">
+            <div class="qr-frame">
+                <img src="${action.qrcode_base64}" alt="QR Code">
+            </div>
+            <div class="qr-info">
+                <p>Scan with ${source.toUpperCase()} App</p>
+                <div id="qr-status-${source}" class="qr-status-text">Waiting for scan...</div>
+                <button class="text-button btn-auth-cancel" style="margin-top: 15px;">Cancel</button>
+            </div>
+        </div>
+    `;
+
+    container.querySelector('.btn-auth-cancel').onclick = () => {
+        this.container.querySelector(`#expansion-${source}`).classList.remove('expanded');
+    };
 
     if (this.pollingIntervals[source]) clearInterval(this.pollingIntervals[source]);
 
     this.pollingIntervals[source] = setInterval(async () => {
-      try {
-        const pollResp = await this.managers.webSocketManager.sendWebSocketCommand('poll_auth_status', {
-          source,
-          params: { qrcode_key: data.qrcode_key }
-        });
-
-        if (pollResp.code === 0) {
-          const pollData = pollResp.data;
-          if (statusText) statusText.textContent = pollData.message;
-
-          if (pollData.status === 'success') {
+        const expansion = this.container.querySelector(`#expansion-${source}`);
+        if (!expansion || !expansion.classList.contains('expanded')) {
             clearInterval(this.pollingIntervals[source]);
-            UIManager.showToast(`${source} authorized`, 'success');
-            await this.loadAuthStatuses();
-          } else if (['expired', 'failed', 'error'].includes(pollData.status)) {
-            clearInterval(this.pollingIntervals[source]);
-            if (statusText) { statusText.style.color = 'rgba(255,90,80,0.85)'; }
-            cancelBtn.textContent = 'Retry';
-          }
+            return;
         }
-      } catch (err) { console.error(err); }
+
+        try {
+            const pollResp = await this.managers.webSocketManager.sendWebSocketCommand('poll_auth_status', {
+                source,
+                params: { qrcode_key: action.qrcode_key }
+            });
+            
+            const statusEl = container.querySelector(`#qr-status-${source}`);
+            if (pollResp.code === 0) {
+                const status = pollResp.data;
+                if (status.status === 'success') {
+                    statusEl.innerText = "Login successful!";
+                    statusEl.style.color = "#34C759";
+                    clearInterval(this.pollingIntervals[source]);
+                    setTimeout(() => {
+                        expansion.classList.remove('expanded');
+                        this.loadSourceStatuses();
+                    }, 1500);
+                } else if (status.status === 'expired') {
+                    statusEl.innerText = "QR Code expired. Refreshing...";
+                    clearInterval(this.pollingIntervals[source]);
+                    setTimeout(() => this.handleLogin(source), 2000);
+                } else {
+                    statusEl.innerText = status.message || "Waiting...";
+                }
+            }
+        } catch (err) {
+            console.error("Polling error:", err);
+        }
     }, 3000);
   }
 
-  renderManualLogin(source, data, contentArea, actionArea) {
-    // Switch to vertical layout for the form
-    const bodyRow = contentArea.parentElement;
-    bodyRow.style.flexDirection = 'column';
-    bodyRow.style.alignItems = 'stretch';
-
-    const fieldsHtml = data.fields.map(field => `
-      <div style="margin-bottom: 14px;">
-        <label>${field.label}</label>
-        <input type="${field.type}" name="${field.name}" placeholder="Required">
-      </div>
+  renderManualInExpansion(source, action, container) {
+    const fieldsHtml = action.fields.map(f => `
+        <div class="auth-field">
+            <label>${f.label}</label>
+            <input type="${f.type}" class="login-input" data-name="${f.name}">
+        </div>
     `).join('');
 
-    contentArea.style.width = '100%';
-    contentArea.innerHTML = `<form id="form-${source}">${fieldsHtml}</form>`;
+    container.innerHTML = `
+        <div class="manual-expansion-wrapper">
+            <div class="auth-fields-grid">${fieldsHtml}</div>
+            <div class="auth-actions" style="gap: 12px;">
+                <button class="text-button btn-auth-cancel">Cancel</button>
+                <button class="dialog-button primary btn-auth-submit">Authorize</button>
+            </div>
+        </div>
+    `;
 
-    actionArea.innerHTML = '';
-    actionArea.style.cssText = `display: flex; gap: 8px; align-items: center; justify-content: flex-end; margin-top: 4px; width: 100%;`;
-
-    const cancelBtn = document.createElement('button');
-    cancelBtn.className = 'dialog-button secondary';
-    cancelBtn.textContent = 'Cancel';
-    cancelBtn.onclick = () => this.loadAuthStatuses();
-
-    const submitBtn = document.createElement('button');
-    submitBtn.className = 'dialog-button primary';
-    submitBtn.textContent = 'Submit';
-
-    submitBtn.onclick = async () => {
-      const form = contentArea.querySelector(`#form-${source}`);
-      const params = {};
-      new FormData(form).forEach((v, k) => { params[k] = v; });
-
-      submitBtn.disabled = true;
-      submitBtn.textContent = '...';
-
-      try {
-        const resp = await this.managers.webSocketManager.sendWebSocketCommand('login_with_params', { source, params });
-        if (resp.code === 0) {
-          UIManager.showToast(`${source} authorized`, 'success');
-          await this.loadAuthStatuses();
-        } else {
-          UIManager.showToast(resp.error, 'error');
-          submitBtn.disabled = false;
-          submitBtn.textContent = 'Submit';
-        }
-      } catch (err) {
-        UIManager.showToast(err.message, 'error');
-        submitBtn.disabled = false;
-        submitBtn.textContent = 'Submit';
-      }
+    container.querySelector('.btn-auth-cancel').onclick = () => {
+        this.container.querySelector(`#expansion-${source}`).classList.remove('expanded');
     };
 
-    actionArea.appendChild(cancelBtn);
-    actionArea.appendChild(submitBtn);
+    container.querySelector('.btn-auth-submit').onclick = async () => {
+        const params = {};
+        container.querySelectorAll('.login-input').forEach(input => {
+            params[input.dataset.name] = input.value;
+        });
+
+        try {
+            const resp = await this.managers.webSocketManager.sendWebSocketCommand('login_with_params', { source, params });
+            if (resp.code === 0 && resp.data?.status === 'success') {
+                UIManager.showToast("Authorized successfully", "success");
+                this.container.querySelector(`#expansion-${source}`).classList.remove('expanded');
+                this.loadSourceStatuses();
+            } else {
+                UIManager.showToast(resp.data?.message || resp.error || "Authorization failed", "error");
+            }
+        } catch (err) {
+            UIManager.showToast(err.message, "error");
+        }
+    };
+  }
+
+  async handleLogout(source) {
+    try {
+        const resp = await this.managers.webSocketManager.sendWebSocketCommand('logout', { source });
+        if (resp.code === 0) {
+            UIManager.showToast(`Logged out from ${source}`, "success");
+            await this.loadSourceStatuses();
+        } else {
+            UIManager.showToast(resp.error, "error");
+        }
+    } catch (err) {
+        UIManager.showToast(err.message, "error");
+    }
+  }
+
+  showCustomConfirm(message, onConfirm) {
+    const dialog = document.createElement('div');
+    dialog.className = 'dialog-overlay visible';
+    dialog.innerHTML = `
+        <div class="dialog-box" style="max-width: 400px;">
+            <div style="display: flex; align-items: center; gap: 20px; margin-bottom: 25px;">
+                <span class="material-icons" style="font-size: 32px; color: #FF3B30;">help_outline</span>
+                <p style="margin: 0; font-size: 1.1em;">${message}</p>
+            </div>
+            <div class="dialog-actions" style="justify-content: flex-end; gap: 12px;">
+                <button class="dialog-button secondary btn-cancel">Cancel</button>
+                <button class="dialog-button primary btn-confirm" style="background: #FF3B30; border-color: #FF3B30;">Logout</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(dialog);
+
+    const cleanup = () => {
+        if (dialog.parentElement) document.body.removeChild(dialog);
+    };
+
+    dialog.querySelector('.btn-cancel').onclick = cleanup;
+    dialog.querySelector('.btn-confirm').onclick = () => {
+        onConfirm();
+        cleanup();
+    };
   }
 }
 

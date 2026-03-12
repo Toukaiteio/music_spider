@@ -1,7 +1,7 @@
 import uuid # For generating unique client IDs
 from threading import Lock
 import time
-from downloaders import soundcloud_downloader, bilibili_downloader
+from downloaders import bilibili_downloader, netease_downloader, kugou_downloader
 from types import MappingProxyType
 from multiprocessing import Queue
 
@@ -23,6 +23,8 @@ def get_download_results_queue():
 _DOWNLOADER_MODULES = {
     # "soundcloud": soundcloud_downloader,
     "bilibili": bilibili_downloader,
+    "netease": netease_downloader,
+    "kugou": kugou_downloader,
 }
 
 DOWNLOADER_MODULES = MappingProxyType(_DOWNLOADER_MODULES)

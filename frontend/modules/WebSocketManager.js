@@ -178,9 +178,8 @@ class WebSocketManager {
           if (code === 0) {
             request.resolve(response);
           } else {
-            request.reject(
-              new Error(response.data?.message || "Unknown server error")
-            );
+            const errorMsg = response.data?.error || response.data?.message || "Unknown server error";
+            request.reject(new Error(errorMsg));
           }
           delete this.pendingRequests[original_cmd_id];
         } else {

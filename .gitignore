@@ -6,6 +6,8 @@
 test.py
 client_id.txt
 *.json
+/temp
+*.bak
 /.venv
 /.vscode
 *.env

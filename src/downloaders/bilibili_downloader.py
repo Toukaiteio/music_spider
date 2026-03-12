@@ -168,36 +168,31 @@ def parse_cookies_from_headers(headers):
     return cookies
 
 
-def load_cookie():
+from utils.persistence import persistence
 
-    cookie_path = os.path.join(os.path.dirname(__file__), "cookie.json")
-    if os.path.exists(cookie_path):
-        with open(cookie_path, "r", encoding="utf-8") as f:
-            cookies = json.load(f)
-            bili_account["cookie"] = "; ".join([f"{k}={v}" for k, v in cookies.items()])
-            if "bili_jct" in cookies:
-                bili_account["csrf"] = cookies["bili_jct"]
-            if "refresh_token" in cookies:
-                bili_account["refresh_token"] = cookies["refresh_token"]
+def load_cookie():
+    cookies = persistence.get("bilibili", "cookies")
+    if cookies:
+        bili_account["cookie"] = "; ".join([f"{k}={v}" for k, v in cookies.items()])
+        if "bili_jct" in cookies:
+            bili_account["csrf"] = cookies["bili_jct"]
+        if "refresh_token" in cookies:
+            bili_account["refresh_token"] = cookies["refresh_token"]
     else:
-        res, headers = qrcode_login()
-        if res and headers:
-            cookies = parse_cookies_from_headers(headers)
-            cookies["refresh_token"] = res.get("refresh_token", "")
-            if cookies:
-                with open(cookie_path, "w", encoding="utf-8") as f:
-                    json.dump(cookies, f, ensure_ascii=False, indent=2)
-                bili_account["cookie"] = "; ".join(
-                    [f"{k}={v}" for k, v in cookies.items()]
-                )
-                if "bili_jct" in cookies:
-                    bili_account["csrf"] = cookies["bili_jct"]
-                if "refresh_token" in cookies:
-                    bili_account["refresh_token"] = cookies["refresh_token"]
-            else:
-                print("Failed to extract cookies from headers.")
-        else:
-            print("QR code login failed.")
+        # Check if we should auto-trigger QR code login or wait for unified auth
+        # For now, keeping legacy check but ideally it should be triggered by AuthManager
+        pass
+
+def save_cookies(cookies, res_data=None):
+    if res_data and "refresh_token" in res_data:
+        cookies["refresh_token"] = res_data["refresh_token"]
+    
+    persistence.set("bilibili", "cookies", cookies)
+    bili_account["cookie"] = "; ".join([f"{k}={v}" for k, v in cookies.items()])
+    if "bili_jct" in cookies:
+        bili_account["csrf"] = cookies["bili_jct"]
+    if "refresh_token" in cookies:
+        bili_account["refresh_token"] = cookies["refresh_token"]
 
 
 key = RSA.importKey(
@@ -258,18 +253,7 @@ if not is_refreshed_cookie :
                     cookies["refresh_token"] = data["data"].get("refresh_token", "")
                     bili_account["refresh_token"] = cookies["refresh_token"]
                     if cookies:
-                        with open(
-                            os.path.join(os.path.dirname(__file__), "cookie.json"),
-                            "w",
-                            encoding="utf-8",
-                        ) as f:
-                            json.dump(cookies, f, ensure_ascii=False, indent=2)
-                        bili_account["cookie"] = "; ".join(
-                            [f"{k}={v}" for k, v in cookies.items()]
-                        )
-                        if "bili_jct" in cookies:
-                            bili_account["csrf"] = cookies["bili_jct"]
-                            bili_account["bili_jct"] = cookies["bili_jct"]
+                        save_cookies(cookies)
                         print("Cookies updated successfully.Refresh old cookies.")
                         api = "https://passport.bilibili.com/x/passport-login/web/confirm/refresh"
                         res = requests.post(
@@ -1158,6 +1142,12 @@ async def download_track(
 #     work_dir = os.path.join("./downloads", str(music_item_placeholder.get('bvid','')))
 #     # Old try_download_cover logic is now in _download_cover_bili
 
+def get_source_info():
+    return {
+        "require_auth_to_enable": False,
+        "auth_required_message": "你需要先提供认证才能使用 Bilibili Source。"
+    }
+
 # --- Unified Auth Interface ---
 def get_auth_state():
     is_logged_in = False
@@ -1190,16 +1180,7 @@ def poll_auth_status(params):
         code = res.get("code")
         if code == 0:
             cookies = parse_cookies_from_headers(headers)
-            cookies["refresh_token"] = res.get("refresh_token", "")
-            if cookies:
-                cookie_path = os.path.join(os.path.dirname(__file__), "cookie.json")
-                with open(cookie_path, "w", encoding="utf-8") as f:
-                    json.dump(cookies, f, ensure_ascii=False, indent=2)
-                bili_account["cookie"] = "; ".join([f"{k}={v}" for k, v in cookies.items()])
-                if "bili_jct" in cookies:
-                    bili_account["csrf"] = cookies["bili_jct"]
-                if "refresh_token" in cookies:
-                    bili_account["refresh_token"] = cookies["refresh_token"]
+            save_cookies(cookies, res)
             return {"status": "success", "message": "Login successful"}
         elif code == 86038:
             return {"status": "expired", "message": "QR code expired"}
@@ -1215,9 +1196,7 @@ def login_with_params(params):
     return {"error": "Manual login not supported for Bilibili currently. Use QR code."}
 
 def logout():
-    cookie_path = os.path.join(os.path.dirname(__file__), "cookie.json")
-    if os.path.exists(cookie_path):
-        os.remove(cookie_path)
+    persistence.set("bilibili", "cookies", None)
     # Clear only security-related keys and restore defaults
     bili_account.clear()
     bili_account["web_location"] = "333.1007"

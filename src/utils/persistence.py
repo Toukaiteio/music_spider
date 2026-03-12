@@ -1,0 +1,103 @@
+import json
+import os
+from threading import Lock
+
+class PersistenceStore:
+    def __init__(self, file_path="data/persistence.json"):
+        self.file_path = file_path
+        self.data = {}
+        self.lock = Lock()
+        self._load()
+
+    def _load(self):
+        if os.path.exists(self.file_path):
+            try:
+                with open(self.file_path, "r", encoding="utf-8") as f:
+                    self.data = json.load(f)
+            except Exception as e:
+                print(f"Error loading persistence file: {e}")
+                self.data = {}
+        else:
+            os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
+            self._save()
+        
+        # Run migration after initial load
+        self._migrate_legacy()
+
+    def _migrate_legacy(self):
+        # Migration for Bilibili
+        bili_legacy = "src/downloaders/cookie.json"
+        if os.path.exists(bili_legacy) and "bilibili" not in self.data:
+            try:
+                with open(bili_legacy, "r", encoding="utf-8") as f:
+                    cookies = json.load(f)
+                    self.data["bilibili"] = {"cookies": cookies}
+                    print(f"Migrated Bilibili cookies from {bili_legacy}")
+            except Exception as e:
+                print(f"Error migrating Bilibili cookies: {e}")
+
+        # Migration for NetEase
+        netease_legacy = "src/downloaders/netease_cookie.json"
+        if os.path.exists(netease_legacy) and "netease" not in self.data:
+            try:
+                with open(netease_legacy, "r", encoding="utf-8") as f:
+                    cookies = json.load(f)
+                    self.data["netease"] = {"cookies": cookies}
+                    print(f"Migrated NetEase cookies from {netease_legacy}")
+            except Exception as e:
+                print(f"Error migrating NetEase cookies: {e}")
+
+        # Migration for Kugou (just in case)
+        kugou_legacy = "src/downloaders/kugou_cookie.json"
+        if os.path.exists(kugou_legacy) and "kugou" not in self.data:
+            try:
+                with open(kugou_legacy, "r", encoding="utf-8") as f:
+                    auth_info = json.load(f)
+                    self.data["kugou"] = {"auth_info": auth_info}
+                    print(f"Migrated Kugou auth info from {kugou_legacy}")
+            except Exception as e:
+                print(f"Error migrating Kugou auth info: {e}")
+
+        if any(os.path.exists(f) for f in [bili_legacy, netease_legacy, kugou_legacy]):
+            self._save()
+            # Optional: delete old files? User asked to migrate, usually implies moving.
+            # I'll leave them for now or delete them if I'm sure. 
+            # User said "migrate to new version", usually means move.
+            # For safety, I'll just print instructions or do it. 
+            # I'll rename them to .bak for safety.
+            for f in [bili_legacy, netease_legacy, kugou_legacy]:
+                if os.path.exists(f):
+                    try:
+                        os.rename(f, f + ".bak")
+                    except: pass
+
+    def _save(self):
+        try:
+            with open(self.file_path, "w", encoding="utf-8") as f:
+                json.dump(self.data, f, ensure_ascii=False, indent=4)
+        except Exception as e:
+            print(f"Error saving persistence file: {e}")
+
+    def get(self, module_name, key, default=None):
+        with self.lock:
+            module_data = self.data.get(module_name, {})
+            return module_data.get(key, default)
+
+    def set(self, module_name, key, value):
+        with self.lock:
+            if module_name not in self.data:
+                self.data[module_name] = {}
+            self.data[module_name][key] = value
+            self._save()
+
+    def get_module_data(self, module_name):
+        with self.lock:
+            return self.data.get(module_name, {}).copy()
+
+    def set_module_data(self, module_name, data):
+        with self.lock:
+            self.data[module_name] = data
+            self._save()
+
+# Global instance
+persistence = PersistenceStore()
