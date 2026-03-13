@@ -3,9 +3,10 @@
 import UIManager from '../modules/UIManager.js';
 
 const SOURCE_ICONS = {
-  bilibili: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M17.813 4.653h.854c1.51.054 2.769.578 3.773 1.574 1.004.995 1.524 2.249 1.56 3.76v7.36c-.036 1.51-.556 2.769-1.56 3.765-1.004.995-2.263 1.519-3.773 1.573H5.32c-1.51-.054-2.769-.578-3.773-1.573-1.004-.996-1.524-2.25-1.56-3.766V10c.036-1.511.556-2.765 1.56-3.76 1.004-.996 2.263-1.52 3.773-1.574h.774L4.388 2.962a.75.75 0 0 1 1.06-1.06l3.833 3.833h5.438l3.833-3.833a.75.75 0 0 1 1.06 1.06L17.813 4.653zM5.32 6.173c-1.084.027-1.984.396-2.7 1.107-.716.711-1.085 1.61-1.112 2.695v7.387c.027 1.084.396 1.984 1.112 2.7.716.715 1.616 1.083 2.7 1.11h13.36c1.084-.027 1.984-.395 2.7-1.11.716-.716 1.085-1.616 1.112-2.7V10c-.027-1.085-.396-1.984-1.112-2.695-.716-.711-1.616-1.08-2.7-1.107H5.32zm3.18 3.827c.746 0 1.35.603 1.35 1.347v1.347c0 .747-.604 1.35-1.35 1.35-.747 0-1.35-.603-1.35-1.35V11.35c0-.744.603-1.347 1.35-1.347zm7 0c.746 0 1.35.603 1.35 1.347v1.347c0 .747-.604 1.35-1.35 1.35-.747 0-1.35-.603-1.35-1.35V11.35c0-.744.603-1.347 1.35-1.347z"/></svg>`,
-  netease: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm5.845 13.5c-.234.375-.54.7-.9.96-.36.26-.76.45-1.18.56-.42.11-.86.17-1.3.17-.44 0-.88-.06-1.3-.17-.42-.11-.82-.3-1.18-.56-.36-.26-.666-.585-.9-.96-.234-.375-.41-.795-.52-1.24-.11-.445-.17-.91-.17-1.38 0-.47.06-.935.17-1.38.11-.445.286-.865.52-1.24.234-.375.54-.7.9-.96.36-.26.76-.45 1.18-.56.42-.11.86-.17 1.3-.17.44 0 .88.06 1.3.17.42.11.82.3 1.18.56.36.26.666.585.9.96.234.375.41.795.52 1.24.11.445.17.91.17 1.38 0 .47-.06.935-.17 1.38-.11.445-.286.865-.52 1.24z"/></svg>`,
-  kugou: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v10h-2z"/></svg>`
+  bilibili: '<img src="source_icon/bilibili.ico" width="28" height="28" alt="bilibili">',
+  netease: '<img src="source_icon/netease.ico" width="28" height="28" alt="netease">',
+  kugou: '<img src="source_icon/kugou.ico" width="28" height="28" alt="kugou">',
+  soundcloud: '<img src="source_icon/soundcloud.ico" width="28" height="28" alt="soundcloud">'
 };
 
 class AuthManagerPage {
@@ -119,12 +120,18 @@ class AuthManagerPage {
                 <div class="source-item-icon">${sourceIcon}</div>
                 <div class="source-item-info">
                     <span class="source-item-name">${source.source.charAt(0).toUpperCase() + source.source.slice(1)}</span>
-                    <span class="source-status-pill ${isLoggedIn ? 'pill-green' : 'pill-red'}">${statusText}</span>
+                    <div style="display: flex; gap: 6px;">
+                        <span class="source-status-pill ${isLoggedIn ? 'pill-green' : 'pill-red'}">${statusText}</span>
+                        ${!isLoggedIn && (source.require_auth_to_enable === true || source.require_auth_to_enable === "true") ? '<span class="source-status-pill pill-orange">Require Authorization</span>' : ''}
+                    </div>
                 </div>
             </div>
             <div class="source-item-actions">
                 ${isLoggedIn ? 
-                    `<button class="text-button btn-logout-action">Logout</button>` :
+                    ((source.require_auth_to_enable === true || source.require_auth_to_enable === "true") && isEnabled ? 
+                        `<button class="text-button btn-logout-action action-button-disabled" disabled title="请先在右侧禁用此源后再登出">Logout</button>` :
+                        `<button class="text-button btn-logout-action">Logout</button>`
+                    ) :
                     `<button class="text-button btn-login-action">Login</button>`
                 }
                 <button class="btn-move-circle" title="${isEnabled ? 'Disable' : 'Enable'}">

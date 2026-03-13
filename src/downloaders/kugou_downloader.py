@@ -107,10 +107,10 @@ def create_kugou_request(url, params=None, data=None, method="GET", encrypt_type
     
     if res.status_code == 200:
         try:
-            return res.json(), res.headers
+            return res.json(), res
         except:
-            return res.text, res.headers
-    return None, res.headers
+            return res.text, res
+    return None, res
 
 # --- Auth ---
 def str_to_qrcode_dataurl(data: str) -> str:
@@ -168,6 +168,7 @@ def save_cookies(auth_info):
 
 # --- Search ---
 async def search_tracks_async(query: str, limit: int = 20) -> list[dict]:
+    load_cookie()
     loop = asyncio.get_event_loop()
     url = 'https://complexsearch.kugou.com/v3/search/song'
     params = {
@@ -282,6 +283,7 @@ def _get_lyrics_kugou(hash_val, title):
     return ""
 
 async def download_track(track_info: dict, base_download_path: str = "./downloads", progress_callback: callable = None) -> MusicItem | None:
+    load_cookie()
     track_id = track_info.get("music_id")
     hash_val = track_info.get("_hash")
     album_id = track_info.get("_album_id", 0)
@@ -309,17 +311,26 @@ async def download_track(track_info: dict, base_download_path: str = "./download
             music_item.set_cover(os.path.join(music_item.read_path, f"cover{ext}"))
 
     # Download Audio
+    downloaded_audio_path = None
     audio_options = await loop.run_in_executor(None, _get_audio_options_kugou, hash_val, album_id)
     if audio_options:
         audio_url = audio_options[0].get("url")
         if audio_url:
-            ext = ".mp3" # Kugou usually mp3 or m4a
+            parsed_url = urllib.parse.urlparse(audio_url)
+            ext = os.path.splitext(parsed_url.path)[1] or ".mp3"
             audio_filename = os.path.join(music_item.work_path, f"audio{ext}")
             from netease_downloader import _save_file_with_progress
             success = await loop.run_in_executor(None, _save_file_with_progress, audio_url, audio_filename, track_id, progress_callback, "audio")
             if success:
-                music_item.set_audio(os.path.join(music_item.read_path, f"audio{ext}"))
+                downloaded_audio_path = os.path.join(music_item.read_path, f"audio{ext}")
+                music_item.set_audio(downloaded_audio_path)
     
+    if not downloaded_audio_path:
+        print(f"Failed to download audio for Kugou track: {track_id}")
+        if progress_callback:
+            progress_callback(track_id=track_id, current_size=0, total_size=0, file_type="track", status="error", error_message="No accessible audio URL found.")
+        return None
+
     # Get Lyrics
     lyrics = await loop.run_in_executor(None, _get_lyrics_kugou, hash_val, music_item.title)
     if lyrics:
@@ -362,20 +373,14 @@ def poll_auth_status(params):
     qrcode_key = params.get("qrcode_key")
     if not qrcode_key: return {"error": "Missing qrcode_key"}
     
-    res_data, headers = get_login_status(qrcode_key)
+    res_data, res = get_login_status(qrcode_key)
     if res_data:
         data = res_data.get("data", {})
         status = data.get("status")
         if status == 4: # Success
-            # Get cookies from headers
-            set_cookie_headers = headers.get("Set-Cookie") or headers.get("set-cookie")
-            cookie_str = ""
-            if set_cookie_headers:
-                if isinstance(set_cookie_headers, str): set_cookie_headers = [set_cookie_headers]
-                cookies = []
-                for h in set_cookie_headers:
-                    cookies.append(h.split(";")[0])
-                cookie_str = "; ".join(cookies)
+            # Get all cookies from requests Response
+            cookies_dict = requests.utils.dict_from_cookiejar(res.cookies)
+            cookie_str = "; ".join([f"{k}={v}" for k, v in cookies_dict.items()])
             
             auth_info = {
                 "cookie": cookie_str,

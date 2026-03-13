@@ -1082,36 +1082,22 @@ async def download_track(
     if downloaded_audio_path:
         music_item.set_audio(downloaded_audio_path)
         music_item.lossless = is_lossless
-
-    # 5. Save metadata
-    await loop.run_in_executor(None, music_item.dump_self)
-    print(
-        f"Bilibili metadata for {music_item.music_id} saved to {os.path.join(music_item.work_path, 'music.json')}"
-    )
+        # 5. Save metadata (Only if audio download succeeded)
+        await loop.run_in_executor(None, music_item.dump_self)
+        print(f"Bilibili metadata for {music_item.music_id} saved.")
 
     if progress_callback:
-        final_status = "completed_track"
-        if not downloaded_audio_path and not downloaded_cover_path:
-            final_status = "error"
-        elif not downloaded_audio_path:
-            final_status = "completed_with_warnings"
+        final_status = "completed_track" if downloaded_audio_path else "error"
         progress_callback(
             track_id=music_item.music_id,
             current_size=1,
             total_size=1,
             file_type="track",
             status=final_status,
-            error_message=(
-                "Audio or cover download failed."
-                if final_status != "completed_track"
-                else None
-            ),
+            error_message="Audio download failed." if not downloaded_audio_path else None
         )
 
     if not downloaded_audio_path:
-        print(
-            f"Failed to download essential audio for Bilibili track {music_item.music_id}. Reporting as failure."
-        )
         return None
 
     return music_item

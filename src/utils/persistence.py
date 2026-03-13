@@ -7,10 +7,12 @@ class PersistenceStore:
         self.file_path = file_path
         self.data = {}
         self.lock = Lock()
+        self._last_mtime = 0
         self._load()
 
     def _load(self):
         if os.path.exists(self.file_path):
+            self._last_mtime = os.path.getmtime(self.file_path)
             try:
                 with open(self.file_path, "r", encoding="utf-8") as f:
                     self.data = json.load(f)
@@ -23,6 +25,16 @@ class PersistenceStore:
         
         # Run migration after initial load
         self._migrate_legacy()
+
+    def _check_reload(self):
+        if os.path.exists(self.file_path):
+            current_mtime = os.path.getmtime(self.file_path)
+            if current_mtime > self._last_mtime:
+                self.reload()
+
+    def reload(self):
+        with self.lock:
+            self._load()
 
     def _migrate_legacy(self):
         # Migration for Bilibili
@@ -79,25 +91,31 @@ class PersistenceStore:
             print(f"Error saving persistence file: {e}")
 
     def get(self, module_name, key, default=None):
+        self._check_reload()
         with self.lock:
             module_data = self.data.get(module_name, {})
             return module_data.get(key, default)
 
     def set(self, module_name, key, value):
+        self._check_reload()
         with self.lock:
             if module_name not in self.data:
                 self.data[module_name] = {}
             self.data[module_name][key] = value
             self._save()
+            self._last_mtime = os.path.getmtime(self.file_path)
 
     def get_module_data(self, module_name):
+        self._check_reload()
         with self.lock:
             return self.data.get(module_name, {}).copy()
 
     def set_module_data(self, module_name, data):
+        self._check_reload()
         with self.lock:
             self.data[module_name] = data
             self._save()
+            self._last_mtime = os.path.getmtime(self.file_path)
 
 # Global instance
 persistence = PersistenceStore()

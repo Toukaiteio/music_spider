@@ -65,6 +65,7 @@ from handlers.source_handler import (
     handle_enable_source,
     handle_disable_source
 )
+from handlers.music_claw_handler import handle_music_claw_chat
 
 # Queues for inter-process communication for downloads
 download_task_queue = get_download_task_queue()
@@ -143,14 +144,25 @@ def download_worker_main(task_queue: Queue, results_queue: Queue, downloads_dir:
                 # The actual download call
                 music_item = asyncio.run(downloader_module.download_track(track_data, downloads_dir, progress_callback_mp))
 
-                print(f"Worker {os.getpid()}: Download successful for track ID {track_id_for_result}")
-                results_queue.put({
-                    "type": "success",
-                    "original_cmd_id": original_cmd_id,
-                    "track_id": track_id_for_result,
-                    "music_item": music_item.data.to_dict(),
-                    "client_id": client_id
-                })
+                if music_item:
+                    print(f"Worker {os.getpid()}: Download successful for track ID {track_id_for_result}")
+                    results_queue.put({
+                        "type": "success",
+                        "original_cmd_id": original_cmd_id,
+                        "track_id": track_id_for_result,
+                        "music_item": music_item.data.to_dict(),
+                        "client_id": client_id
+                    })
+                else:
+                    # downloader_module likely already called progress_callback_mp with error status
+                    print(f"Worker {os.getpid()}: Download failed for track ID {track_id_for_result}")
+                    results_queue.put({
+                        "type": "error",
+                        "original_cmd_id": original_cmd_id,
+                        "track_id": track_id_for_result,
+                        "error": "Download failed: No accessible audio file found.",
+                        "client_id": client_id
+                    })
 
             except Exception as e:
                 print(f"Worker {os.getpid()}: Error downloading track ID {track_id_for_result}: {e}")
@@ -204,6 +216,7 @@ COMMAND_HANDLERS = {
     "logout": handle_logout,
     "enable_source": handle_enable_source,
     "disable_source": handle_disable_source,
+    "music_claw_chat": handle_music_claw_chat,
 }
 
 # Main WebSocket connection handler

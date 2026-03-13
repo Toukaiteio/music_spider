@@ -4,38 +4,12 @@ class MusicClawPage {
     constructor() {
         this.appState = null;
         this.managers = null;
-        this.messages = [
-            {
-                role: 'assistant',
-                content: 'Hello! I am your Music Claw assistant. How can I help you today?',
-                timestamp: new Date().toISOString()
-            },
-            {
-                role: 'user',
-                content: 'Search for some J-Pop songs from Bilibili.',
-                timestamp: new Date().toISOString()
-            },
-            {
-                role: 'assistant',
-                content: 'Sure! I am searching for J-Pop songs on Bilibili...',
-                tool_call: {
-                    name: 'search_music',
-                    parameters: { query: 'J-Pop', source: 'bilibili' }
-                },
-                tool_result: {
-                    status: 'success',
-                    data: [
-                        { title: 'Pretender', artist: 'Official Hige Dandism' },
-                        { title: 'Gurenge', artist: 'LiSA' }
-                    ]
-                },
-                timestamp: new Date().toISOString()
-            }
-        ];
-        this.history = [
-            { id: 1, title: 'J-Pop search', date: '2026-03-12' },
-            { id: 2, title: 'Download Official Hige Dandism', date: '2026-03-11' }
-        ];
+        // Conversation: array of { role, content, timestamp, tool_call?, tool_result? }
+        this.messages = [];
+        this.sessionId = `session_${Date.now()}`;
+        this.isLoading = false;
+        // Pending tool call cards: tool_call_id -> DOM element
+        this._pendingToolCards = {};
     }
 
     init(appState, managers) {
@@ -48,12 +22,9 @@ class MusicClawPage {
             <div id="music-claw-page" class="page-container">
                 <div class="claw-toolbar">
                     <div class="claw-center-title">
-                        <span>New Conversation</span>
+                        <span id="claw-session-title">New Conversation</span>
                     </div>
                     <div class="claw-actions">
-                        <button id="claw-history-button" class="icon-button floating" title="View History">
-                            <span class="material-icons">history</span>
-                        </button>
                         <button id="claw-new-chat-button" class="icon-button floating" title="New Chat">
                             <span class="material-icons">add</span>
                         </button>
@@ -62,36 +33,16 @@ class MusicClawPage {
 
                 <div id="claw-chat-container" class="claw-chat-container">
                     <div id="claw-messages" class="claw-messages">
-                        <!-- Messages will be rendered here -->
+                        <!-- Messages rendered here -->
                     </div>
                 </div>
 
                 <div class="claw-input-area">
                     <div class="claw-input-wrapper">
-                        <textarea id="claw-user-input" placeholder="Ask Music Claw something..." rows="1"></textarea>
+                        <textarea id="claw-user-input" placeholder="Ask Music Claw something…" rows="1"></textarea>
                         <button id="claw-send-button" class="icon-button primary">
                             <span class="material-icons">send</span>
                         </button>
-                    </div>
-                </div>
-
-                <div id="claw-history-drawer" class="claw-history-drawer hidden">
-                    <div class="drawer-header">
-                        <h3>Chat History</h3>
-                        <button id="close-history-button" class="icon-button">
-                            <span class="material-icons">close</span>
-                        </button>
-                    </div>
-                    <div class="history-list">
-                        ${this.history.map(item => `
-                            <div class="history-item">
-                                <span class="material-icons">chat_bubble_outline</span>
-                                <div class="history-info">
-                                    <span class="history-title">${item.title}</span>
-                                    <span class="history-date">${item.date}</span>
-                                </div>
-                            </div>
-                        `).join('')}
                     </div>
                 </div>
             </div>
@@ -99,99 +50,153 @@ class MusicClawPage {
     }
 
     onLoad(container, subPageId, appState, managers) {
-        this.renderMessages();
+        this._showWelcome();
         this._setupEventListeners(container);
     }
 
-    renderMessages() {
-        const messagesContainer = document.getElementById('claw-messages');
-        if (!messagesContainer) return;
+    // ── Welcome message ────────────────────────────────────────────────────────
 
-        messagesContainer.innerHTML = this.messages.map(msg => this.renderMessage(msg)).join('');
-        this.scrollToBottom();
+    _showWelcome() {
+        const welcome = {
+            role: 'assistant',
+            content: 'Hello! I\'m **Music Claw**, your AI music assistant.\n\nI can help you:\n• Search for music on Bilibili, Netease, or Kugou\n• Look up your local music library\n• Queue downloads for tracks you like\n\nJust tell me what you\'re looking for!',
+            timestamp: new Date().toISOString(),
+        };
+        this.messages = [welcome];
+        this._renderMessages();
     }
 
-    renderMessage(msg) {
-        let contentHtml = `<div class="message-text">${msg.content}</div>`;
-        
-        if (msg.tool_call || msg.tool_result) {
-            contentHtml += this.renderToolResult(msg.tool_call, msg.tool_result);
-        }
+    // ── Message rendering ──────────────────────────────────────────────────────
 
+    _renderMessages() {
+        const container = document.getElementById('claw-messages');
+        if (!container) return;
+        container.innerHTML = this.messages.map(m => this._renderMessage(m)).join('');
+        this._scrollToBottom();
+    }
+
+    _appendMessage(msg) {
+        const container = document.getElementById('claw-messages');
+        if (!container) return;
+        const div = document.createElement('div');
+        div.innerHTML = this._renderMessage(msg);
+        container.appendChild(div.firstElementChild);
+        this._scrollToBottom();
+    }
+
+    _renderMessage(msg) {
         const isAssistant = msg.role === 'assistant';
-        const messageClass = isAssistant ? 'assistant no-bubble' : 'user';
+        const cls = isAssistant ? 'assistant no-bubble' : 'user';
+        const bodyHtml = isAssistant
+            ? `<div class="message-text">${this._md(msg.content)}</div>`
+            : `<div class="message-text">${this._esc(msg.content)}</div>`;
 
         return `
-            <div class="message ${messageClass}">
+            <div class="message ${cls}">
                 <div class="message-content-wrapper">
-                    <div class="message-body">
-                        ${contentHtml}
-                    </div>
+                    <div class="message-body">${bodyHtml}</div>
                     <div class="message-time">${new Date(msg.timestamp).toLocaleTimeString()}</div>
                 </div>
-            </div>
-        `;
+            </div>`;
     }
 
-    renderToolResult(toolCall, toolResult) {
-        const toolName = toolCall?.name || 'Unknown Tool';
-        const data = toolResult?.data || {};
-        
-        return `
-            <div class="tool-result-base">
-                <div class="tool-result-header">
-                    <span class="material-icons">build</span>
-                    <span class="tool-name">${toolName}</span>
-                    <div class="tool-status-tag success">
-                        <span class="material-icons">check_circle</span>
-                        Done
+    // ── Tool call card rendering ───────────────────────────────────────────────
+
+    _appendToolCallCard(toolCall) {
+        const container = document.getElementById('claw-messages');
+        if (!container) return;
+
+        const card = document.createElement('div');
+        card.className = 'message assistant no-bubble';
+        card.dataset.toolCallId = toolCall.id;
+        card.innerHTML = `
+            <div class="message-content-wrapper" style="width:100%">
+                <div class="message-body">
+                    <div class="tool-result-base">
+                        <div class="tool-result-header">
+                            <span class="material-icons">build</span>
+                            <span class="tool-name">${this._esc(toolCall.name)}</span>
+                            <div class="tool-status-tag" id="ts-${toolCall.id}">
+                                <span class="material-icons claw-spin">autorenew</span>
+                                Running…
+                            </div>
+                        </div>
+                        <div class="tool-result-body" id="tb-${toolCall.id}">
+                            <pre><code>${JSON.stringify(toolCall.parameters, null, 2)}</code></pre>
+                        </div>
                     </div>
                 </div>
-                <div class="tool-result-body">
-                    <pre><code>${JSON.stringify(data, null, 2)}</code></pre>
-                </div>
-            </div>
-        `;
+            </div>`;
+        container.appendChild(card);
+        this._pendingToolCards[toolCall.id] = card;
+        this._scrollToBottom();
     }
 
-    scrollToBottom() {
-        const container = document.getElementById('claw-chat-container');
-        if (container) {
-            container.scrollTop = container.scrollHeight;
+    _resolveToolCallCard(toolResult) {
+        const card = this._pendingToolCards[toolResult.id];
+        if (!card) return;
+
+        const statusEl = card.querySelector(`#ts-${toolResult.id}`);
+        const bodyEl = card.querySelector(`#tb-${toolResult.id}`);
+
+        if (statusEl) {
+            statusEl.className = 'tool-status-tag success';
+            statusEl.innerHTML = `<span class="material-icons">check_circle</span> Done`;
         }
+        if (bodyEl) {
+            // Show result summary
+            const result = toolResult.result || {};
+            let summary = result;
+            if (result.results && Array.isArray(result.results)) {
+                summary = {
+                    count: result.count ?? result.results.length,
+                    results: result.results.map(r => ({
+                        title: r.title,
+                        artist: r.artist,
+                        source: r.source,
+                    })),
+                };
+            }
+            bodyEl.innerHTML = `<pre><code>${JSON.stringify(summary, null, 2)}</code></pre>`;
+        }
+        delete this._pendingToolCards[toolResult.id];
+        this._scrollToBottom();
     }
+
+    // ── Thinking indicator ────────────────────────────────────────────────────
+
+    _showThinking() {
+        const container = document.getElementById('claw-messages');
+        if (!container || document.getElementById('claw-thinking')) return;
+        const div = document.createElement('div');
+        div.id = 'claw-thinking';
+        div.className = 'message assistant no-bubble';
+        div.innerHTML = `
+            <div class="message-content-wrapper" style="width:100%">
+                <div class="message-body">
+                    <div class="claw-thinking-dots">
+                        <span></span><span></span><span></span>
+                    </div>
+                </div>
+            </div>`;
+        container.appendChild(div);
+        this._scrollToBottom();
+    }
+
+    _hideThinking() {
+        const el = document.getElementById('claw-thinking');
+        if (el) el.remove();
+    }
+
+    // ── Event listeners ───────────────────────────────────────────────────────
 
     _setupEventListeners(container) {
-        const historyBtn = container.querySelector('#claw-history-button');
         const newChatBtn = container.querySelector('#claw-new-chat-button');
-        const closeHistoryBtn = container.querySelector('#close-history-button');
-        const historyDrawer = container.querySelector('#claw-history-drawer');
         const sendBtn = container.querySelector('#claw-send-button');
         const textarea = container.querySelector('#claw-user-input');
 
-        if (historyBtn && historyDrawer) {
-            historyBtn.addEventListener('click', () => {
-                historyDrawer.classList.toggle('hidden');
-            });
-        }
-
         if (newChatBtn) {
-            newChatBtn.addEventListener('click', () => {
-                if (confirm('Clear current conversation?')) {
-                    this.messages = [{
-                        role: 'assistant',
-                        content: 'Hello! I am your Music Claw assistant. How can I help you today?',
-                        timestamp: new Date().toISOString()
-                    }];
-                    this.renderMessages();
-                }
-            });
-        }
-
-        if (closeHistoryBtn && historyDrawer) {
-            closeHistoryBtn.addEventListener('click', () => {
-                historyDrawer.classList.add('hidden');
-            });
+            newChatBtn.addEventListener('click', () => this._newChat());
         }
 
         if (textarea) {
@@ -199,44 +204,154 @@ class MusicClawPage {
                 textarea.style.height = 'auto';
                 textarea.style.height = Math.min(textarea.scrollHeight, 150) + 'px';
             });
-
             textarea.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    this._handleSendMessage();
+                    this._handleSend();
                 }
             });
         }
 
         if (sendBtn) {
-            sendBtn.addEventListener('click', () => this._handleSendMessage());
+            sendBtn.addEventListener('click', () => this._handleSend());
         }
     }
 
-    _handleSendMessage() {
+    _newChat() {
+        if (this.isLoading) return;
+        this.messages = [];
+        this.sessionId = `session_${Date.now()}`;
+        this._pendingToolCards = {};
+        const titleEl = document.getElementById('claw-session-title');
+        if (titleEl) titleEl.textContent = 'New Conversation';
+        this._showWelcome();
+    }
+
+    // ── Send message ──────────────────────────────────────────────────────────
+
+    async _handleSend() {
+        if (this.isLoading) return;
         const textarea = document.getElementById('claw-user-input');
         const content = textarea.value.trim();
         if (!content) return;
 
-        this.messages.push({
-            role: 'user',
-            content: content,
-            timestamp: new Date().toISOString()
-        });
-
+        // Clear input
         textarea.value = '';
         textarea.style.height = 'auto';
-        this.renderMessages();
 
-        // Simulate assistant thinking
-        setTimeout(() => {
-            this.messages.push({
+        // Add user message
+        const userMsg = { role: 'user', content, timestamp: new Date().toISOString() };
+        this.messages.push(userMsg);
+        this._appendMessage(userMsg);
+
+        // Update title on first real user message
+        if (this.messages.filter(m => m.role === 'user').length === 1) {
+            const titleEl = document.getElementById('claw-session-title');
+            if (titleEl) titleEl.textContent = content.slice(0, 40);
+        }
+
+        this._setLoading(true);
+        this._showThinking();
+
+        // Build history (user/assistant pairs, excluding welcome)
+        const history = this.messages
+            .slice(0, -1) // exclude the just-added user message
+            .filter(m => m.role === 'user' || m.role === 'assistant')
+            .map(m => ({ role: m.role, content: m.content }));
+
+        try {
+            await this.managers.websocket.sendClawCommand(
+                'music_claw_chat',
+                { message: content, session_id: this.sessionId, history },
+                (update) => this._handleUpdate(update)
+            );
+        } catch (err) {
+            this._hideThinking();
+            const errMsg = {
                 role: 'assistant',
-                content: 'I received your message: "' + content + '". Functional logic will be implemented soon!',
-                timestamp: new Date().toISOString()
-            });
-            this.renderMessages();
-        }, 1000);
+                content: `Sorry, an error occurred: ${err.message}`,
+                timestamp: new Date().toISOString(),
+            };
+            this.messages.push(errMsg);
+            this._appendMessage(errMsg);
+        } finally {
+            this._setLoading(false);
+        }
+    }
+
+    // ── Handle streaming updates ──────────────────────────────────────────────
+
+    _handleUpdate(update) {
+        const { update_type } = update;
+
+        if (update_type === 'thinking') {
+            // Already showing thinking indicator
+            return;
+        }
+
+        if (update_type === 'tool_call') {
+            this._hideThinking();
+            this._appendToolCallCard(update.tool_call);
+            return;
+        }
+
+        if (update_type === 'tool_result') {
+            this._resolveToolCallCard(update.tool_result);
+            this._showThinking(); // Show thinking again while LLM processes
+            return;
+        }
+
+        if (update_type === 'complete') {
+            this._hideThinking();
+            const assistantMsg = {
+                role: 'assistant',
+                content: update.content || '',
+                timestamp: new Date().toISOString(),
+            };
+            this.messages.push(assistantMsg);
+            this._appendMessage(assistantMsg);
+        }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    _setLoading(val) {
+        this.isLoading = val;
+        const sendBtn = document.getElementById('claw-send-button');
+        const textarea = document.getElementById('claw-user-input');
+        if (sendBtn) sendBtn.disabled = val;
+        if (textarea) textarea.disabled = val;
+    }
+
+    _scrollToBottom() {
+        const c = document.getElementById('claw-chat-container');
+        if (c) c.scrollTop = c.scrollHeight;
+    }
+
+    /** Minimal Markdown: bold, italic, newlines, unordered lists */
+    _md(text) {
+        if (!text) return '';
+        let t = this._esc(text);
+        // **bold**
+        t = t.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+        // *italic*
+        t = t.replace(/\*(.+?)\*/g, '<em>$1</em>');
+        // bullet lists (lines starting with •, -, or *)
+        t = t.replace(/^[•\-]\s+(.+)$/gm, '<li>$1</li>');
+        t = t.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+        // newlines
+        t = t.replace(/\n/g, '<br>');
+        return t;
+    }
+
+    /** HTML-escape */
+    _esc(str) {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
     }
 }
 

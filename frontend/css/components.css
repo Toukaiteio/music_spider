@@ -545,6 +545,12 @@
     background-color: var(--shadow-color);
 }
 
+.action-button-disabled {
+    opacity: 0.4 !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+}
+
 .remove-from-collection-button {
     color: rgb(239, 83, 80);
 }

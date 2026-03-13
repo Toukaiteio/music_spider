@@ -26,7 +26,9 @@ class NeteaseCrypto:
 
     @staticmethod
     def generate_eapi_params(url_path, data):
-        text = json.dumps(data)
+        # Use separators=(',', ':') to match JavaScript's JSON.stringify() spacing, 
+        # which is required for correct NetEase EAPI digest generation.
+        text = json.dumps(data, separators=(',', ':'))
         url_path = url_path.replace('/eapi/', '/api/')
         message = f"nobody{url_path}use{text}md5forencrypt"
         digest = hashlib.md5(message.encode('utf-8')).hexdigest()
@@ -61,10 +63,10 @@ def post_eapi_request(url, data):
     
     res = requests.post(url, data=post_data, headers=headers)
     if res.status_code == 200:
-        return res.json(), res.headers
+        return res.json(), res
     else:
         print(f"NetEase API Error: {res.status_code} - {res.text}")
-        return None, res.headers
+        return None, res
 
 # --- Auth ---
 def str_to_qrcode_dataurl(data: str) -> str:
@@ -110,19 +112,6 @@ def get_login_status(unikey: str):
     }
     return post_eapi_request(url, data)
 
-def parse_cookies_from_headers(headers):
-    cookies = {}
-    set_cookie_headers = headers.get("Set-Cookie") or headers.get("set-cookie")
-    if not set_cookie_headers:
-        return cookies
-    if isinstance(set_cookie_headers, str):
-        set_cookie_headers = [set_cookie_headers]
-    
-    for header in set_cookie_headers:
-        parts = header.split(";")[0].split("=", 1)
-        if len(parts) == 2:
-            cookies[parts[0].strip()] = parts[1].strip()
-    return cookies
 
 from utils.persistence import persistence
 
@@ -139,6 +128,7 @@ def save_cookies(cookies):
 
 # --- Search ---
 async def search_tracks_async(query: str, limit: int = 20) -> list[dict]:
+    load_cookie() # Ensure latest cookies in worker process
     loop = asyncio.get_event_loop()
     url = 'https://interface3.music.163.com/eapi/cloudsearch/pc'
     data = {
@@ -177,7 +167,7 @@ async def search_tracks_async(query: str, limit: int = 20) -> list[dict]:
 def _save_file_with_progress(url, filename, track_id, progress_callback, file_type):
     try:
         os.makedirs(os.path.dirname(filename), exist_ok=True)
-        resp = requests.get(url, stream=True, headers={"User-Agent": general_headers["User-Agent"]}, timeout=30)
+        resp = requests.get(url, stream=True, headers=get_headers(), timeout=30)
         resp.raise_for_status()
         total_size = int(resp.headers.get("content-length", 0))
         current_size = 0
@@ -207,14 +197,13 @@ def _save_file_with_progress(url, filename, track_id, progress_callback, file_ty
         print(f"Download Error: {e}")
         return False
 
-def _get_audio_options_netease(track_id: str):
+def _get_audio_options_netease(track_id: str, level: str = "standard"):
     url = 'https://interface3.music.163.com/eapi/song/enhance/player/url/v1'
-    # Strip prefix if present
     pure_id = track_id.replace("netease_", "")
     data = {
         "ids": [int(pure_id)],
-        "level": "lossless", # 'standard', 'higher', 'exhigh', 'lossless', 'hires'
-        "encodeType": "flac",
+        "level": level,
+        "encodeType": "flac", # PC Client eapi uses flac as default encodeType
         "header": {
             "os": "pc",
             "appver": "2.10.2.200154",
@@ -223,6 +212,7 @@ def _get_audio_options_netease(track_id: str):
         }
     }
     res_data, _ = post_eapi_request(url, data)
+    
     if res_data and res_data.get("code") == 200:
         return res_data.get("data", [])
     return []
@@ -242,6 +232,7 @@ def _get_lyrics_netease(track_id: str):
     return ""
 
 async def download_track(track_info: dict, base_download_path: str = "./downloads", progress_callback: callable = None) -> MusicItem | None:
+    load_cookie() # Ensure latest cookies in worker process
     track_id = track_info.get("music_id")
     if not track_id:
         return None
@@ -267,25 +258,43 @@ async def download_track(track_info: dict, base_download_path: str = "./download
         if success:
             music_item.set_cover(os.path.join(music_item.read_path, f"cover{ext}"))
 
-    # Download Audio
-    audio_options = await loop.run_in_executor(None, _get_audio_options_netease, track_id)
-    if audio_options:
-        option = audio_options[0]
-        audio_url = option.get("url")
-        if audio_url:
-            ext = ".flac" if "flac" in audio_url.lower() else ".mp3"
-            audio_filename = os.path.join(music_item.work_path, f"audio{ext}")
-            success = await loop.run_in_executor(None, _save_file_with_progress, audio_url, audio_filename, track_id, progress_callback, "audio")
-            if success:
-                music_item.set_audio(os.path.join(music_item.read_path, f"audio{ext}"))
-                music_item.lossless = option.get("level") in ["lossless", "hires"]
+    # Download Audio (Try multiple qualities)
+    downloaded_audio_path = None
+    qualities = ["lossless", "exhigh", "higher", "standard"]
     
+    for q in qualities:
+        audio_options = await loop.run_in_executor(None, _get_audio_options_netease, track_id, q)
+        if audio_options:
+            option = audio_options[0]
+            audio_url = option.get("url")
+            if audio_url:
+                # Better extension detection
+                parsed_url = urllib.parse.urlparse(audio_url)
+                ext = os.path.splitext(parsed_url.path)[1]
+                if not ext:
+                    ext = ".flac" if q in ["lossless", "hires"] else ".mp3"
+                
+                audio_filename = os.path.join(music_item.work_path, f"audio{ext}")
+                success = await loop.run_in_executor(None, _save_file_with_progress, audio_url, audio_filename, track_id, progress_callback, "audio")
+                if success:
+                    downloaded_audio_path = os.path.join(music_item.read_path, f"audio{ext}")
+                    music_item.set_audio(downloaded_audio_path)
+                    music_item.lossless = option.get("level") in ["lossless", "hires"]
+                    break # Success!
+    
+    if not downloaded_audio_path:
+        # Final failure report after all quality levels failed
+        print(f"Failed to download audio for NetEase track {track_id} (All quality levels failed or returned no URL).")
+        if progress_callback:
+            progress_callback(track_id=track_id, current_size=0, total_size=0, file_type="track", status="error", error_message="No accessible audio URL found for any quality level.")
+        return None
+
     # Get Lyrics
     lyrics = await loop.run_in_executor(None, _get_lyrics_netease, track_id)
     if lyrics:
         music_item.lyrics = lyrics
     
-    # Save Metadata
+    # Save Metadata (Only if audio download succeeded)
     await loop.run_in_executor(None, music_item.dump_self)
     
     if progress_callback:
@@ -295,7 +304,7 @@ async def download_track(track_info: dict, base_download_path: str = "./download
 
 def get_source_info():
     return {
-        "require_auth_to_enable": True,
+        "require_auth_to_enable": False,
         "auth_required_message": "NetEase Source 需要认证后才能启用。"
     }
 
@@ -323,11 +332,11 @@ def poll_auth_status(params):
     unikey = params.get("qrcode_key")
     if not unikey: return {"error": "Missing qrcode_key"}
     
-    res_data, headers = get_login_status(unikey)
+    res_data, res = get_login_status(unikey)
     if res_data:
         code = res_data.get("code")
         if code == 803: # Success
-            cookies = parse_cookies_from_headers(headers)
+            cookies = requests.utils.dict_from_cookiejar(res.cookies)
             save_cookies(cookies)
             return {"status": "success", "message": "Login successful"}
         elif code == 800: return {"status": "expired", "message": "QR code expired"}

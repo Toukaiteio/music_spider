@@ -54,6 +54,16 @@ FRONTEND_PORT = int(os.getenv("FRONTEND_PORT", 8080)) # Example, not used by cur
 # Authorization
 # List of disabled authorization sources (e.g., ['soundcloud'])
 DISABLED_AUTH_SOURCES = os.getenv("DISABLED_AUTH_SOURCES", "").split(",")
+
+# LLM Configuration
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "zai")   # "zai" | "openai"
+ZAI_TOKEN = os.getenv("ZAI_TOKEN", "")
+ZAI_COOKIE = os.getenv("ZAI_COOKIE", "")
+ZAI_USER_ID = os.getenv("ZAI_USER_ID", "")
+ZAI_MODEL = os.getenv("ZAI_MODEL", "glm-5")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
 DISABLED_AUTH_SOURCES = [s.strip() for s in DISABLED_AUTH_SOURCES if s.strip()]
 
 # Verify essential configurations
