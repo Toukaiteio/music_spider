@@ -87,13 +87,27 @@ _TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "search_library",
+            "description": "Search for music in the local downloaded library",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search terms for local library"}
+                },
+                "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "get_lyrics",
             "description": "Search and retrieve lyrics for a song",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "song_name": {"type": "string"},
-                    "artist": {"type": "string"},
+                    "artist": {"type": "string", "description": "Artist name (optional, helps accuracy)"},
                 },
                 "required": ["song_name"],
             },
@@ -107,9 +121,35 @@ _TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "query": {"type": "string", "description": "Search query for Genius"}
+                    "query": {"type": "string", "description": "Search query for Genius (e.g. 'Song Name Artist Name')"}
                 },
                 "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_track_metadata",
+            "description": "Apply new metadata to a local track",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "music_id": {"type": "string", "description": "The local music_id of the track to update"},
+                    "metadata": {
+                        "type": "object",
+                        "description": "Fields to update",
+                        "properties": {
+                            "title": {"type": "string"},
+                            "artist": {"type": "string"},
+                            "album": {"type": "string"},
+                            "genre": {"type": "string"},
+                            "lyrics": {"type": "string"},
+                            "cover_url": {"type": "string", "description": "URL of the cover image to download and apply"}
+                        }
+                    }
+                },
+                "required": ["music_id", "metadata"],
             },
         },
     },
@@ -121,7 +161,7 @@ _TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "track_data": {"type": "object", "description": "Track data from search"}
+                    "track_data": {"type": "object", "description": "Track data from search or library"}
                 },
                 "required": ["track_data"],
             },

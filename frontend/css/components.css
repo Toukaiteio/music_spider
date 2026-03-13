@@ -392,17 +392,41 @@
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.55);
 }
 
-.lossless-tag {
+.card-tags-container {
     position: absolute;
     bottom: 8px;
     left: 8px;
-    background-color: rgba(0, 0, 0, 0.75);
-    color: white;
-    padding: 3px 7px;
-    font-size: 0.65em;
-    font-weight: bold;
+    display: flex;
+    gap: 4px;
+    z-index: 5;
+    pointer-events: none;
+}
+
+.song-tag {
+    background-color: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: rgba(255, 255, 255, 0.9);
+    padding: 2px 6px;
+    font-size: 0.62em;
+    font-weight: 700;
     border-radius: 4px;
-    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    border: 0.5px solid rgba(255, 255, 255, 0.1);
+}
+
+.song-tag.source-tag {
+    padding: 2px 4px;
+}
+
+.source-tag-icon {
+    width: 13px;
+    height: 13px;
+    display: block;
 }
 
 .song-card-info {

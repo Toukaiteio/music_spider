@@ -10,6 +10,7 @@ class WebSocketManager {
     this.socket = null;
     this.pendingRequests = {};
     this.streamListeners = {}; // cmd_id -> { onUpdate, resolve, reject, timeout }
+    this.pushHandlers = {};    // type -> callback
     this.cmdIdCounter = 0;
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 5;
@@ -61,7 +62,17 @@ class WebSocketManager {
         const response = JSON.parse(event.data);
         console.log("WebSocket message received:", response);
 
-        const { code, data: { original_cmd_id } = {} } = response;
+        const { code, data } = response;
+        const { original_cmd_id } = data || {};
+
+        // ── Push Notifications (Server-initiated) ──────────────────────────
+        if (original_cmd_id === "llm_action") {
+          const handler = this.pushHandlers["llm_action"];
+          if (handler) {
+            handler(data);
+          }
+          return;
+        }
 
         // ── Music Claw streaming updates ─────────────────────────────────────
         if (response.data && response.data.status_type === "claw_update") {
@@ -390,6 +401,10 @@ class WebSocketManager {
       console.error("Error getting library data:", error.message);
       return error;
     }
+  }
+
+  registerPushHandler(type, callback) {
+    this.pushHandlers[type] = callback;
   }
 }
 

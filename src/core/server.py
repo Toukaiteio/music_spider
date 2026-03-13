@@ -66,6 +66,14 @@ from handlers.source_handler import (
     handle_disable_source
 )
 from handlers.music_claw_handler import handle_music_claw_chat
+from handlers.playlist_handler import (
+    handle_get_playlists,
+    handle_get_playlist_tracks,
+    handle_create_playlist,
+    handle_add_to_playlist,
+    handle_remove_from_playlist,
+    handle_delete_playlist
+)
 
 # Queues for inter-process communication for downloads
 download_task_queue = get_download_task_queue()
@@ -217,6 +225,12 @@ COMMAND_HANDLERS = {
     "enable_source": handle_enable_source,
     "disable_source": handle_disable_source,
     "music_claw_chat": handle_music_claw_chat,
+    "get_playlists": handle_get_playlists,
+    "get_playlist_tracks": handle_get_playlist_tracks,
+    "create_playlist": handle_create_playlist,
+    "add_to_playlist": handle_add_to_playlist,
+    "remove_from_playlist": handle_remove_from_playlist,
+    "delete_playlist": handle_delete_playlist,
 }
 
 # Main WebSocket connection handler

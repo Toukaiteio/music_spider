@@ -3,10 +3,13 @@ import json
 import logging
 import os
 import inspect
+import base64
+import time
 from typing import Dict, List, Optional, Any
 
 from core.state import DOWNLOADER_MODULES
 from utils.persistence import persistence
+from utils.data_type import MusicItem
 from config import GENIUS_ACCESS_TOKEN
 import httpx
 
@@ -19,7 +22,7 @@ class MusicSkills:
         self.websocket = websocket
 
     async def search_music(self, query: str, source: str = "netease", limit: int = 5) -> Dict:
-        """Search for music on a specific online source."""
+        """Search for music on a specific online source (bilibili, netease, kugou)."""
         downloader = DOWNLOADER_MODULES.get(source)
         if not downloader:
             return {"error": f"Unsupported source: {source}"}
@@ -46,7 +49,7 @@ class MusicSkills:
                         "duration": r.get("duration", 0),
                         "artwork_url": r.get("artwork_url") or r.get("picUrl", ""),
                         "source": source,
-                        "_raw": r, # Keep raw for other tools
+                        "_raw": r, # Keep raw for downloader tasks
                     })
                 else:
                     trimmed.append(r)
@@ -67,28 +70,51 @@ class MusicSkills:
         
         return {"results": combined, "count": len(combined)}
 
+    async def search_library(self, query: str) -> Dict:
+        """Search for music in the local downloaded library."""
+        from handlers.search_downloaded_music_handler import handle_search_downloaded_music
+        # We'll simulate the handler logic
+        from config import DOWNLOADS_DIR
+        results = []
+        query_lower = query.lower()
+        
+        if not os.path.exists(DOWNLOADS_DIR):
+            return {"results": [], "count": 0}
+            
+        for music_id in os.listdir(DOWNLOADS_DIR):
+            try:
+                item = MusicItem.load_from_json(music_id)
+                if not item: continue
+                data = item.data
+                if (query_lower in (data.title or "").lower() or 
+                    query_lower in (data.author or "").lower() or 
+                    query_lower in (data.album or "").lower()):
+                    results.append(data.to_dict())
+            except:
+                continue
+        return {"results": results, "count": len(results)}
+
     async def create_playlist(self, name: str) -> Dict:
         """Create a new empty playlist."""
-        playlists = persistence.get("playlists", "list_names", ["Liked"])
-        if name in playlists:
+        list_names = persistence.get("playlists", "list_names", ["Liked"])
+        if name in list_names:
             return {"status": "error", "message": f"Playlist '{name}' already exists."}
         
-        playlists.append(name)
-        persistence.set("playlists", "list_names", playlists)
+        list_names.append(name)
+        persistence.set("playlists", "list_names", list_names)
         persistence.set("playlists", name, [])
         return {"status": "success", "message": f"Playlist '{name}' created."}
 
     async def add_to_playlist(self, track_data: Dict, playlist_name: str = "Liked") -> Dict:
         """Add a track to a specified playlist."""
-        # Ensure playlist exists
         list_names = persistence.get("playlists", "list_names", ["Liked"])
         if playlist_name not in list_names:
             await self.create_playlist(playlist_name)
         
         current_tracks = persistence.get("playlists", playlist_name, [])
-        # Check for duplicates
-        music_id = track_data.get("music_id")
-        if any(t.get("music_id") == music_id for t in current_tracks):
+        music_id = track_data.get("music_id") or track_data.get("id")
+        
+        if any((t.get("music_id") or t.get("id")) == music_id for t in current_tracks):
             return {"status": "ignored", "message": f"Track already in '{playlist_name}'."}
         
         current_tracks.append(track_data)
@@ -96,30 +122,31 @@ class MusicSkills:
         return {"status": "success", "message": f"Added to '{playlist_name}'."}
 
     async def get_lyrics(self, song_name: str, artist: str = "") -> Dict:
-        """
-        Search for lyrics with intelligent fallback.
-        Tries to match metadata and fetch from Netease or Kugou.
-        """
+        """Search for lyrics for a song (tries Netease/Kugou)."""
         query = f"{song_name} {artist}".strip()
-        # 1. Search on Netease
+        # Try Netease first
         search_res = await self.search_music(query, "netease", 1)
         if search_res.get("results"):
             track = search_res["results"][0]
-            # Try to fetch lyrics from Netease Downloader implementation
             from downloaders.netease_downloader import _get_lyrics_netease
             lyrics = await asyncio.get_event_loop().run_in_executor(None, _get_lyrics_netease, track["music_id"])
             if lyrics:
                 return {"lyrics": lyrics, "source": "netease", "track": track}
         
-        # 2. Fallback to Kugou if available
-        # (Assuming kugou_downloader has similar logic)
-        
+        # Try Kugou
+        search_res = await self.search_music(query, "kugou", 1)
+        if search_res.get("results"):
+            track = search_res["results"][0]
+            # Assuming kugou downloader has access to lyrics via search raw data or separate call
+            # For now, if no explicit function, we check if raw has it
+            raw = track.get("_raw", {})
+            if raw.get("lyrics"):
+                return {"lyrics": raw["lyrics"], "source": "kugou", "track": track}
+
         return {"status": "error", "message": "No lyrics found for this song."}
 
     async def get_metadata(self, query: str) -> Dict:
-        """
-        Fetch accurate metadata (artist info, album, cover) from Genius.
-        """
+        """Fetch accurate metadata (artist info, album, cover) from Genius."""
         if not GENIUS_ACCESS_TOKEN or "YOUR" in GENIUS_ACCESS_TOKEN:
             return {"error": "Genius API token not configured."}
         
@@ -133,7 +160,6 @@ class MusicSkills:
                     data = resp.json()
                     hits = data.get("response", {}).get("hits", [])
                     if hits:
-                        # Return info from the first hit
                         best = hits[0]["result"]
                         return {
                             "title": best.get("title"),
@@ -146,12 +172,53 @@ class MusicSkills:
         except Exception as e:
             return {"error": str(e)}
 
+    async def update_track_metadata(self, music_id: str, metadata: Dict) -> Dict:
+        """Apply metadata (title, artist, album, genre, lyrics, cover_url) to a local track."""
+        try:
+            item = MusicItem.load_from_json(music_id)
+            if not item:
+                return {"error": f"Track {music_id} not found in library."}
+            
+            updatable = ["title", "author", "album", "genre", "lyrics"]
+            changed = []
+            for field in updatable:
+                # Skill uses 'artist', MusicItem uses 'author'
+                val = metadata.get(field)
+                if field == "author" and not val:
+                    val = metadata.get("artist")
+                
+                if val:
+                    setattr(item, field, val)
+                    changed.append(field)
+            
+            # Handle cover if cover_url is provided
+            cover_url = metadata.get("cover_url") or metadata.get("artwork_url")
+            if cover_url:
+                try:
+                    async with httpx.AsyncClient() as client:
+                        resp = await client.get(cover_url)
+                        if resp.status_code == 200:
+                            cover_dir = os.path.join(item.work_path, "covers")
+                            os.makedirs(cover_dir, exist_ok=True)
+                            filename = f"cover_{int(time.time())}.jpg"
+                            filepath = os.path.join(cover_dir, filename)
+                            with open(filepath, "wb") as f:
+                                f.write(resp.content)
+                            item.set_cover(os.path.join(item.read_path, "./covers/"+filename))
+                            changed.append("cover_image")
+                except Exception as ce:
+                    logger.error(f"Failed to download cover from {cover_url}: {ce}")
+
+            item.dump_self()
+            return {"status": "success", "updated_fields": changed}
+        except Exception as e:
+            return {"error": str(e)}
+
     async def play_song(self, track_data: Dict) -> Dict:
         """Trigger playback of a specific song in the player."""
         if self.websocket:
             from core.ws_messaging import send_response
-            # This depends on how the frontend handles play commands
-            # We'll send a custom event
+            # This triggers the push handler we registered in frontend
             await send_response(self.websocket, "llm_action", code=0, data={
                 "action": "play",
                 "track": track_data
@@ -160,11 +227,9 @@ class MusicSkills:
         return {"status": "error", "message": "WebSocket connection not available for playback."}
 
     async def plan_tasks(self, task_description: str) -> Dict:
-        """Break down a complex task into steps and return the plan."""
-        # This is a meta-tool. In our agent loop, the LLM usually does this itself,
-        # but offering it as a tool helps it structure its output.
+        """Break down a complex user request into steps."""
         return {
             "status": "planned",
-            "message": "Please proceed with these steps: " + task_description,
-            "steps": task_description.split(". ")
+            "message": "Plan generated.",
+            "steps": [s.strip() for s in task_description.split(".") if s.strip()]
         }

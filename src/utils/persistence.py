@@ -105,6 +105,14 @@ class PersistenceStore:
             self._save()
             self._last_mtime = os.path.getmtime(self.file_path)
 
+    def delete(self, module_name, key):
+        self._check_reload()
+        with self.lock:
+            if module_name in self.data and key in self.data[module_name]:
+                del self.data[module_name][key]
+                self._save()
+                self._last_mtime = os.path.getmtime(self.file_path)
+
     def get_module_data(self, module_name):
         self._check_reload()
         with self.lock:

@@ -153,6 +153,14 @@ document.addEventListener("DOMContentLoaded", () => {
   navigationManager.setFavoriteManager(favoriteManager);
   navigationManager.setCollectionManager(collectionManager);
   searchManager.setFavoriteManager(favoriteManager); // SearchManager also needs FavoriteManager
+  
+  // Register AI push actions
+  webSocketManager.registerPushHandler("llm_action", (data) => {
+    if (data.action === "play" && data.track) {
+      console.log("[AI Action] Playing track:", data.track);
+      playerManager.playTrackFromCard(JSON.stringify(data.track));
+    }
+  });
 
   // Initialize UIManager with all managers
   // UIManager.setPlayerManager(playerManager);

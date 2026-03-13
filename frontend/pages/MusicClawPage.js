@@ -59,7 +59,7 @@ class MusicClawPage {
     _showWelcome() {
         const welcome = {
             role: 'assistant',
-            content: 'Hello! I\'m **Music Claw**, your AI music assistant.\n\nI can help you:\n• Search for music on Bilibili, Netease, or Kugou\n• Look up your local music library\n• Queue downloads for tracks you like\n\nJust tell me what you\'re looking for!',
+            content: 'Hello! I\'m **Music Claw**, your AI music assistant.\n\nI can help you:\n• Search for music on Bilibili, Netease, or Kugou\n• Look up your local music library\n• Manage your playlists and "Liked" songs\n• Fetch high-quality metadata and lyrics\n• Control playback with your voice (typing)\n\nTry saying: *"Find some lo-fi music on Netease and play it"* or *"Search for Eminem in my library"*.',
             timestamp: new Date().toISOString(),
         };
         this.messages = [welcome];
@@ -144,20 +144,17 @@ class MusicClawPage {
             statusEl.innerHTML = `<span class="material-icons">check_circle</span> Done`;
         }
         if (bodyEl) {
-            // Show result summary
             const result = toolResult.result || {};
-            let summary = result;
             if (result.results && Array.isArray(result.results)) {
-                summary = {
-                    count: result.count ?? result.results.length,
-                    results: result.results.map(r => ({
-                        title: r.title,
-                        artist: r.artist,
-                        source: r.source,
-                    })),
-                };
+                bodyEl.innerHTML = `
+                    <div class="claw-tool-results-list">
+                        ${result.results.map(track => this._renderTrackItem(track)).join('')}
+                    </div>
+                `;
+                this._bindTrackEvents(bodyEl);
+            } else {
+                bodyEl.innerHTML = `<pre><code>${JSON.stringify(result, null, 2)}</code></pre>`;
             }
-            bodyEl.innerHTML = `<pre><code>${JSON.stringify(summary, null, 2)}</code></pre>`;
         }
         delete this._pendingToolCards[toolResult.id];
         this._scrollToBottom();
@@ -260,7 +257,7 @@ class MusicClawPage {
             .map(m => ({ role: m.role, content: m.content }));
 
         try {
-            await this.managers.websocket.sendClawCommand(
+            await this.managers.webSocketManager.sendClawCommand(
                 'music_claw_chat',
                 { message: content, session_id: this.sessionId, history },
                 (update) => this._handleUpdate(update)
@@ -311,6 +308,75 @@ class MusicClawPage {
             this.messages.push(assistantMsg);
             this._appendMessage(assistantMsg);
         }
+    }
+
+    // ── Track Item Rendering ──────────────────────────────────────────────────
+
+    _renderTrackItem(track) {
+        const musicId = track.music_id || track.id;
+        const artist = track.artist || track.author || 'Unknown Artist';
+        const cover = track.artwork_url || track.cover_path || 'placeholder_album_art.png';
+        const source = track.source || 'unknown';
+        
+        return `
+            <div class="claw-track-item" data-track='${JSON.stringify(track).replace(/'/g, "&apos;")}'>
+                <div class="track-thumb">
+                    <img src="${this._esc(cover)}" alt="cover">
+                    <div class="track-play-overlay">
+                        <span class="material-icons">play_arrow</span>
+                    </div>
+                </div>
+                <div class="track-info">
+                    <div class="track-title">${this._esc(track.title)}</div>
+                    <div class="track-artist">${this._esc(artist)}</div>
+                </div>
+                <div class="track-actions">
+                    <button class="track-action-btn download-btn" title="Download">
+                        <span class="material-icons">download</span>
+                    </button>
+                    <button class="track-action-btn favorite-btn" title="Add to Liked">
+                        <span class="material-icons">favorite_border</span>
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    _bindTrackEvents(container) {
+        container.querySelectorAll('.claw-track-item').forEach(item => {
+            const track = JSON.parse(item.dataset.track);
+            
+            // Play on click (thumb or info)
+            item.querySelector('.track-thumb').addEventListener('click', () => {
+                this.managers.playerManager.playTrackFromCard(JSON.stringify(track));
+            });
+
+            // Download
+            item.querySelector('.download-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.managers.webSocketManager.sendWebSocketCommand('download_track', {
+                    source: track.source,
+                    track_data: track
+                }).then(() => {
+                    this.managers.uiManager.showToast(`Starting download: ${track.title}`, 'info');
+                }).catch(err => {
+                    this.managers.uiManager.showToast(`Download failed: ${err.message}`, 'error');
+                });
+            });
+
+            // Favorite
+            item.querySelector('.favorite-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.managers.webSocketManager.sendWebSocketCommand('add_to_playlist', {
+                    playlist_name: 'Liked',
+                    track_data: track
+                }).then(() => {
+                    this.managers.uiManager.showToast(`Added to Liked: ${track.title}`, 'success');
+                    e.target.textContent = 'favorite';
+                    e.target.style.color = '#ff2d55';
+                });
+            });
+        });
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

@@ -12,3 +12,4 @@ client_id.txt
 /.vscode
 *.env
 .env
+/data
