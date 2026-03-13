@@ -123,12 +123,14 @@ class MusicClawPage {
                     background: rgba(30,30,35, 0.4);
                     border: 1px solid rgba(255, 255, 255, 0.06);
                     border-radius: 12px;
-                    margin: 0 0 12px 0;
+                    margin: 8px 0 12px 0;
                     overflow: hidden;
                     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                    width: 100%;
+                    box-sizing: border-box;
                 }
                 .tool-result-header {
-                    padding: 6px 14px 4px 14px;
+                    padding: 8px 14px;
                     background: transparent;
                     display: flex;
                     justify-content: space-between;
@@ -136,7 +138,6 @@ class MusicClawPage {
                     cursor: pointer;
                     user-select: none;
                     transition: background 0.2s;
-                    border-bottom: none;
                 }
                 .tool-result-header:hover { background: rgba(255, 255, 255, 0.05); }
                 .tool-result-base.expanded .tool-result-header {
@@ -228,18 +229,14 @@ class MusicClawPage {
                 .claw-track-item:hover { background: rgba(255,255,255,0.03); }
             </style>
             <div id="music-claw-page" class="page-container">
-                <div class="claw-toolbar">
-                    <div class="claw-center-title">
-                        <span id="claw-session-title">New Conversation</span>
-                    </div>
-                    <div class="claw-actions">
-                        <button id="claw-settings-button" class="icon-button floating" title="Settings">
-                            <span class="material-icons">settings</span>
-                        </button>
-                        <button id="claw-new-chat-button" class="icon-button floating" title="New Chat">
-                            <span class="material-icons">add</span>
-                        </button>
-                    </div>
+                <!-- Toolbar removed as requested -->
+                <div class="claw-floating-actions" style="position: absolute; top: 16px; right: 16px; display: flex; gap: 8px; z-index: 20;">
+                    <button id="claw-settings-button" class="icon-button floating" title="Settings">
+                        <span class="material-icons">settings</span>
+                    </button>
+                    <button id="claw-new-chat-button" class="icon-button floating" title="New Chat">
+                        <span class="material-icons">add</span>
+                    </button>
                 </div>
 
                 <div id="claw-chat-container" class="claw-chat-container">
@@ -507,7 +504,7 @@ class MusicClawPage {
         card.className = 'message assistant no-bubble';
         card.dataset.toolCallId = toolCall.id;
         card.innerHTML = `
-            <div class="message-content-wrapper" style="width:100%">
+            <div class="message-content-wrapper" style="width:100% !important; max-width: 100% !important;">
                 <div class="message-body">
                     <div class="tool-result-base">
                         <div class="tool-result-header" onclick="this.parentElement.classList.toggle('expanded')">
@@ -726,10 +723,10 @@ class MusicClawPage {
         this.messages.push(userMsg);
         this._appendMessage(userMsg);
 
-        // Update title on first real user message
+        // Update tab/window title on first real user message
         if (this.messages.filter(m => m.role === 'user').length === 1) {
-            const titleEl = document.getElementById('claw-session-title');
-            if (titleEl) titleEl.textContent = content.slice(0, 40);
+            // Title section removed, but we can still reflect in document.title if desired
+            // document.title = content.slice(0, 40);
         }
 
         this._setLoading(true);
@@ -876,17 +873,23 @@ class MusicClawPage {
             this._hideThinking();
             this._currentStreamingMsg = null;
             this._currentStreamingEl = null;
+
+            const content = (update.content || '').trim();
+            if (!content) {
+                this._saveSession();
+                return;
+            }
             
             // If the last message was already this content (from a 'text' update), ignore
             const last = this.messages[this.messages.length - 1];
-            if (last && last.role === 'assistant' && last.content === update.content) {
+            if (last && last.role === 'assistant' && last.content === content) {
                 this._saveSession();
                 return;
             }
 
             const assistantMsg = {
                 role: 'assistant',
-                content: update.content || '',
+                content,
                 timestamp: new Date().toISOString(),
             };
             this.messages.push(assistantMsg);
