@@ -18,6 +18,64 @@ class UIManager {
     }
   }
 
+  static addTrackToDownloadQueue(trackObject, wsManager) {
+    if (!trackObject) return;
+
+    // Standardize ID
+    const music_id = trackObject.music_id || trackObject.id || trackObject.bvid || `gen-${Date.now()}`;
+    const stringId = String(music_id);
+
+    // Check if already in queue
+    const existing = window.appState.downloadQueue.find(item => 
+      String(item.music_id) === stringId || 
+      String(item.id) === stringId || 
+      String(item.bvid) === stringId
+    );
+
+    if (existing && existing.status !== 'error') {
+      UIManager.showToast(`"${trackObject.title || 'Track'}" is already in the download queue.`, 'info');
+      return;
+    }
+
+    const queueItem = {
+      ...trackObject,
+      music_id: stringId,
+      progressPercent: 0,
+      status: "pending",
+      statusMessage: "Queued for download...",
+      original_cmd_id: null,
+    };
+
+    window.appState.downloadQueue.push(queueItem);
+    UIManager.renderTaskQueue();
+    UIManager.updateMainTaskQueueIcon();
+
+    if (!wsManager) {
+      console.error("UIManager: No WebSocketManager provided for download.");
+      queueItem.status = "error";
+      queueItem.statusMessage = "Internal error: No connection manager";
+      return;
+    }
+
+    wsManager.sendWebSocketCommand("download_track", {
+      source: trackObject.source || 'netease',
+      track_data: trackObject,
+    })
+    .then((response) => {
+      queueItem.original_cmd_id = response.data ? response.data.original_cmd_id : null;
+      UIManager.renderTaskQueue();
+      UIManager.updateMainTaskQueueIcon();
+    })
+    .catch((error) => {
+      console.error("UIManager: Download request failed:", error);
+      queueItem.status = "error";
+      queueItem.statusMessage = "Download request failed";
+      UIManager.renderTaskQueue();
+      UIManager.updateMainTaskQueueIcon();
+      UIManager.showToast(`Failed to start download: ${error.message || 'Unknown error'}`, 'error');
+    });
+  }
+
   // Another static method
   static renderTaskQueue() {
     const taskQueueULElement = document.querySelector(

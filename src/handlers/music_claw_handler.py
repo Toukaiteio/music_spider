@@ -6,187 +6,168 @@ import asyncio
 import json
 import logging
 import os
+import re
 import uuid
 from typing import Dict, List, Optional
 
 from core.ws_messaging import send_response
-from llm.llm_client import llm_client, parse_text_tool_calls
+from core.source_manager import get_all_source_status
+from llm.llm_client import LLMClient
 from llm.skills import MusicSkills
 
 logger = logging.getLogger("MusicClawHandler")
 
 # ── System prompts ─────────────────────────────────────────────────────────────
 
-_SYSTEM_PROMPT = """You are Music Claw, an intelligent music assistant embedded in a music player app.
-You can help users search for music, manage playlists, find lyrics, and control playback.
+def _get_sources_info():
+    """Get summarized source status for AI prompt."""
+    try:
+        statuses = get_all_source_status()
+        info = []
+        for s in statuses:
+            st = "Enabled" if s.get("enabled") else "Disabled"
+            auth = "Authorized" if s.get("is_logged_in") else "Unauthorized"
+            req = " (Requires Login to Enable)" if s.get("require_auth_to_enable") else ""
+            source_name = s.get("source", "unknown")
+            info.append(f"- {source_name.capitalize()}: Status={st}, Auth={auth}{req}")
+        return "\n".join(info)
+    except Exception as e:
+        return "Failed to fetch source status."
 
-Be concise, friendly, and music-focused. Respond in the same language as the user."""
+_BASE_SYSTEM_PROMPT = """你是 Music Claw，一个强大的 AI 音乐助手。
+你能帮用户搜索、播放和管理来自各平台的音乐。
 
-_TOOLS = [
-    {
-        "type": "function",
-        "function": {
-            "name": "search_music",
-            "description": "Search for music tracks on a specific online source",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string", "description": "Search terms"},
-                    "source": {"type": "string", "enum": ["bilibili", "netease", "kugou"], "description": "Music source"},
-                    "limit": {"type": "integer", "default": 5, "description": "Max results"},
-                },
-                "required": ["query", "source"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "search_at_sources",
-            "description": "Search for music across multiple online sources simultaneously",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string", "description": "Search terms"},
-                    "sources": {"type": "array", "items": {"type": "string"}, "description": "List of sources"},
-                    "limit_per_source": {"type": "integer", "default": 5},
-                },
-                "required": ["query", "sources"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "create_playlist",
-            "description": "Create a new empty playlist",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "name": {"type": "string", "description": "Playlist name"}
-                },
-                "required": ["name"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "add_to_playlist",
-            "description": "Add a music track to a specified playlist (like 'Liked' or a custom one)",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "track_data": {"type": "object", "description": "Track data object from search"},
-                    "playlist_name": {"type": "string", "description": "Target playlist name", "default": "Liked"},
-                },
-                "required": ["track_data", "playlist_name"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "search_library",
-            "description": "Search for music in the local downloaded library",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string", "description": "Search terms for local library"}
-                },
-                "required": ["query"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_lyrics",
-            "description": "Search and retrieve lyrics for a song",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "song_name": {"type": "string"},
-                    "artist": {"type": "string", "description": "Artist name (optional, helps accuracy)"},
-                },
-                "required": ["song_name"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_metadata",
-            "description": "Fetch high-quality metadata (covers, info) from Genius",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {"type": "string", "description": "Search query for Genius (e.g. 'Song Name Artist Name')"}
-                },
-                "required": ["query"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "update_track_metadata",
-            "description": "Apply new metadata to a local track",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "music_id": {"type": "string", "description": "The local music_id of the track to update"},
-                    "metadata": {
-                        "type": "object",
-                        "description": "Fields to update",
-                        "properties": {
-                            "title": {"type": "string"},
-                            "artist": {"type": "string"},
-                            "album": {"type": "string"},
-                            "genre": {"type": "string"},
-                            "lyrics": {"type": "string"},
-                            "cover_url": {"type": "string", "description": "URL of the cover image to download and apply"}
-                        }
-                    }
-                },
-                "required": ["music_id", "metadata"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "play_song",
-            "description": "Start playing a specific song in the player",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "track_data": {"type": "object", "description": "Track data from search or library"}
-                },
-                "required": ["track_data"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "plan_tasks",
-            "description": "Break down a complex user request into steps",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "task_description": {"type": "string"}
-                },
-                "required": ["task_description"],
-            },
-        },
-    }
+# 你的核心工作方式 (ReAct 循环)
+
+当用户请求音乐操作时，你必须：
+1. **Think**: 思考需要调用哪个工具
+2. **Act**: 输出工具调用指令
+3. **Observe**: 等待系统返回工具执行结果
+4. **Repeat or Finish**: 根据结果继续或给出最终回复
+
+# ⚠️ 工具调用格式 (关键!)
+
+**格式**: `[tool_name: {{json_args}}]`
+
+**严格规则**:
+1. **调用工具时必须单独一行输出**，格式绝对不能变
+2. **一次调用一个工具**，等待结果后才能调用下一个
+3. **绝对禁止凭空编造歌曲名、歌手名**，你无法访问任何数据库，所有信息必须通过工具获取
+
+**正确示例**:
+```
+好的，我来为你搜索夜鹿的歌曲。
+[search_at_sources: {{"query": "Yorushika", "sources": ["netease", "kugou"]}}]
+```
+
+**错误示例** (❌ 禁止):
+```
+正在播放《苔》- Yorushika   ← 你根本没调用工具！
+```
+
+# 可用工具列表
+
+- **search_at_sources**: 同时在多个平台搜索音乐
+  - 参数: `{{"query": "搜索词", "sources": ["netease", "kugou", "bilibili"]}}`
+
+- **search_music**: 在单个平台搜索音乐
+  - 参数: `{{"query": "搜索词", "source": "netease"}}`
+
+- **play_song**: 播放指定歌曲 (track_data必须来自搜索结果！)
+  - 参数: `{{"track_data": {{...从搜索结果获取的完整track对象...}}}}`
+
+- **search_library**: 在本地已下载的音乐库中搜索
+  - 参数: `{{"query": "搜索词"}}`
+
+- **get_lyrics**: 获取歌词
+  - 参数: `{{"song_name": "歌名", "artist": "歌手(可选)"}}`
+
+- **add_to_playlist**: 将歌曲添加到播放列表
+  - 参数: `{{"track_data": {{...}}, "playlist_name": "Liked"}}`
+
+- **create_playlist**: 创建新播放列表
+  - 参数: `{{"name": "列表名"}}`
+
+# 当前来源状态
+{sources_status}
+
+# 工作流示例: "播放一首夜鹿的歌"
+
+Step 1 (AI): 好的，我来搜索夜鹿的歌曲。
+[search_at_sources: {{"query": "Yorushika 夜鹿", "sources": ["netease", "kugou"]}}]
+
+Step 2 (System): [Tool Result] search_at_sources: {{"results": [{{"title": "言って。", "artist": "ヨルシカ", "music_id": "netease_12345", ...}}, ...]}}
+
+Step 3 (AI): 找到了！为你随机播放《言って。》。
+[play_song: {{"track_data": {{"title": "言って。", "artist": "ヨルシカ", "music_id": "netease_12345", "source": "netease"}}}}]
+
+Step 4 (System): [Tool Result] play_song: {{"status": "playing"}}
+
+Step 5 (AI): ✅ 正在为你播放《言って。》- ヨルシカ，希望你喜欢！
+
+---
+当前时间: {current_time}
+请用用户使用的语言回复。
+"""
+
+_TOOLS_PLAIN_LIST = [
+    "search_at_sources", "search_music", "play_song", 
+    "search_library", "get_lyrics", "add_to_playlist", "create_playlist"
 ]
 
 MAX_ITERATIONS = 8
 
+
+def _parse_tool_call(text: str):
+    """
+    Parse [tool_name: {json}] from text.
+    Returns (tool_name, args_dict) or (None, None).
+    Uses bracket matching to handle nested JSON correctly.
+    """
+    # Find last occurrence of [word_chars: { ... }]
+    clean_text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
+    
+    # Find all potential tool call start positions
+    pattern = re.compile(r'\[(\w+):\s*(\{)', re.DOTALL)
+    matches = list(pattern.finditer(clean_text))
+    
+    if not matches:
+        return None, None
+    
+    # Process from the last match (prefer last tool call in response)
+    for m in reversed(matches):
+        tool_name = m.group(1)
+        if tool_name.upper() in ('TOOL', 'FINISH', 'AT', 'REPLY', 'SKIP'):
+            continue  # Skip special markers
+        
+        # Use bracket counting to find closing }]
+        start_brace = m.start(2)
+        brace_count = 0
+        i = start_brace
+        while i < len(clean_text):
+            c = clean_text[i]
+            if c == '{':
+                brace_count += 1
+            elif c == '}':
+                brace_count -= 1
+                if brace_count == 0:
+                    # Found the closing brace, now look for ]
+                    rest = clean_text[i+1:].lstrip()
+                    if rest.startswith(']'):
+                        json_str = clean_text[start_brace:i+1]
+                        try:
+                            args = json.loads(json_str)
+                            return tool_name, args
+                        except json.JSONDecodeError:
+                            break
+                    break
+            i += 1
+    
+    return None, None
+
+
 async def handle_music_claw_chat(websocket, cmd_id: str, payload: dict):
-    """Handle a music_claw_chat WebSocket command using the new agent loop."""
+    """Handle a music_claw_chat WebSocket command using ReAct agent loop."""
     user_message: str = payload.get("message", "").strip()
     session_id: str = payload.get("session_id", cmd_id)
     history: List[Dict] = payload.get("history", [])
@@ -195,108 +176,152 @@ async def handle_music_claw_chat(websocket, cmd_id: str, payload: dict):
         await send_response(websocket, cmd_id, code=1, error="Message cannot be empty.")
         return
 
+    # Extract LLM Config from payload
+    llm_config = payload.get("llm_config", {})
+    api_keys = llm_config.get("api_keys")
+    base_url = llm_config.get("base_url")
+    model_name = llm_config.get("model")
+    lb_mode = llm_config.get("lb_mode", "round_robin")
+    
+    try:
+        current_llm_client = LLMClient(api_keys=api_keys, base_url=base_url, model=model_name, lb_mode=lb_mode)
+    except Exception as e:
+        logger.error(f"Failed to initialize LLM Client: {e}")
+        await send_response(websocket, cmd_id, code=1, error="Failed to configure language model.")
+        return
+        
     skills = MusicSkills(websocket=websocket)
-    messages: List[Dict] = [{"role": "system", "content": _SYSTEM_PROMPT}]
     
-    # Add history
+    from datetime import datetime
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    sources_status = _get_sources_info()
+    
+    system_prompt = _BASE_SYSTEM_PROMPT.format(
+        current_time=current_time,
+        sources_status=sources_status
+    )
+    
+    # Build messages: system + history (as user/assistant turns) + current user message
+    messages: List[Dict] = [{"role": "system", "content": system_prompt}]
+    
     for msg in history:
-        if msg.get("role") in ("user", "assistant"):
-            messages.append({"role": msg["role"], "content": msg["content"]})
-    
+        role = msg.get("role")
+        if role == "user":
+            messages.append({"role": "user", "content": msg.get("content", "")})
+        elif role == "assistant":
+            messages.append({"role": "assistant", "content": msg.get("content", "")})
+        # Skip tool/system history - it's embedded in prior assistant messages already
+
     messages.append({"role": "user", "content": user_message})
 
-    # Frontend update: thinking
+    # Signal thinking start
     await send_response(websocket, cmd_id, code=0, data={
         "status_type": "claw_update",
         "update_type": "thinking",
         "session_id": session_id,
     })
 
-    # Agent Loop
-    is_zai = llm_client.provider == "zai"
-    
-    if is_zai:
-        # Inject tool definitions for Zai
-        tool_defs = json.dumps(_TOOLS, ensure_ascii=False, indent=2)
-        messages[0]["content"] += (
-            "\n\nAVAILABLE TOOLS:\n" + tool_defs +
-            "\n\nTo call a tool, use: <tool_call>{\"name\": \"tool_name\", \"parameters\": {...}}</tool_call>"
-        )
-
+    # ── ReAct Agent Loop ───────────────────────────────────────────────────────
     for iteration in range(MAX_ITERATIONS):
         try:
-            call_kwargs = {}
-            if not is_zai:
-                call_kwargs["tools"] = _TOOLS
-                call_kwargs["tool_choice"] = "auto"
-                
-            response = await llm_client.chat_completion(messages, session_id=session_id, **call_kwargs)
-            if not response or not response.get("choices"):
-                break
-                
-            msg_obj = response["choices"][0]["message"]
-            raw_content = msg_obj.get("content") or ""
-            native_tool_calls = msg_obj.get("tool_calls") or []
+            # Call LLM - use streaming for Zai to get thinking, non-streaming for result
+            full_content = ""
+            thinking_content = ""
             
-            # Detect tool calls
-            clean_content, text_tool_calls = parse_text_tool_calls(raw_content)
-            all_tool_calls = native_tool_calls + text_tool_calls
-            
-            messages.append(msg_obj)
+            async for chunk in current_llm_client.chat_completion_stream(messages, session_id=session_id):
 
-            if not all_tool_calls:
-                # Final response
+                if not chunk or not chunk.get("choices"):
+                    continue
+                choice = chunk["choices"][0]
+                delta = choice.get("delta", {})
+                
+                # Stream thinking to frontend
+                td = delta.get("thinking") or ""
+                if td:
+                    thinking_content += td
+                    await send_response(websocket, cmd_id, code=0, data={
+                        "status_type": "claw_update",
+                        "update_type": "thinking",
+                        "session_id": session_id,
+                        "content": td,
+                        "is_stream": True,
+                    })
+                
+                cd = delta.get("content") or ""
+                if cd:
+                    full_content += cd
+
+            # Clean up thinking tags from content (GLM sometimes leaks them)
+            full_content = re.sub(r'<think>.*?</think>', '', full_content, flags=re.DOTALL).strip()
+            full_content = re.sub(r'<details.*?</details>', '', full_content, flags=re.DOTALL).strip()
+
+            # Parse tool call
+            tool_name, tool_args = _parse_tool_call(full_content)
+
+            if not tool_name:
+                # No tool call → this is the final answer, stream it out
+                clean_final = full_content.strip()
                 await send_response(websocket, cmd_id, code=0, data={
                     "status_type": "claw_update",
                     "update_type": "complete",
                     "session_id": session_id,
-                    "content": raw_content,
+                    "content": clean_final,
                 })
                 return
 
-            # Execute tools
-            for tc in all_tool_calls:
-                tc_id = tc.get("id", f"tc_{uuid.uuid4().hex[:8]}")
-                func_data = tc.get("function", {})
-                tool_name = func_data.get("name")
+            # Strip tool call line from visible text
+            tool_call_pattern = re.compile(r'\[' + re.escape(tool_name) + r':\s*\{.*?\}\]', re.DOTALL)
+            visible_text = tool_call_pattern.sub("", full_content).strip()
+
+            # Stream the visible text part (before tool call) immediately
+            if visible_text:
+                await send_response(websocket, cmd_id, code=0, data={
+                    "status_type": "claw_update",
+                    "update_type": "text",
+                    "session_id": session_id,
+                    "content": visible_text,
+                    "is_stream": False,
+                })
+
+            # Append assistant message to history
+            messages.append({"role": "assistant", "content": full_content})
+
+            # Notify frontend of tool call
+            tc_id = f"tc_{uuid.uuid4().hex[:8]}"
+            await send_response(websocket, cmd_id, code=0, data={
+                "status_type": "claw_update",
+                "update_type": "tool_call",
+                "session_id": session_id,
+                "tool_call": {"id": tc_id, "name": tool_name, "parameters": tool_args},
+            })
+
+            # Execute tool
+            if hasattr(skills, tool_name):
                 try:
-                    tool_args = json.loads(func_data.get("arguments", "{}"))
-                except:
-                    tool_args = {}
+                    func = getattr(skills, tool_name)
+                    result = await func(**tool_args)
+                except TypeError as e:
+                    result = {"error": f"Invalid parameters: {e}"}
+                except Exception as e:
+                    result = {"error": str(e)}
+            else:
+                result = {"error": f"Tool '{tool_name}' is not implemented."}
 
-                # Send tool_call update to frontend
-                await send_response(websocket, cmd_id, code=0, data={
-                    "status_type": "claw_update",
-                    "update_type": "tool_call",
-                    "session_id": session_id,
-                    "tool_call": {"id": tc_id, "name": tool_name, "parameters": tool_args},
-                })
+            # Notify frontend of tool result
+            await send_response(websocket, cmd_id, code=0, data={
+                "status_type": "claw_update",
+                "update_type": "tool_result",
+                "session_id": session_id,
+                "tool_result": {"id": tc_id, "name": tool_name, "result": result},
+            })
 
-                # Execute
-                if hasattr(skills, tool_name):
-                    try:
-                        func = getattr(skills, tool_name)
-                        result = await func(**tool_args)
-                    except Exception as e:
-                        result = {"error": str(e)}
-                else:
-                    result = {"error": f"Tool {tool_name} not found"}
+            # Feed result back to LLM as next user message (skill_agent.py style)
+            result_str = json.dumps(result, ensure_ascii=False)
+            messages.append({
+                "role": "user",
+                "content": f"[Tool Result] {tool_name}: {result_str}"
+            })
 
-                # Send tool_result update to frontend
-                await send_response(websocket, cmd_id, code=0, data={
-                    "status_type": "claw_update",
-                    "update_type": "tool_result",
-                    "session_id": session_id,
-                    "tool_result": {"id": tc_id, "name": tool_name, "result": result},
-                })
-
-                # Add to history
-                result_str = json.dumps(result, ensure_ascii=False)
-                if not is_zai and native_tool_calls:
-                     messages.append({"role": "tool", "tool_call_id": tc_id, "content": result_str})
-                else:
-                     messages.append({"role": "user", "content": f"<tool_result>\n{result_str}\n</tool_result>"})
-            
         except Exception as e:
             logger.exception("Error in Music Claw agent loop")
             await send_response(websocket, cmd_id, code=1, error=str(e))

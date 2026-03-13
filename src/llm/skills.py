@@ -107,6 +107,9 @@ class MusicSkills:
 
     async def add_to_playlist(self, track_data: Dict, playlist_name: str = "Liked") -> Dict:
         """Add a track to a specified playlist."""
+        if not track_data or not isinstance(track_data, dict):
+            return {"status": "error", "message": "Invalid track_data provided. Expected a dictionary from search results."}
+        
         list_names = persistence.get("playlists", "list_names", ["Liked"])
         if playlist_name not in list_names:
             await self.create_playlist(playlist_name)
@@ -215,15 +218,81 @@ class MusicSkills:
             return {"error": str(e)}
 
     async def play_song(self, track_data: Dict) -> Dict:
-        """Trigger playback of a specific song in the player."""
+        """Trigger playback of a specific song in the player. Downloads if not available locally."""
+        if not track_data or not isinstance(track_data, dict):
+            return {"status": "error", "message": "Invalid track_data provided."}
+
+        music_id = track_data.get("music_id") or track_data.get("id")
+        source = track_data.get("source")
+        
+        if not music_id:
+            return {"status": "error", "message": "Missing music_id in track_data."}
+
+        # Check if already downloaded
+        item = MusicItem.load_from_json(music_id)
+        if not item or not item.audio:
+            # Need to download
+            if not source and "_" in str(music_id):
+                source = str(music_id).split("_")[0]
+            
+            if not source or source not in DOWNLOADER_MODULES:
+                return {"status": "error", "message": f"Track {music_id} not found locally and no valid source info for download."}
+            
+            downloader = DOWNLOADER_MODULES[source]
+            from config import DOWNLOADS_DIR
+            try:
+                # Use download_track coroutine which usually returns MusicItem
+                download_func = getattr(downloader, "download_track", None)
+                if not download_func:
+                     return {"status": "error", "message": f"Downloader for '{source}' does not support direct download."}
+                
+                def progress_cb(**kwargs):
+                    # Progress callback for AI triggered downloads
+                    # This allows the frontend to show the download in the Task Queue
+                    try:
+                        from core.ws_messaging import send_response
+                        # Map internal args if needed, though kwargs might already match
+                        payload = {
+                            "status_type": "download_progress",
+                            "track_details": track_data,
+                            "original_cmd_id": "ai_tool_call"
+                        }
+                        payload.update(kwargs)
+                        if "current_size" in kwargs and "total_size" in kwargs:
+                            curr = kwargs["current_size"]
+                            total = kwargs["total_size"]
+                            payload["progress_percent"] = round((curr / total * 100) if total > 0 else 0, 2)
+                        
+                        asyncio.run_coroutine_threadsafe(
+                            send_response(self.websocket, "ai_trigger", code=0, data=payload),
+                            asyncio.get_event_loop()
+                        )
+                    except Exception:
+                        pass # Avoid crashing download thread on progress error
+
+                if asyncio.iscoroutinefunction(download_func):
+                    result = await download_func(track_data, DOWNLOADS_DIR, progress_callback=progress_cb)
+                else:
+                    loop = asyncio.get_event_loop()
+                    result = await loop.run_in_executor(None, download_func, track_data, DOWNLOADS_DIR, progress_cb)
+                
+                if not result:
+                    return {"status": "error", "message": "Failed to download the track."}
+                item = result
+            except Exception as e:
+                logger.exception(f"play_song download error for {music_id}")
+                return {"status": "error", "message": f"Download error: {str(e)}"}
+        
+        # At this point, item should be a MusicItem with valid audio path
         if self.websocket:
             from core.ws_messaging import send_response
-            # This triggers the push handler we registered in frontend
+            # Use the local item's data to ensure correct paths
+            payload_track = item.data.to_dict()
             await send_response(self.websocket, "llm_action", code=0, data={
                 "action": "play",
-                "track": track_data
+                "track": payload_track
             })
-            return {"status": "success", "message": f"Playing {track_data.get('title')}"}
+            return {"status": "success", "message": f"Playing {item.title}"}
         return {"status": "error", "message": "WebSocket connection not available for playback."}
 
     async def plan_tasks(self, task_description: str) -> Dict:

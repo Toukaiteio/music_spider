@@ -12,3 +12,12 @@ class LLMAdapter(ABC):
     ) -> Optional[Dict[str, Any]]:
         """Send a chat completion request to the LLM."""
         pass
+
+    @abstractmethod
+    async def chat_completion_stream(
+        self,
+        messages: List[Dict[str, Any]],
+        **kwargs
+    ):
+        """Send a streaming chat completion request to the LLM."""
+        pass

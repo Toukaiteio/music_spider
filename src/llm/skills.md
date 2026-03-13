@@ -43,11 +43,14 @@ Use this tool to break down a complex user request into a step-by-step execution
 - `task_description` (string): The breakdown of steps.
 
 ## Workflow Example: "Find 'Blinding Lights' and add it to my 'Night' playlist"
-1. Call `search_music(query="Blinding Lights", source="netease")`.
-2. Review results and select the best match.
-3. Call `add_to_playlist(track_data=..., playlist_name="Night")`.
-4. Inform the user.
+1. Output text: "I'll search for 'Blinding Lights' on Netease for you."
+2. Output tool call: `[ACTION: search_music | {"query": "Blinding Lights", "source": "netease"}]`
+3. Wait for result.
+4. Output tool call: `[ACTION: add_to_playlist | {"track_data": {...}, "playlist_name": "Night"}]`
+5. Inform the user.
 
-## Workflow Example: "Update metadata for the current playing song"
-1. Call `get_metadata(query="Song Name Artist")`.
-2. Apply the returned metadata.
+## Workflow Example: "Play a random song by Yorushika"
+1. Output text: "Searching for Yorushika songs across multiple sources..."
+2. Output tool call: `[ACTION: search_at_sources | {"query": "Yorushika", "sources": ["netease", "kugou"]}]`
+3. Wait for result.
+4. Select one track and call play: `[ACTION: play_song | {"track_data": {...}}]`

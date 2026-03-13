@@ -529,68 +529,13 @@ class SearchManager {
           trackObject
         );
 
-        downloadButton.innerHTML =
-          '<span class="material-icons">hourglass_top</span>';
-        downloadButton.disabled = true;
-
-        const queueItem = {
-          ...trackObject,
-          artwork_url: trackObject.artwork_url,
-          music_id: trackObject.music_id || (trackObject.id ? trackObject.id.toString() : Date.now().toString()), // Ensure music_id from id
-          progressPercent: 0,
-          status: "pending",
-          statusMessage: "Queued for download...",
-          original_cmd_id: null,
-        };
-        this.appState.downloadQueue.push(queueItem);
-
-        this.uiManager.renderTaskQueue();
-        this.uiManager.updateMainTaskQueueIcon();
-
-        this.webSocketManager
-          .sendWebSocketCommand("download_track", {
-            // source: trackObject.source || SEARCH_SOURCE, // Ensure source is passed
-            source:
-              trackObject.source ||
-              (this.availableSources.length > 0
-                ? this.availableSources[this.currentSourceIndex]
-                : "soundcloud"),
-            track_data: trackObject,
-          })
-          .then((response) => {
-            queueItem.original_cmd_id = response.data ? response.data.original_cmd_id : null;
-            this.uiManager.renderTaskQueue();
-            this.uiManager.updateMainTaskQueueIcon();
-          })
-          .catch((error) => {
-            console.error(
-              "SearchManager: Failed to send download command for:",
-              trackObject.title,
-              error
-            );
-            alert(
-              `Failed to start download for: ${trackObject.title}. Error: ${error.message || "Unknown error"
-              }`
-            );
-
-            queueItem.status = "error";
-            queueItem.statusMessage = "Failed to queue download";
-            this.uiManager.renderTaskQueue();
-            this.uiManager.updateMainTaskQueueIcon();
-
-            downloadButton.innerHTML =
-              '<span class="material-icons">download</span>';
-            downloadButton.disabled = false;
-          });
+        this.uiManager.addTrackToDownloadQueue(trackObject, this.webSocketManager);
       } catch (e) {
         console.error(
           "SearchManager: Failed to parse track info or initiate download:",
           e
         );
-        alert("Error processing this download request.");
-        downloadButton.innerHTML =
-          '<span class="material-icons">download</span>';
-        downloadButton.disabled = false;
+        this.uiManager.showToast("Error processing this download request.", "error");
       }
     } else if (downloadButton.disabled) {
       console.log("SearchManager: Download button is already disabled.");

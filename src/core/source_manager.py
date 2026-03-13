@@ -25,6 +25,7 @@ def get_all_source_status():
         state["enabled"] = get_source_enabled_status(name)
         
         # Add source meta info
+        state["source"] = name
         source_info = getattr(manager, 'get_source_info', lambda: {})()
         state["require_auth_to_enable"] = source_info.get("require_auth_to_enable", False)
         

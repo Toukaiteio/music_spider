@@ -222,17 +222,14 @@ class PlayerManager {
 
     // 切换曲目时更新UI
     this.audio.addEventListener("loadeddata", () => {
-      if (this.playlist[this.currentIndex]) {
+      const track = this.currentLoadedTrack || this.playlist[this.currentIndex];
+      if (track) {
         if (this.playerTrackTitle)
-          this.playerTrackTitle.textContent =
-            this.playlist[this.currentIndex].title || "";
+          this.playerTrackTitle.textContent = track.title || "";
         if (this.playerTrackArtist)
-          this.playerTrackArtist.textContent =
-            this.playlist[this.currentIndex].artist || "Unknown Artist";
+          this.playerTrackArtist.textContent = TrackAdapter.getArtist(track) || "Unknown Artist";
         if (this.playerAlbumArt)
-          this.playerAlbumArt.src = this.playlist[this.currentIndex].cover_path
-            ? "." + this.playlist[this.currentIndex].cover_path
-            : this.playlist[this.currentIndex].artwork_url || 'placeholder_album_art.png';
+          this.playerAlbumArt.src = TrackAdapter.getCoverUrl(track);
       }
     });
     const savedMode = localStorage.getItem("player_mode");

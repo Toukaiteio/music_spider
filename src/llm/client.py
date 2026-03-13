@@ -5,62 +5,80 @@ import uuid
 import asyncio
 from typing import Any, Dict, List, Optional, Tuple
 
-from .adapters.zai_adapter import ZaiAdapter
 from .adapters.openai_adapter import OpenAIAdapter
 
 logger = logging.getLogger("LLMClient")
 
 # Tool-call text parsing (for prompt-based fallback, used by ZAI)
-_TOOL_CALL_RE = re.compile(r"<tool_call>\s*(\{.*?\})\s*</tool_call>", re.DOTALL)
+# Removed fixed _TOOL_CALL_RE in favor of more robust regex inside parse_text_tool_calls
 
 def parse_text_tool_calls(text: str) -> Tuple[str, List[Dict]]:
-    """Extract <tool_call>{...}</tool_call> blocks from text.
+    """Extract [ACTION: name | JSON] blocks from text.
     Returns (cleaned_text, list_of_openai_style_tool_call_dicts).
     """
     tool_calls: List[Dict] = []
-    for m in _TOOL_CALL_RE.finditer(text):
+    
+    # Updated regex for [ACTION: name | JSON]
+    # Format: [ACTION: search_music | {"query": "..."}]
+    raw_pattern = re.compile(r"\[ACTION: (\w+)\s*\|\s*(\{.*?\})\]", re.DOTALL)
+    
+    for m in raw_pattern.finditer(text):
+        tool_name = m.group(1).strip()
+        raw_json = m.group(2).strip()
+        
+        tc_args = None
         try:
-            tc = json.loads(m.group(1))
-            # Zai might output parameters or arguments
-            args = tc.get("parameters") or tc.get("arguments") or {}
+            tc_args = json.loads(raw_json)
+        except json.JSONDecodeError:
+            # Fallback: try to find the first { and last } if json.loads failed 
+            try:
+                curly_match = re.search(r"(\{.*\})", raw_json, re.DOTALL)
+                if curly_match:
+                    tc_args = json.loads(curly_match.group(1))
+            except:
+                pass
+
+        if tool_name and tc_args is not None:
+            # We want to normalize this to OpenAI tool_call format
             tool_calls.append(
                 {
                     "id": f"tc_{uuid.uuid4().hex[:8]}",
                     "type": "function",
                     "function": {
-                        "name": tc.get("name", ""),
-                        "arguments": json.dumps(args, ensure_ascii=False) if isinstance(args, dict) else args,
+                        "name": tool_name,
+                        "arguments": json.dumps(tc_args, ensure_ascii=False) if isinstance(tc_args, dict) else str(tc_args),
                     },
                     "_text_based": True,
                 }
             )
-        except json.JSONDecodeError:
-            pass
-    clean = _TOOL_CALL_RE.sub("", text).strip()
+            
+    clean = raw_pattern.sub("", text).strip()
     return clean, tool_calls
 
 class LLMClient:
     """Unified LLM Client that dispatches to adapters and handles tool execution."""
 
-    def __init__(self):
+    def __init__(self, api_keys: Optional[List[str]] = None, base_url: Optional[str] = None, model: Optional[str] = None, lb_mode: str = "round_robin"):
         from config import (
-            LLM_PROVIDER,
             OPENAI_API_KEY,
             OPENAI_BASE_URL,
             OPENAI_MODEL,
-            ZAI_COOKIE,
-            ZAI_MODEL,
-            ZAI_TOKEN,
-            ZAI_USER_ID,
         )
         
-        self.provider = LLM_PROVIDER
-        if LLM_PROVIDER == "zai":
-            self._adapter = ZaiAdapter(ZAI_TOKEN, ZAI_COOKIE, ZAI_USER_ID, ZAI_MODEL)
-            self.supports_native_tools = False
-        else:
-            self._adapter = OpenAIAdapter(OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_MODEL)
-            self.supports_native_tools = True
+        self.provider = "openai"
+        
+        if not api_keys:
+            api_keys = [OPENAI_API_KEY]
+        elif isinstance(api_keys, str):
+            api_keys = [api_keys]
+            
+        if not base_url:
+            base_url = OPENAI_BASE_URL
+        if not model:
+            model = OPENAI_MODEL
+            
+        self._adapter = OpenAIAdapter(api_keys, base_url, model, lb_mode)
+        self.supports_native_tools = True
 
     async def chat_completion(
         self,
@@ -70,6 +88,16 @@ class LLMClient:
     ) -> Optional[Dict[str, Any]]:
         """Basic chat completion wrapper."""
         return await self._adapter.chat_completion(messages, session_id=session_id, **kwargs)
+
+    async def chat_completion_stream(
+        self,
+        messages: List[Dict[str, Any]],
+        session_id: str = "default",
+        **kwargs
+    ):
+        """Streaming chat completion wrapper."""
+        async for chunk in self._adapter.chat_completion_stream(messages, session_id=session_id, **kwargs):
+            yield chunk
 
     async def agent_chat(
         self,

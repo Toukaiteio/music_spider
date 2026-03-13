@@ -187,6 +187,22 @@ class WebSocketManager {
                 progress: queueItem.progressPercent
               }
             }));
+          } else if (status === 'downloading' || status === 'pending' || status === 'completed_track') {
+            // Auto-create item for unknown downloads (e.g. AI tool calls)
+            const details = progressData.track_details || {};
+            const newItem = {
+                music_id: effectiveTrackId,
+                title: details.title || "Background Download",
+                artist: details.artist || "Unknown",
+                artwork_url: details.artwork_url || details.preview_cover || "placeholder_album_art_2.png",
+                progressPercent: progress_percent || 0,
+                status: status,
+                statusMessage: `AI triggered download...`,
+                original_cmd_id: progressData.original_cmd_id || "ai_trigger"
+            };
+            window.appState.downloadQueue.push(newItem);
+            renderTaskQueue();
+            updateMainTaskQueueIcon();
           } else {
             console.warn(`Received progress for unknown track_id: ${track_id}`, progressData);
           }

@@ -301,7 +301,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (trackInfoString) {
         try {
           const trackObject = JSON.parse(trackInfoString);
-          UIManager.addTrackToDownloadQueue(trackObject);
+          UIManager.addTrackToDownloadQueue(trackObject, webSocketManager);
         } catch (e) {
           console.error("Error parsing track info for download queue:", e);
           UIManager.showToast(
