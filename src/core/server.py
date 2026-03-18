@@ -233,6 +233,8 @@ COMMAND_HANDLERS = {
     "enable_source": handle_enable_source,
     "disable_source": handle_disable_source,
     "music_claw_chat": handle_music_claw_chat,
+    "get_llm_config": handle_get_llm_config,
+    "save_llm_config": handle_save_llm_config,
     "get_playlists": handle_get_playlists,
     "get_playlist_tracks": handle_get_playlist_tracks,
     "create_playlist": handle_create_playlist,

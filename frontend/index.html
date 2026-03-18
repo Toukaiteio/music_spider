@@ -396,8 +396,19 @@
     <!-- Song Detail Overlay (Component State) -->
     <div id="song-detail-overlay" class="hidden"></div>
 
-    <footer id="main-player">
-      <div id="player-content" class="hidden">
+    <!-- MiniPlayer 气泡按钮：独立于播放器之外，固定在右下角，只做 scale/opacity 动画 -->
+    <button id="player-show-button" class="hidden" aria-label="Show Player">
+      <svg class="circular-progress" viewBox="0 0 40 40">
+        <circle class="progress-background" cx="20" cy="20" r="18" fill="none" stroke-width="4" pathLength="100" />
+        <circle class="progress-bar" cx="20" cy="20" r="18" fill="none" stroke-width="4" stroke-dasharray="0, 100"
+          pathLength="100" />
+      </svg>
+      <span class="material-icons">music_note</span>
+    </button>
+
+    <!-- 播放器主体：固定尺寸，只做 translateY/opacity 动画 -->
+    <footer id="main-player" class="player-collapsed">
+      <div id="player-content">
         <div id="player-main-row">
           <div class="player-left" id="player-cover-area">
             <img src="placeholder_album_art.png" alt="Album Art" id="player-album-art" />
@@ -448,14 +459,6 @@
           </div>
         </div>
       </div>
-      <button id="player-show-button" class="hidden" aria-label="Show Player">
-        <svg class="circular-progress" viewBox="0 0 40 40">
-          <circle class="progress-background" cx="20" cy="20" r="18" fill="none" stroke-width="4" pathLength="100" />
-          <circle class="progress-bar" cx="20" cy="20" r="18" fill="none" stroke-width="4" stroke-dasharray="0, 100"
-            pathLength="100" />
-        </svg>
-        <span class="material-icons">music_note</span>
-      </button>
     </footer>
   </div>
 

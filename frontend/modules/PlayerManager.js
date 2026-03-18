@@ -195,8 +195,7 @@ class PlayerManager {
     // 隐藏/显示播放器
     if (this.playerHideButton && this.playerShowButton && this.playerContent) {
       this.playerHideButton.addEventListener("click", () => {
-        this.playerContent.classList.add("hidden");
-        this.playerShowButton.classList.remove("hidden");
+        this._collapsePlayer();
       });
       this.playerShowButton.addEventListener("click", () => {
         if (!this.isPlaying && this.playlist.length > 0) {
@@ -207,25 +206,21 @@ class PlayerManager {
           // 等封面加载完再显示播放器
           if (this.coverImgElement) {
             this.coverImgElement.onload = () => {
-              this.playerContent.classList.remove("hidden");
-              this.playerShowButton.classList.add("hidden");
+              this._expandPlayer();
               this.coverImgElement.onload = null; // 防止多次触发
             };
             // 重新设置src以触发onload
             this.coverImgElement.src =
               "." + this.playlist[randomIndex].cover_path;
           } else {
-            this.playerContent.classList.remove("hidden");
-            this.playerShowButton.classList.add("hidden");
+            this._expandPlayer();
           }
         } else if (this.playlist.length === 0) {
           if (this.playerTrackTitle)
             this.playerTrackTitle.textContent = "库中还没有歌曲~";
-          this.playerContent.classList.remove("hidden");
-          this.playerShowButton.classList.add("hidden");
+          this._expandPlayer();
         } else {
-          this.playerContent.classList.remove("hidden");
-          this.playerShowButton.classList.add("hidden");
+          this._expandPlayer();
         }
       });
     }
@@ -335,6 +330,23 @@ class PlayerManager {
       };
     }
   }
+  // ---- 播放器展开/收起辅助方法 ----
+  // 用统一入口同步管理 player-collapsed、playerContent.hidden、playerShowButton.hidden，
+  // 确保三者始终保持一致，避免状态漂移。
+  _expandPlayer() {
+    if (this.playerFooter) this.playerFooter.classList.remove('player-collapsed');
+    if (this.playerContent) this.playerContent.classList.remove('hidden');
+    if (this.playerShowButton) this.playerShowButton.classList.add('hidden');
+    localStorage.setItem('playerVisible', 'true');
+  }
+
+  _collapsePlayer() {
+    if (this.playerFooter) this.playerFooter.classList.add('player-collapsed');
+    if (this.playerContent) this.playerContent.classList.add('hidden');
+    if (this.playerShowButton) this.playerShowButton.classList.remove('hidden');
+    localStorage.setItem('playerVisible', 'false');
+  }
+
   getCurrentTime() {
     if (this.audio && this.audio.currentTime) {
       return this.audio.currentTime;

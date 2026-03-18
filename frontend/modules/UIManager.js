@@ -213,12 +213,12 @@ class UIManager {
     if (!mainPlayer || !playerContent || !playerShowButton) return;
 
     if (visible) {
-      mainPlayer.classList.remove("collapsed-player");
+      mainPlayer.classList.remove("player-collapsed");
       playerContent.classList.remove("hidden");
       playerShowButton.classList.add("hidden");
       localStorage.setItem("playerVisible", "true");
     } else {
-      mainPlayer.classList.add("collapsed-player");
+      mainPlayer.classList.add("player-collapsed");
       playerContent.classList.add("hidden");
       playerShowButton.classList.remove("hidden");
       localStorage.setItem("playerVisible", "false");
@@ -563,17 +563,18 @@ class UIManager {
 
     if (show) {
       // 存储进入前的展开状态，以便退出时恢复
-      this._prevPlayerExpanded = !playerContent.classList.contains('hidden');
-      
-      // 1. 如果播放器是隐藏状态，强制显示并将其贴底
+      this._prevPlayerExpanded = !player.classList.contains('player-collapsed');
+
+      // 1. 如果播放器是收起状态，强制展开并移除 player-collapsed
       if (!this._prevPlayerExpanded) {
+        player.classList.remove('player-collapsed');
         playerContent.classList.remove('hidden');
         showButton.classList.add('hidden');
       }
-      
+
       // 2. 赋予贴底类，触发弹性动画
       player.classList.add('attached-to-detail');
-      
+
       // 2.5 隐藏收起按钮 (因为贴底状态不允许收起，否则布局会乱)
       const hideBtn = document.getElementById('player-hide-button');
       if (hideBtn) hideBtn.style.display = 'none';
@@ -603,15 +604,20 @@ class UIManager {
       import('../pages/SongDetailPage.js').then(module => {
         const page = new module.default();
         overlay.innerHTML = page.getHTML();
-        
+
         // Remove 'hidden' first, then add 'active' in next frame for transition
         overlay.classList.remove('hidden');
+        const trackId = trackObject ? (trackObject.music_id || trackObject.id) : null;
+
         requestAnimationFrame(() => {
           overlay.classList.add('active');
+          // 将 onLoad 推迟到动画开始后的第二帧执行：
+          // 歌词画布初始化（measureText 循环、RAF 动画启动）若与过渡首帧争抢主线程会掉帧。
+          // 两次 rAF 可确保浏览器先提交过渡起始帧再做重计算。
+          requestAnimationFrame(() => {
+            page.onLoad(overlay, String(trackId), appState, managers);
+          });
         });
-
-        const trackId = trackObject ? (trackObject.music_id || trackObject.id) : null;
-        page.onLoad(overlay, String(trackId), appState, managers);
       });
       
     } else {
@@ -621,6 +627,7 @@ class UIManager {
       
       // 如果进入前是收起状态，现在立即触发收起动画，使其直接从贴底状态过渡到气泡状态
       if (!this._prevPlayerExpanded) {
+        player.classList.add('player-collapsed');
         playerContent.classList.add('hidden');
         showButton.classList.remove('hidden');
       }

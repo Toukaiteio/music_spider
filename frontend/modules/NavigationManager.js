@@ -148,13 +148,20 @@ class NavigationManager {
     }
 
     this._performNavigateTo(pageId, title, path, skipPushState, subPageId);
-    this._performNavigateTo(pageId, title, path, skipPushState, subPageId);
   }
 
   _performNavigateTo(pageId, title, path, skipPushState = false, subPageId = null) {
     if (!this.mainContent) {
       console.error("Main content area not found in _performNavigateTo!");
       return;
+    }
+
+    // Auto close song detail when switching pages
+    if (pageId !== "song-detail") {
+      const overlay = document.getElementById('song-detail-overlay');
+      if (overlay && overlay.classList.contains('active')) {
+        UIManager.toggleSongDetail(false);
+      }
     }
 
     // Call onUnload for the previous active page module if it exists and has the method
