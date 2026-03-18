@@ -8,6 +8,7 @@
 import { pauseEditorAndResetButton } from './LyricsEditor.js';
 import UIManager from "./UIManager.js";
 import TrackAdapter from './TrackAdapter.js';
+import WebSocketManager from "./WebSocketManager.js";
 
 const ALLOWED_PLAY_MODE = ["list-loop", "single-loop", "random"];
 const PLAY_MODE_MAPPED_ICON = ["repeat", "repeat_one", "shuffle"];
@@ -38,7 +39,53 @@ class PlayerManager {
     this.theme = this.getTheme();
     this.isAnimating = false;
     this.lyricsEditorAudioRef = null; // Reference to LyricsEditor audio
+
+    // Preference Tracking
+    this.lastReportTime = Date.now();
+    this.heartbeatTimer = null;
+    this.heartbeatInterval = 30000; // 30 seconds
+
     this.init();
+  }
+
+  reportListening(action) {
+    const track = this.getCurrentTrack();
+    if (!track || !track.music_id) return;
+
+    const now = Date.now();
+    const duration = (now - this.lastReportTime) / 1000;
+    this.lastReportTime = now;
+
+    const payload = {
+      music_id: track.music_id,
+      action: action,
+      duration: action === 'start' ? 0 : duration,
+      track_info: {
+        title: track.title,
+        artist: TrackAdapter.getArtist(track),
+        album: track.album,
+        source: track.source,
+        language: track.language // Might be undefined, that's okay
+      }
+    };
+
+    WebSocketManager.getInstance().sendWebSocketCommand('report_listening_event', payload)
+      .catch(err => console.error('[PlayerManager] Failed to report preference event:', err));
+  }
+
+  startHeartbeat() {
+    this.stopHeartbeat();
+    this.lastReportTime = Date.now();
+    this.heartbeatTimer = setInterval(() => {
+      this.reportListening('heartbeat');
+    }, this.heartbeatInterval);
+  }
+
+  stopHeartbeat() {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
   }
 
   init() {
@@ -566,6 +613,10 @@ class PlayerManager {
     this.isPlaying = true;
     this.notifyStateChange();
     this.startVisualizer();
+    
+    // Preference Tracking
+    this.reportListening('start');
+    this.startHeartbeat();
   }
 
   pause() {
@@ -573,6 +624,10 @@ class PlayerManager {
     this.isPlaying = false;
     this.notifyStateChange();
     this.stopVisualizer();
+
+    // Preference Tracking
+    this.reportListening('pause');
+    this.stopHeartbeat();
   }
 
   playTrackFromCard(trackInfoString) {
@@ -684,6 +739,7 @@ class PlayerManager {
   }
 
   handleTrackEnd() {
+    this.reportListening('end');
     if (this.mode === "single-loop") {
       this.audio.currentTime = 0;
       this.play();

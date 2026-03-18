@@ -14,8 +14,37 @@ from core.ws_messaging import send_response
 from core.source_manager import get_all_source_status
 from llm.llm_client import LLMClient
 from llm.skills import MusicSkills
+from utils.persistence import persistence
 
 logger = logging.getLogger("MusicClawHandler")
+
+# ── LLM Config Handlers ──────────────────────────────────────────────────────
+
+async def handle_get_llm_config(websocket, cmd_id: str, payload: dict):
+    """Retrieve LLM configuration from persistence."""
+    try:
+        config = persistence.get_module_data("llm_config") or {
+            "models": [],
+            "active_model_id": ""
+        }
+        await send_response(websocket, cmd_id, code=0, data=config)
+    except Exception as e:
+        logger.error(f"Failed to get LLM config: {e}")
+        await send_response(websocket, cmd_id, code=1, error=str(e))
+
+async def handle_save_llm_config(websocket, cmd_id: str, payload: dict):
+    """Save LLM configuration to persistence."""
+    try:
+        config = payload.get("config")
+        if config is None:
+            await send_response(websocket, cmd_id, code=1, error="Missing config in payload")
+            return
+            
+        persistence.set_module_data("llm_config", config)
+        await send_response(websocket, cmd_id, code=0, message="LLM configuration saved successfully")
+    except Exception as e:
+        logger.error(f"Failed to save LLM config: {e}")
+        await send_response(websocket, cmd_id, code=1, error=str(e))
 
 # ── System prompts ─────────────────────────────────────────────────────────────
 

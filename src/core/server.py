@@ -65,7 +65,11 @@ from handlers.source_handler import (
     handle_enable_source,
     handle_disable_source
 )
-from handlers.music_claw_handler import handle_music_claw_chat
+from handlers.music_claw_handler import (
+    handle_music_claw_chat,
+    handle_get_llm_config,
+    handle_save_llm_config
+)
 from handlers.playlist_handler import (
     handle_get_playlists,
     handle_get_playlist_tracks,
@@ -73,6 +77,10 @@ from handlers.playlist_handler import (
     handle_add_to_playlist,
     handle_remove_from_playlist,
     handle_delete_playlist
+)
+from handlers.user_preference_handler import (
+    handle_report_listening_event,
+    handle_get_user_preferences
 )
 
 # Queues for inter-process communication for downloads
@@ -231,6 +239,8 @@ COMMAND_HANDLERS = {
     "add_to_playlist": handle_add_to_playlist,
     "remove_from_playlist": handle_remove_from_playlist,
     "delete_playlist": handle_delete_playlist,
+    "report_listening_event": handle_report_listening_event,
+    "get_user_preferences": handle_get_user_preferences,
 }
 
 # Main WebSocket connection handler
