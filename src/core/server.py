@@ -68,12 +68,14 @@ from handlers.source_handler import (
 from handlers.music_claw_handler import (
     handle_music_claw_chat,
     handle_get_llm_config,
-    handle_save_llm_config
+    handle_save_llm_config,
+    handle_claw_auth_response
 )
 from handlers.playlist_handler import (
     handle_get_playlists,
     handle_get_playlist_tracks,
     handle_create_playlist,
+    handle_update_playlist,
     handle_add_to_playlist,
     handle_remove_from_playlist,
     handle_delete_playlist
@@ -208,6 +210,22 @@ def download_worker_main(task_queue: Queue, results_queue: Queue, downloads_dir:
     print(f"Download worker process {os.getpid()} finished.")
 
 
+# Commands that must run as background asyncio tasks so they don't block the
+# ws_handler message loop while streaming long-running responses to the client.
+_BACKGROUND_COMMANDS = {'music_claw_chat'}
+
+async def _run_background_command(websocket, cmd_id, command, handler_func, payload):
+    """Wrapper that runs a handler as a background task and surfaces unhandled exceptions."""
+    try:
+        await handler_func(websocket, cmd_id, payload)
+    except Exception as e:
+        print(f"Error in background command '{command}' (cmd_id: {cmd_id}): {e}")
+        try:
+            await send_response(websocket, cmd_id, code=1, error=f"Server error processing command '{command}': {str(e)}")
+        except Exception:
+            pass  # WebSocket may already be closed
+
+
 # Command Handlers (imports handlers from src.handlers)
 COMMAND_HANDLERS = {
     "search": handle_search,
@@ -235,12 +253,14 @@ COMMAND_HANDLERS = {
     "music_claw_chat": handle_music_claw_chat,
     "get_llm_config": handle_get_llm_config,
     "save_llm_config": handle_save_llm_config,
+    "claw_auth_response": handle_claw_auth_response,
     "get_playlists": handle_get_playlists,
     "get_playlist_tracks": handle_get_playlist_tracks,
     "create_playlist": handle_create_playlist,
     "add_to_playlist": handle_add_to_playlist,
     "remove_from_playlist": handle_remove_from_playlist,
     "delete_playlist": handle_delete_playlist,
+    "update_playlist": handle_update_playlist,
     "report_listening_event": handle_report_listening_event,
     "get_user_preferences": handle_get_user_preferences,
 }
@@ -269,7 +289,15 @@ async def ws_handler(websocket, path = None): # Renamed from 'handler' to 'ws_ha
 
                 if command_handler_func := COMMAND_HANDLERS.get(command):
                     try:
-                        await command_handler_func(websocket, cmd_id, payload)
+                        # Long-running streaming commands are dispatched as background tasks so
+                        # the ws_handler loop is NOT blocked and can process other messages
+                        # (e.g. get_llm_config) while the AI is streaming.
+                        if command in _BACKGROUND_COMMANDS:
+                            asyncio.create_task(
+                                _run_background_command(websocket, cmd_id, command, command_handler_func, payload)
+                            )
+                        else:
+                            await command_handler_func(websocket, cmd_id, payload)
                         increment_task_execution("successfulTasks")
                     except Exception as e:
                         increment_task_execution("failedTasks")

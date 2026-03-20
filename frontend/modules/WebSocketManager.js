@@ -66,10 +66,12 @@ class WebSocketManager {
         const { original_cmd_id } = data || {};
 
         // ── Push Notifications (Server-initiated) ──────────────────────────
-        if (original_cmd_id === "llm_action") {
-          const handler = this.pushHandlers["llm_action"];
+        if (original_cmd_id === "llm_action" || original_cmd_id === "claw_auth_request") {
+          const handler = this.pushHandlers[original_cmd_id];
           if (handler) {
             handler(data);
+          } else {
+            document.dispatchEvent(new CustomEvent(original_cmd_id, { detail: data }));
           }
           return;
         }

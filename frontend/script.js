@@ -38,9 +38,6 @@ document.addEventListener("DOMContentLoaded", () => {
   UIManager.initTaskQueueControls();
   UIManager.initDrawerControls();
   UIManager.initGlobalMarqueeListener();
-  if (!localStorage.getItem("favSongs")) {
-    localStorage.setItem("favSongs", "[]");
-  }
 
   // Add click listener for the task queue
   const expandedTaskQueue = document.getElementById("expanded-task-queue");
@@ -104,18 +101,16 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const collectionManager = new CollectionManager({
-    // navigationManager will be set after its instantiation if needed by CM directly
     appState: window.appState,
-    // uiManager and playerManager can also be set after instantiation if CM needs them
+    webSocketManager: webSocketManager,
   });
 
   const navigationManager = new NavigationManager({
     mainContentElement: mainContent,
     drawerLinksSelector: ".drawer-link",
-    // pageContents: pageContents, // REMOVED
     webSocketManager: webSocketManager,
     playerManager: playerManager,
-    uiManager: UIManager, // UIManager is globally available, can be passed directly
+    uiManager: UIManager,
     appState: window.appState,
     renderDrawerCollectionsCallback:
       collectionManager.renderDrawerCollections.bind(collectionManager),
@@ -123,10 +118,29 @@ document.addEventListener("DOMContentLoaded", () => {
       collectionManager.getCollections.bind(collectionManager),
   });
 
-  // Set navigationManager on collectionManager if it needs it (circular dependency handled by setters)
-  collectionManager.setNavigationManager(navigationManager);
-  collectionManager.setUIManager(UIManager); // Assuming UIManager is needed
-  collectionManager.init();
+  const favoriteManager = new FavoriteManager({
+    webSocketManager: webSocketManager,
+    appState: window.appState,
+  });
+
+  (async () => {
+    // Set navigationManager on collectionManager
+    collectionManager.setNavigationManager(navigationManager);
+    collectionManager.setUIManager(UIManager);
+    
+    // Async inits
+    await collectionManager.init();
+    await favoriteManager.init();
+    
+    // Set managers for use elsewhere
+    navigationManager.setCollectionManager(collectionManager);
+    navigationManager.setFavoriteManager(favoriteManager);
+    searchManager.setFavoriteManager(favoriteManager);
+    UIManager.setManagers({ favoriteManager, collectionManager, webSocketManager });
+    
+    // Initial navigation
+    navigationManager.init();
+  })();
 
   const searchManager = new SearchManager({
     webSocketManager: webSocketManager,
@@ -134,11 +148,6 @@ document.addEventListener("DOMContentLoaded", () => {
     appState: window.appState,
     uiManager: UIManager,
   });
-
-  const favoriteManager = new FavoriteManager({
-    appState: window.appState,
-    uiManager: UIManager,
-  }); // Initialize FM
 
   const uploadManager = new UploadManager({
     webSocketManager,
@@ -160,6 +169,23 @@ document.addEventListener("DOMContentLoaded", () => {
       console.log("[AI Action] Playing track:", data.track);
       playerManager.playTrackFromCard(JSON.stringify(data.track));
     }
+  });
+
+  // Handle AI auth requests
+  document.addEventListener("claw_auth_request", (e) => {
+    const detail = e.detail;
+    if (!detail) return;
+    const { auth_id, action, details, session_id } = detail;
+    
+    UIManager.showAuthDialog(action, details, (granted, rememberSession) => {
+      webSocketManager.sendWebSocketCommand("claw_auth_response", {
+        auth_id,
+        action,
+        session_id,
+        granted,
+        remember_session: rememberSession
+      });
+    });
   });
 
   // Initialize UIManager with all managers
@@ -198,7 +224,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  mainContent.addEventListener("click", function (event) {
+  mainContent.addEventListener("click", async function (event) {
     const playButton = event.target.closest(".play-on-card-button");
     const artContainer = event.target.closest(".card-art-container");
     const addToCollectionButton = event.target.closest(
@@ -290,9 +316,29 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (favoriteButton) {
       const songId = favoriteButton.dataset.songId;
+      const trackInfoString = favoriteButton.dataset.trackInfo;
       if (songId) {
-        const newStatus = favoriteManager.toggleFavorite(songId); // Assumes toggleFavorite returns the new status
-        UIManager.updateFavoriteIcon(favoriteButton, newStatus);
+        let trackData = null;
+        if (trackInfoString) {
+          try { trackData = JSON.parse(trackInfoString); } catch(e) {}
+        }
+        if (!trackData) {
+            // Try to find in library
+            trackData = window.appState.library.find(t => String(t.music_id || t.id || t.bvid) === String(songId));
+        }
+        
+        if (trackData) {
+          const newStatus = await favoriteManager.toggleFavorite(trackData);
+          UIManager.updateFavoriteIcon(favoriteButton, newStatus);
+        } else {
+          // Fallback for ID only if already favorite (can only remove)
+          if (favoriteManager.isFavorite(songId)) {
+             const removed = await favoriteManager.removeFavorite(songId);
+             if (removed) UIManager.updateFavoriteIcon(favoriteButton, false);
+          } else {
+             UIManager.showToast("Cannot add to favorites: Missing track details.", "error");
+          }
+        }
       }
     }
 

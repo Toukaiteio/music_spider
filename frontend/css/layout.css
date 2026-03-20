@@ -346,3 +346,80 @@
 #main-drawer.collapsed #local-collections-list .no-collections-message {
     display: none;
 }
+
+/* ============================================================
+   Collection category groups
+   ============================================================ */
+.collection-category-group-header {
+    list-style: none;
+    margin-top: 4px;
+}
+
+.collection-category-toggle {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px 14px 3px 14px;
+    color: var(--text-color-secondary);
+    gap: 6px;
+    text-align: left;
+    border-radius: 6px;
+    transition: color 0.15s ease;
+}
+
+.collection-category-toggle:hover {
+    color: var(--text-color-primary);
+}
+
+.category-name {
+    font-size: 0.7em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.category-count {
+    font-size: 0.68em;
+    font-weight: 600;
+    opacity: 0.45;
+    flex-shrink: 0;
+}
+
+.category-chevron {
+    font-size: 15px !important;
+    opacity: 0.45;
+    flex-shrink: 0;
+}
+
+.collection-category-items {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.collection-category-items ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+/* Indent items inside a category group */
+.collection-category-items .local-collection-link {
+    padding-left: 26px;
+}
+
+/* Collapsed drawer: hide category headers, always show items */
+#main-drawer.collapsed .collection-category-group-header {
+    display: none;
+}
+
+#main-drawer.collapsed .collection-category-items {
+    display: block !important;
+}

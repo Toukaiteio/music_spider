@@ -15,14 +15,63 @@ import httpx
 
 logger = logging.getLogger("MusicSkills")
 
+SESSION_SEARCH_CACHE = {} # session_id -> dict(short_id: track_data)
+SESSION_AUTHS = {} # session_id -> set(actions)
+PENDING_AUTHS = {} # auth_id -> asyncio.Future
+
 class MusicSkills:
     """Implementation of tools/skills for the Music Claw AI."""
 
-    def __init__(self, websocket=None):
+    def __init__(self, websocket=None, session_id='default'):
         self.websocket = websocket
+        self.session_id = session_id
+
+    async def _request_auth(self, action: str, details: dict) -> bool:
+        if action in SESSION_AUTHS.get(self.session_id, set()):
+            return True
+            
+        import uuid
+        auth_id = str(uuid.uuid4())
+        from core.ws_messaging import send_response
+        
+        if not self.websocket:
+            return False
+            
+        await send_response(self.websocket, "claw_auth_request", code=0, data={
+            "auth_id": auth_id,
+            "session_id": self.session_id,
+            "action": action,
+            "details": details
+        })
+        
+        loop = asyncio.get_event_loop()
+        future = loop.create_future()
+        PENDING_AUTHS[auth_id] = future
+        
+        try:
+            return await asyncio.wait_for(future, timeout=120.0)
+        except asyncio.TimeoutError:
+            return False
+        finally:
+            PENDING_AUTHS.pop(auth_id, None)
+
+    def _cache_track(self, track_data: dict) -> int:
+        if self.session_id not in SESSION_SEARCH_CACHE:
+            SESSION_SEARCH_CACHE[self.session_id] = {}
+        cache = SESSION_SEARCH_CACHE[self.session_id]
+        new_id = len(cache) + 1
+        cache[str(new_id)] = track_data
+        return new_id
+
+    def _get_track(self, short_id) -> dict:
+        return SESSION_SEARCH_CACHE.get(self.session_id, {}).get(str(short_id))
 
     async def search_music(self, query: str, source: str = "netease", limit: int = 5) -> Dict:
         """Search for music on a specific online source (bilibili, netease, kugou)."""
+        from core.source_manager import get_source_enabled_status
+        if not get_source_enabled_status(source):
+            return {"error": f"Source '{source}' is currently disabled in settings."}
+
         downloader = DOWNLOADER_MODULES.get(source)
         if not downloader:
             return {"error": f"Unsupported source: {source}"}
@@ -41,7 +90,7 @@ class MusicSkills:
             trimmed = []
             for r in (results or [])[:limit]:
                 if isinstance(r, dict):
-                    trimmed.append({
+                    full_track = {
                         "music_id": r.get("music_id") or r.get("bvid") or r.get("id", ""),
                         "title": r.get("title", ""),
                         "artist": r.get("artist") or r.get("author", ""),
@@ -50,6 +99,15 @@ class MusicSkills:
                         "artwork_url": r.get("artwork_url") or r.get("picUrl", ""),
                         "source": source,
                         "_raw": r, # Keep raw for downloader tasks
+                    }
+                    short_id = self._cache_track(full_track)
+                    trimmed.append({
+                        "short_id": short_id,
+                        "title": full_track["title"],
+                        "artist": full_track["artist"],
+                        "album": full_track["album"],
+                        "artwork_url": full_track["artwork_url"],
+                        "source": source
                     })
                 else:
                     trimmed.append(r)
@@ -60,7 +118,13 @@ class MusicSkills:
 
     async def search_at_sources(self, query: str, sources: List[str], limit_per_source: int = 5) -> Dict:
         """Search for music across multiple sources simultaneously."""
-        tasks = [self.search_music(query, source, limit_per_source) for source in sources]
+        from core.source_manager import get_source_enabled_status
+        # Filter out disabled sources
+        active_sources = [s for s in sources if get_source_enabled_status(s)]
+        if not active_sources:
+             return {"error": "All requested sources are currently disabled or unsupported."}
+             
+        tasks = [self.search_music(query, source, limit_per_source) for source in active_sources]
         results = await asyncio.gather(*tasks)
         
         combined = []
@@ -72,8 +136,6 @@ class MusicSkills:
 
     async def search_library(self, query: str) -> Dict:
         """Search for music in the local downloaded library."""
-        from handlers.search_downloaded_music_handler import handle_search_downloaded_music
-        # We'll simulate the handler logic
         from config import DOWNLOADS_DIR
         results = []
         query_lower = query.lower()
@@ -89,40 +151,166 @@ class MusicSkills:
                 if (query_lower in (data.title or "").lower() or 
                     query_lower in (data.author or "").lower() or 
                     query_lower in (data.album or "").lower()):
-                    results.append(data.to_dict())
+                    
+                    full_track = data.to_dict()
+                    short_id = self._cache_track(full_track)
+                    results.append({
+                        "short_id": short_id,
+                        "title": full_track.get("title", ""),
+                        "artist": full_track.get("artist") or full_track.get("author", "")
+                    })
             except:
                 continue
         return {"results": results, "count": len(results)}
 
+    async def get_playlists(self) -> Dict:
+        """Get the current playlists and their content info."""
+        list_names = persistence.get("playlists", "list_names", ["Liked"])
+        result = []
+        for name in list_names:
+            tracks = persistence.get("playlists", name, [])
+            result.append({
+                "playlist_name": name,
+                "track_count": len(tracks)
+            })
+        return {"playlists": result}
+
     async def create_playlist(self, name: str) -> Dict:
         """Create a new empty playlist."""
-        list_names = persistence.get("playlists", "list_names", ["Liked"])
-        if name in list_names:
+        auth = await self._request_auth("create_playlist", {"name": name})
+        if not auth:
+            return {"status": "error", "message": "User denied the operation."}
+            
+        metadata_list = persistence.get("playlists", "metadata_list", [
+            {"name": "Liked", "category": "System", "description": "Songs you liked", "color": "#ef4444"}
+        ])
+        if any(m["name"] == name for m in metadata_list):
             return {"status": "error", "message": f"Playlist '{name}' already exists."}
         
-        list_names.append(name)
-        persistence.set("playlists", "list_names", list_names)
-        persistence.set("playlists", name, [])
+        new_meta = {
+            "name": name,
+            "category": "AI Created",
+            "description": "Created by Music Claw assistant",
+            "color": "#6B7280"
+        }
+        metadata_list.append(new_meta)
+        persistence.set("playlists", "metadata_list", metadata_list)
+        persistence.set("playlists", f"tracks_{name}", [])
         return {"status": "success", "message": f"Playlist '{name}' created."}
 
-    async def add_to_playlist(self, track_data: Dict, playlist_name: str = "Liked") -> Dict:
-        """Add a track to a specified playlist."""
-        if not track_data or not isinstance(track_data, dict):
-            return {"status": "error", "message": "Invalid track_data provided. Expected a dictionary from search results."}
-        
+    async def update_playlist_info(self, old_name: str, new_name: str) -> Dict:
+        """Rename an existing playlist."""
+        auth = await self._request_auth("update_playlist_info", {"old_name": old_name, "new_name": new_name})
+        if not auth:
+            return {"status": "error", "message": "User denied the operation."}
+
         list_names = persistence.get("playlists", "list_names", ["Liked"])
-        if playlist_name not in list_names:
+        if old_name not in list_names:
+            return {"status": "error", "message": f"Playlist '{old_name}' not found."}
+        if new_name in list_names:
+            return {"status": "error", "message": f"Playlist '{new_name}' already exists."}
+        
+        idx = list_names.index(old_name)
+        list_names[idx] = new_name
+        tracks = persistence.get("playlists", old_name, [])
+        persistence.set("playlists", new_name, tracks)
+        # Delete old key isn't strictly necessary but good practice
+        persistence.set("playlists", "list_names", list_names)
+        return {"status": "success", "message": f"Playlist '{old_name}' renamed to '{new_name}'."}
+
+    async def remove_from_playlist(self, short_id: str, playlist_name: str = "Liked") -> Dict:
+        """Remove a track from a playlist using its short_id."""
+        track_data = self._get_track(short_id)
+        if not track_data:
+            return {"status": "error", "message": f"Track with short_id {short_id} not found in current session cache."}
+
+        auth = await self._request_auth("remove_from_playlist", {
+            "track": track_data.get("title"),
+            "playlist_name": playlist_name
+        })
+        if not auth:
+            return {"status": "error", "message": "User denied the operation."}
+
+        metadata_list = persistence.get("playlists", "metadata_list", [
+            {"name": "Liked", "category": "System", "description": "Songs you liked", "color": "#ef4444"}
+        ])
+        if not any(m["name"] == playlist_name for m in metadata_list):
+            return {"status": "error", "message": f"Playlist '{playlist_name}' not found."}
+
+        current_tracks = persistence.get("playlists", f"tracks_{playlist_name}", [])
+        music_id = str(track_data.get("music_id") or track_data.get("id"))
+        
+        new_tracks = [t for t in current_tracks if str(t.get("music_id") or t.get("id") or t.get("bvid")) != music_id]
+        if len(new_tracks) == len(current_tracks):
+            return {"status": "ignored", "message": f"Track not found in '{playlist_name}'."}
+            
+        persistence.set("playlists", f"tracks_{playlist_name}", new_tracks)
+        return {"status": "success", "message": f"Removed from '{playlist_name}'."}
+
+    async def add_to_playlist(self, short_id: str, playlist_name: str = "Liked") -> Dict:
+        """Add a track to a playlist using its short_id."""
+        track_data = self._get_track(short_id)
+        if not track_data or not isinstance(track_data, dict):
+            return {"status": "error", "message": "Invalid short_id provided. Run search first."}
+        
+        auth = await self._request_auth("add_to_playlist", {
+            "track": track_data.get("title"),
+            "playlist_name": playlist_name
+        })
+        if not auth:
+            return {"status": "error", "message": "User denied the operation."}
+
+        metadata_list = persistence.get("playlists", "metadata_list", [
+            {"name": "Liked", "category": "System", "description": "Songs you liked", "color": "#ef4444"}
+        ])
+        if not any(m["name"] == playlist_name for m in metadata_list):
             await self.create_playlist(playlist_name)
         
-        current_tracks = persistence.get("playlists", playlist_name, [])
-        music_id = track_data.get("music_id") or track_data.get("id")
+        current_tracks = persistence.get("playlists", f"tracks_{playlist_name}", [])
+        music_id = str(track_data.get("music_id") or track_data.get("id"))
         
-        if any((t.get("music_id") or t.get("id")) == music_id for t in current_tracks):
+        if any(str(t.get("music_id") or t.get("id") or t.get("bvid")) == music_id for t in current_tracks):
             return {"status": "ignored", "message": f"Track already in '{playlist_name}'."}
         
         current_tracks.append(track_data)
-        persistence.set("playlists", playlist_name, current_tracks)
+        persistence.set("playlists", f"tracks_{playlist_name}", current_tracks)
         return {"status": "success", "message": f"Added to '{playlist_name}'."}
+
+    async def download_song(self, short_id: str) -> Dict:
+        """Download a track for offline listening. Requires short_id from search."""
+        track_data = self._get_track(short_id)
+        if not track_data:
+            return {"status": "error", "message": "Track not found. Search first."}
+        
+        auth = await self._request_auth("download_song", {
+            "track": track_data.get("title"),
+            "artist": track_data.get("artist")
+        })
+        if not auth:
+            return {"status": "error", "message": "Download denied by user."}
+
+        source = track_data.get("source")
+        downloader = DOWNLOADER_MODULES.get(source)
+        if not downloader:
+            return {"status": "error", "message": f"Source '{source}' downloader not available."}
+        
+        # Start download in background
+        asyncio.create_task(self._do_download(downloader, track_data))
+        
+        return {"status": "success", "message": f"Download for '{track_data['title']}' started in background."}
+
+    async def _do_download(self, downloader, track_data):
+        try:
+             func = getattr(downloader, "download_track_async", None) or getattr(downloader, "download_track", None)
+             if func:
+                 raw = track_data.get("_raw", track_data)
+                 if asyncio.iscoroutinefunction(func):
+                     await func(raw)
+                 else:
+                     loop = asyncio.get_event_loop()
+                     await loop.run_in_executor(None, func, raw)
+        except Exception as e:
+            logger.error(f"Download failed: {e}")
 
     async def get_lyrics(self, song_name: str, artist: str = "") -> Dict:
         """Search for lyrics for a song (tries Netease/Kugou)."""
@@ -217,10 +405,11 @@ class MusicSkills:
         except Exception as e:
             return {"error": str(e)}
 
-    async def play_song(self, track_data: Dict) -> Dict:
-        """Trigger playback of a specific song in the player. Downloads if not available locally."""
+    async def play_song(self, short_id: str) -> Dict:
+        """Trigger playback of a specific song using its short_id."""
+        track_data = self._get_track(short_id)
         if not track_data or not isinstance(track_data, dict):
-            return {"status": "error", "message": "Invalid track_data provided."}
+            return {"status": "error", "message": "Invalid short_id provided. Run search first."}
 
         music_id = track_data.get("music_id") or track_data.get("id")
         source = track_data.get("source")

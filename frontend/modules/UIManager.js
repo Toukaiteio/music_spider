@@ -651,6 +651,103 @@ class UIManager {
     }
   }
 
+  static showAuthDialog(action, details, onResolve) {
+    if (document.querySelector(".ui-auth-dialog-backdrop")) return;
+
+    const backdrop = document.createElement("div");
+    backdrop.className = "ui-auth-dialog-backdrop";
+    backdrop.style.position = "fixed";
+    backdrop.style.top = "0";
+    backdrop.style.left = "0";
+    backdrop.style.width = "100vw";
+    backdrop.style.height = "100vh";
+    backdrop.style.background = "rgba(0,0,0,0.4)";
+    backdrop.style.zIndex = 10001;
+    backdrop.style.display = "flex";
+    backdrop.style.alignItems = "center";
+    backdrop.style.justifyContent = "center";
+
+    const dialog = document.createElement("div");
+    dialog.style.background = "var(--secondary-bg-color)";
+    dialog.style.color = "var(--text-color-primary)";
+    dialog.style.borderRadius = "12px";
+    dialog.style.padding = "24px";
+    dialog.style.minWidth = "300px";
+    dialog.style.boxShadow = "0 8px 24px rgba(0,0,0,0.2)";
+    dialog.style.display = "flex";
+    dialog.style.flexDirection = "column";
+    dialog.style.gap = "16px";
+
+    const title = document.createElement("h3");
+    title.textContent = "MusicClaw Requires Authorization";
+    title.style.margin = "0";
+    title.style.color = "var(--accent-color)";
+
+    const msg = document.createElement("div");
+    msg.innerHTML = `The AI wants to perform: <strong>${action}</strong><br><br><pre style="background:var(--primary-bg-color);padding:8px;border-radius:4px;overflow:auto">${JSON.stringify(details, null, 2)}</pre>`;
+    msg.style.fontSize = "14px";
+
+    const label = document.createElement("label");
+    label.style.display = "flex";
+    label.style.alignItems = "center";
+    label.style.gap = "8px";
+    label.style.cursor = "pointer";
+    label.style.fontSize = "13px";
+    
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    label.appendChild(checkbox);
+    label.appendChild(document.createTextNode("Always allow in this session"));
+
+    const btnRow = document.createElement("div");
+    btnRow.style.display = "flex";
+    btnRow.style.justifyContent = "flex-end";
+    btnRow.style.gap = "12px";
+    btnRow.style.marginTop = "8px";
+
+    const btnAllow = document.createElement("button");
+    btnAllow.textContent = "Allow";
+    btnAllow.style.background = "var(--success-color, #4CAF50)";
+    btnAllow.style.color = "white";
+    btnAllow.style.border = "none";
+    btnAllow.style.padding = "8px 16px";
+    btnAllow.style.borderRadius = "4px";
+    btnAllow.style.cursor = "pointer";
+
+    const btnDeny = document.createElement("button");
+    btnDeny.textContent = "Deny";
+    btnDeny.style.background = "var(--error-color, #F44336)";
+    btnDeny.style.color = "white";
+    btnDeny.style.border = "none";
+    btnDeny.style.padding = "8px 16px";
+    btnDeny.style.borderRadius = "4px";
+    btnDeny.style.cursor = "pointer";
+
+    const removeDialog = () => {
+      if (backdrop.parentNode) backdrop.parentNode.removeChild(backdrop);
+    };
+
+    btnAllow.onclick = () => {
+      removeDialog();
+      onResolve(true, checkbox.checked);
+    };
+
+    btnDeny.onclick = () => {
+      removeDialog();
+      onResolve(false, false);
+    };
+
+    btnRow.appendChild(btnDeny);
+    btnRow.appendChild(btnAllow);
+
+    dialog.appendChild(title);
+    dialog.appendChild(msg);
+    dialog.appendChild(label);
+    dialog.appendChild(btnRow);
+    backdrop.appendChild(dialog);
+    document.body.appendChild(backdrop);
+  }
+
   static initGlobalMarqueeListener() {
     document.addEventListener('mouseover', (e) => {
       const card = e.target.closest('.song-card');

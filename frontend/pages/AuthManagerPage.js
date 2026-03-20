@@ -176,6 +176,8 @@ class AuthManagerPage {
       if (resp.code === 0) {
         UIManager.showToast(`${source} ${enabled ? 'enabled' : 'disabled'}`, "success");
         await this.loadSourceStatuses();
+        // Notify other components that source status has changed
+        document.dispatchEvent(new CustomEvent('source-status-changed', { detail: { source, enabled } }));
       } else {
         UIManager.showToast(resp.error || "Action failed", "error");
       }
@@ -255,6 +257,7 @@ class AuthManagerPage {
                 if (status.status === 'success') {
                     statusEl.innerText = "Login successful!";
                     statusEl.style.color = "#34C759";
+                    document.dispatchEvent(new CustomEvent('source-status-changed', { detail: { source, action: 'login' } }));
                     clearInterval(this.pollingIntervals[source]);
                     setTimeout(() => {
                         expansion.classList.remove('expanded');
@@ -306,6 +309,7 @@ class AuthManagerPage {
             const resp = await this.managers.webSocketManager.sendWebSocketCommand('login_with_params', { source, params });
             if (resp.code === 0 && resp.data?.status === 'success') {
                 UIManager.showToast("Authorized successfully", "success");
+                document.dispatchEvent(new CustomEvent('source-status-changed', { detail: { source, action: 'login' } }));
                 this.container.querySelector(`#expansion-${source}`).classList.remove('expanded');
                 this.loadSourceStatuses();
             } else {
@@ -323,6 +327,7 @@ class AuthManagerPage {
         if (resp.code === 0) {
             UIManager.showToast(`Logged out from ${source}`, "success");
             await this.loadSourceStatuses();
+            document.dispatchEvent(new CustomEvent('source-status-changed', { detail: { source, action: 'logout' } }));
         } else {
             UIManager.showToast(resp.error, "error");
         }

@@ -18,6 +18,31 @@ from utils.persistence import persistence
 
 logger = logging.getLogger("MusicClawHandler")
 
+# ── Auth State ─────────────────────────────────────────────────────────────
+# Normally these would be in their own state file, mapped by session or auth_id.
+# We'll use the MusicSkills class' references.
+import asyncio
+from llm.skills import SESSION_AUTHS, PENDING_AUTHS
+
+async def handle_claw_auth_response(websocket, cmd_id: str, payload: dict):
+    """Handle a user's response to an AI authorization request."""
+    auth_id = payload.get("auth_id")
+    granted = payload.get("granted", False)
+    remember_session = payload.get("remember_session", False)
+    action = payload.get("action")
+    session_id = payload.get("session_id")
+    
+    if remember_session and granted and session_id and action:
+        if session_id not in SESSION_AUTHS:
+            SESSION_AUTHS[session_id] = set()
+        SESSION_AUTHS[session_id].add(action)
+        
+    if auth_id in PENDING_AUTHS:
+        if not PENDING_AUTHS[auth_id].done():
+            PENDING_AUTHS[auth_id].set_result(granted)
+            
+    await send_response(websocket, cmd_id, code=0, data={"status": "received"})
+
 # ── LLM Config Handlers ──────────────────────────────────────────────────────
 
 async def handle_get_llm_config(websocket, cmd_id: str, payload: dict):
@@ -27,6 +52,7 @@ async def handle_get_llm_config(websocket, cmd_id: str, payload: dict):
             "models": [],
             "active_model_id": ""
         }
+        config.pop("original_cmd_id", None)
         await send_response(websocket, cmd_id, code=0, data=config)
     except Exception as e:
         logger.error(f"Failed to get LLM config: {e}")
@@ -40,8 +66,9 @@ async def handle_save_llm_config(websocket, cmd_id: str, payload: dict):
             await send_response(websocket, cmd_id, code=1, error="Missing config in payload")
             return
             
+        config.pop("original_cmd_id", None)    
         persistence.set_module_data("llm_config", config)
-        await send_response(websocket, cmd_id, code=0, message="LLM configuration saved successfully")
+        await send_response(websocket, cmd_id, code=0, data={"message": "LLM configuration saved successfully"})
     except Exception as e:
         logger.error(f"Failed to save LLM config: {e}")
         await send_response(websocket, cmd_id, code=1, error=str(e))
@@ -102,8 +129,8 @@ _BASE_SYSTEM_PROMPT = """你是 Music Claw，一个强大的 AI 音乐助手。
 - **search_music**: 在单个平台搜索音乐
   - 参数: `{{"query": "搜索词", "source": "netease"}}`
 
-- **play_song**: 播放指定歌曲 (track_data必须来自搜索结果！)
-  - 参数: `{{"track_data": {{...从搜索结果获取的完整track对象...}}}}`
+- **play_song**: 播放指定歌曲 
+  - 参数: `{{"short_id": 1}}` (short_id 必须来自搜索结果中的 short_id)
 
 - **search_library**: 在本地已下载的音乐库中搜索
   - 参数: `{{"query": "搜索词"}}`
@@ -111,11 +138,23 @@ _BASE_SYSTEM_PROMPT = """你是 Music Claw，一个强大的 AI 音乐助手。
 - **get_lyrics**: 获取歌词
   - 参数: `{{"song_name": "歌名", "artist": "歌手(可选)"}}`
 
+- **get_playlists**: 获取当前所有歌单及其歌曲数量
+  - 参数: `{{}}`
+
+- **download_song**: 下载指定的歌曲（需提供搜索结果中的 short_id）
+  - 参数: {{"short_id": 1}}
+
 - **add_to_playlist**: 将歌曲添加到播放列表
-  - 参数: `{{"track_data": {{...}}, "playlist_name": "Liked"}}`
+  - 参数: `{{"short_id": 1, "playlist_name": "Liked"}}`
+
+- **remove_from_playlist**: 将歌曲从播放列表中移除
+  - 参数: `{{"short_id": 1, "playlist_name": "Liked"}}`
 
 - **create_playlist**: 创建新播放列表
   - 参数: `{{"name": "列表名"}}`
+
+- **update_playlist_info**: 重命名或修改播放列表名称
+  - 参数: `{{"old_name": "原列表名", "new_name": "新列表名"}}`
 
 # 当前来源状态
 {sources_status}
@@ -125,10 +164,10 @@ _BASE_SYSTEM_PROMPT = """你是 Music Claw，一个强大的 AI 音乐助手。
 Step 1 (AI): 好的，我来搜索夜鹿的歌曲。
 [search_at_sources: {{"query": "Yorushika 夜鹿", "sources": ["netease", "kugou"]}}]
 
-Step 2 (System): [Tool Result] search_at_sources: {{"results": [{{"title": "言って。", "artist": "ヨルシカ", "music_id": "netease_12345", ...}}, ...]}}
+Step 2 (System): [Tool Result] search_at_sources: {{"results": [{{"title": "言って。", "artist": "ヨルシカ", "short_id": 1}}, ...]}}
 
 Step 3 (AI): 找到了！为你随机播放《言って。》。
-[play_song: {{"track_data": {{"title": "言って。", "artist": "ヨルシカ", "music_id": "netease_12345", "source": "netease"}}}}]
+[play_song: {{"short_id": 1}}]
 
 Step 4 (System): [Tool Result] play_song: {{"status": "playing"}}
 
@@ -141,7 +180,8 @@ Step 5 (AI): ✅ 正在为你播放《言って。》- ヨルシカ，希望你�
 
 _TOOLS_PLAIN_LIST = [
     "search_at_sources", "search_music", "play_song", 
-    "search_library", "get_lyrics", "add_to_playlist", "create_playlist"
+    "search_library", "get_lyrics", "add_to_playlist", "create_playlist",
+    "get_playlists", "remove_from_playlist", "update_playlist_info", "download_song"
 ]
 
 MAX_ITERATIONS = 8
@@ -149,50 +189,95 @@ MAX_ITERATIONS = 8
 
 def _parse_tool_call(text: str):
     """
-    Parse [tool_name: {json}] from text.
-    Returns (tool_name, args_dict) or (None, None).
-    Uses bracket matching to handle nested JSON correctly.
+    Parse [tool_name: {json}] from text with high robustness.
+    Handles:
+    1. Missing closing brackets ']'
+    2. Markdown code blocks
+    3. Nested JSON structures
+    4. Leading/trailing whitespace
+    
+    Returns (tool_name, args_dict, full_match_text) or (None, None, None).
     """
-    # Find last occurrence of [word_chars: { ... }]
+    # 1. Strip thinking tags but keep original for matching later if needed
     clean_text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL)
     
-    # Find all potential tool call start positions
-    pattern = re.compile(r'\[(\w+):\s*(\{)', re.DOTALL)
-    matches = list(pattern.finditer(clean_text))
+    # 2. Look for potential tool starts: [tool_name: { or tool_name: {
+    # We use a generic pattern to catch ANY tool, even hallucinated ones, so we can bounce errors back
+    potential_matches = []
+    pattern = re.compile(r'(\\\[|\[|)([a-zA-Z0-9_]+):\s*(\{)', re.DOTALL)
+    for m in pattern.finditer(clean_text):
+        tool_name = m.group(2).strip()
+        potential_matches.append((m, tool_name))
+            
+    # Sort matches by their starting position in the text
+    potential_matches.sort(key=lambda x: x[0].start(1))
     
-    if not matches:
-        return None, None
-    
-    # Process from the last match (prefer last tool call in response)
-    for m in reversed(matches):
-        tool_name = m.group(1)
-        if tool_name.upper() in ('TOOL', 'FINISH', 'AT', 'REPLY', 'SKIP'):
-            continue  # Skip special markers
+    # Process matches: take the first valid one we can parse
+    # Returning the first one ensures sequential tool execution instead of dropping previous tools
+    for m, tool_name in potential_matches:
+        start_bracket_idx = m.start(1)
+        start_brace_idx = m.start(3) # Group 3 is the opening brace '{'
         
-        # Use bracket counting to find closing }]
-        start_brace = m.start(2)
+        # Count braces to find the end of JSON, handling strings and escapes
         brace_count = 0
-        i = start_brace
-        while i < len(clean_text):
-            c = clean_text[i]
-            if c == '{':
-                brace_count += 1
-            elif c == '}':
-                brace_count -= 1
-                if brace_count == 0:
-                    # Found the closing brace, now look for ]
-                    rest = clean_text[i+1:].lstrip()
+        in_string = False
+        escape = False
+        json_end_idx = -1
+        
+        for i in range(start_brace_idx, len(clean_text)):
+            char = clean_text[i]
+            if escape:
+                escape = False
+                continue
+            if char == '\\':
+                escape = True
+                continue
+            if char == '"':
+                in_string = not in_string
+                continue
+            
+            if not in_string:
+                if char == '{':
+                    brace_count += 1
+                elif char == '}':
+                    brace_count -= 1
+                    if brace_count == 0:
+                        json_end_idx = i
+                        break
+        
+        if json_end_idx != -1:
+            json_str = clean_text[start_brace_idx:json_end_idx+1]
+            try:
+                # Try parsing JSON
+                args = json.loads(json_str)
+                
+                # Determine full match text for stripping
+                # Look for optional closing ']'
+                end_idx = json_end_idx + 1
+                rest = clean_text[end_idx:].lstrip()
+                if rest.startswith(']'):
+                    # Found closing bracket, include it and any whitespace before it
+                    bracket_pos = clean_text.find(']', end_idx)
+                    end_idx = bracket_pos + 1
+                
+                full_match = clean_text[start_bracket_idx:end_idx]
+                return tool_name, args, full_match
+            except json.JSONDecodeError:
+                # Attempt to fix common AI JSON errors (like trailing commas)
+                try:
+                    fixed_json = re.sub(r',\s*}', '}', json_str)
+                    args = json.loads(fixed_json)
+                    end_idx = json_end_idx + 1
+                    rest = clean_text[end_idx:].lstrip()
                     if rest.startswith(']'):
-                        json_str = clean_text[start_brace:i+1]
-                        try:
-                            args = json.loads(json_str)
-                            return tool_name, args
-                        except json.JSONDecodeError:
-                            break
-                    break
-            i += 1
-    
-    return None, None
+                        bracket_pos = clean_text.find(']', end_idx)
+                        end_idx = bracket_pos + 1
+                    full_match = clean_text[start_bracket_idx:end_idx]
+                    return tool_name, args, full_match
+                except:
+                    continue # Try next match
+                    
+    return None, None, None
 
 
 async def handle_music_claw_chat(websocket, cmd_id: str, payload: dict):
@@ -219,7 +304,7 @@ async def handle_music_claw_chat(websocket, cmd_id: str, payload: dict):
         await send_response(websocket, cmd_id, code=1, error="Failed to configure language model.")
         return
         
-    skills = MusicSkills(websocket=websocket)
+    skills = MusicSkills(websocket=websocket, session_id=session_id)
     
     from datetime import datetime
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -257,6 +342,9 @@ async def handle_music_claw_chat(websocket, cmd_id: str, payload: dict):
             full_content = ""
             thinking_content = ""
             
+            streamed_text_length = 0
+            is_streaming_paused = False
+            
             async for chunk in current_llm_client.chat_completion_stream(messages, session_id=session_id):
 
                 if not chunk or not chunk.get("choices"):
@@ -279,13 +367,42 @@ async def handle_music_claw_chat(websocket, cmd_id: str, payload: dict):
                 cd = delta.get("content") or ""
                 if cd:
                     full_content += cd
+                    
+                    if not is_streaming_paused:
+                        unstreamed = full_content[streamed_text_length:]
+                        idx_bracket = unstreamed.find('[')
+                        idx_tag = unstreamed.find('<')
+                        
+                        indices = [i for i in (idx_bracket, idx_tag) if i != -1]
+                        if indices:
+                            earliest_idx = min(indices)
+                            safe_str = unstreamed[:earliest_idx]
+                            if safe_str:
+                                await send_response(websocket, cmd_id, code=0, data={
+                                    "status_type": "claw_update",
+                                    "update_type": "text",
+                                    "session_id": session_id,
+                                    "content": safe_str,
+                                    "is_stream": True,
+                                })
+                                streamed_text_length += len(safe_str)
+                            is_streaming_paused = True
+                        else:
+                            await send_response(websocket, cmd_id, code=0, data={
+                                "status_type": "claw_update",
+                                "update_type": "text",
+                                "session_id": session_id,
+                                "content": unstreamed,
+                                "is_stream": True,
+                            })
+                            streamed_text_length = len(full_content)
 
             # Clean up thinking tags from content (GLM sometimes leaks them)
             full_content = re.sub(r'<think>.*?</think>', '', full_content, flags=re.DOTALL).strip()
             full_content = re.sub(r'<details.*?</details>', '', full_content, flags=re.DOTALL).strip()
 
             # Parse tool call
-            tool_name, tool_args = _parse_tool_call(full_content)
+            tool_name, tool_args, tool_full_match = _parse_tool_call(full_content)
 
             if not tool_name:
                 # No tool call → this is the final answer, stream it out
@@ -298,9 +415,15 @@ async def handle_music_claw_chat(websocket, cmd_id: str, payload: dict):
                 })
                 return
 
-            # Strip tool call line from visible text
-            tool_call_pattern = re.compile(r'\[' + re.escape(tool_name) + r':\s*\{.*?\}\]', re.DOTALL)
-            visible_text = tool_call_pattern.sub("", full_content).strip()
+            # Truncate any text generated AFTER the first tool call to force sequential processing
+            idx = full_content.find(tool_full_match)
+            if idx != -1:
+                truncated_content = full_content[:idx + len(tool_full_match)]
+            else:
+                truncated_content = full_content
+
+            # Strip tool call from visible text using the exact match found by the parser
+            visible_text = truncated_content.replace(tool_full_match, "").strip()
 
             # Stream the visible text part (before tool call) immediately
             if visible_text:
@@ -312,8 +435,8 @@ async def handle_music_claw_chat(websocket, cmd_id: str, payload: dict):
                     "is_stream": False,
                 })
 
-            # Append assistant message to history
-            messages.append({"role": "assistant", "content": full_content})
+            # Append assistant message to history using the TRUNCATED content
+            messages.append({"role": "assistant", "content": truncated_content})
 
             # Notify frontend of tool call
             tc_id = f"tc_{uuid.uuid4().hex[:8]}"
@@ -325,7 +448,12 @@ async def handle_music_claw_chat(websocket, cmd_id: str, payload: dict):
             })
 
             # Execute tool
-            if hasattr(skills, tool_name):
+            if tool_name not in _TOOLS_PLAIN_LIST:
+                result = {
+                    "error": f"Tool '{tool_name}' does NOT exist.",
+                    "hint": f"You MUST strictly use ONLY tools from this list: {', '.join(_TOOLS_PLAIN_LIST)}. If you want to download, use 'download_song'."
+                }
+            elif hasattr(skills, tool_name):
                 try:
                     func = getattr(skills, tool_name)
                     result = await func(**tool_args)

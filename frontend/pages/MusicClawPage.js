@@ -294,26 +294,27 @@ class MusicClawPage {
 
     onLoad(container, subPageId, appState, managers) {
         this.managers = managers;
-        
-        // Load configurations
-        Promise.all([
-            this._updateDownloadedList(),
-            this._loadLLMConfig()
-        ]).then(() => {
-            if (this.messages.length === 0) {
-                this._showWelcome();
-            } else {
-                this._renderMessages();
-                const messagesEl = document.getElementById('claw-messages');
-                if (messagesEl) this._bindTrackEvents(messagesEl);
-            }
-        });
+
+        // Render the page immediately — do NOT block on async config loads.
+        // The LLM config is only needed when the user actually sends a message;
+        // the downloaded-IDs list is a progressive enhancement for track badges.
+        if (this.messages.length === 0) {
+            this._showWelcome();
+        } else {
+            this._renderMessages();
+            const messagesEl = document.getElementById('claw-messages');
+            if (messagesEl) this._bindTrackEvents(messagesEl);
+        }
+
+        // Load configs in background — failures are silently tolerated
+        this._updateDownloadedList();
+        this._loadLLMConfig();
 
         this._setupEventListeners(container);
         if (this.settingsModal) this.settingsModal.setup(container);
         if (this.preferencesModal) this.preferencesModal.setup(container);
-        
-        // Register for real-time updates
+
+        // Register for real-time download progress updates
         if (this.managers.webSocketManager) {
             this.managers.webSocketManager.registerPushHandler('download_progress', (data) => this._handleDownloadProgress(data));
         }
@@ -372,7 +373,7 @@ class MusicClawPage {
     _renderMessages() {
         const container = document.getElementById('claw-messages');
         if (!container) return;
-        container.innerHTML = this.messages.map(m => this._renderMessage(m)).join('');
+        container.innerHTML = this.messages.map((m, i) => this._renderMessage(m, i)).join('');
         this._scrollToBottom();
     }
 
@@ -387,9 +388,9 @@ class MusicClawPage {
         return el;
     }
 
-    _renderMessage(msg) {
+    _renderMessage(msg, index) {
         if (msg.role === 'tool') {
-            return this._renderToolMessage(msg);
+            return this._renderToolMessage(msg, index);
         }
         
         const isAssistant = msg.role === 'assistant';
@@ -400,28 +401,45 @@ class MusicClawPage {
         if (msg.content) {
             bodyHtml = `<div class="message-text">${isAssistant ? this._md(msg.content) : this._esc(msg.content)}</div>`;
         }
-        
-        if (isAssistant && msg.tool_calls) {
-            // If we have saved tool calls in history, we render placeholders or summaries?
-            // Actually, for simplicity, we don't render assistant's call block if we have the following tool result.
-            // But if it's GLM/Zai, tool calls are inside content anyway (if not native).
+
+        // Avoid redundant timestamps: only show if first message or > 60s gap OR if roles changed
+        let showTime = true;
+        if (index > 0) {
+            const prev = this.messages[index - 1];
+            const diff = new Date(msg.timestamp) - new Date(prev.timestamp);
+            if (prev.role === msg.role && diff < 60000) {
+                showTime = false;
+            }
         }
+        
+        const timeHtml = showTime ? `<div class="message-time">${new Date(msg.timestamp).toLocaleTimeString()}</div>` : '';
 
         return `
             <div class="message ${cls}">
                 <div class="message-content-wrapper">
                     <div class="message-body">${bodyHtml}</div>
-                    <div class="message-time">${new Date(msg.timestamp).toLocaleTimeString()}</div>
+                    ${timeHtml}
                 </div>
             </div>`;
     }
 
-    _renderToolMessage(msg) {
+    _renderToolMessage(msg, index) {
         const result = msg.content ? JSON.parse(msg.content) : {};
         let tracks = result.results;
         if (!tracks && Array.isArray(result)) tracks = result;
         
         const isTrackList = tracks && Array.isArray(tracks);
+        
+        // Use consistent timestamp hiding logic for tool results too
+        let showTime = true;
+        if (index > 0) {
+            const prev = this.messages[index - 1];
+            const diff = new Date(msg.timestamp) - new Date(prev.timestamp);
+            if (prev.role === msg.role && diff < 60000) {
+                showTime = false;
+            }
+        }
+        const timeHtml = showTime ? `<div class="message-time">${new Date(msg.timestamp).toLocaleTimeString()}</div>` : '';
         
         let bodyContent = '';
         if (isTrackList) {
@@ -458,6 +476,7 @@ class MusicClawPage {
                             </div>
                         </div>
                     </div>
+                    ${timeHtml}
                 </div>
             </div>`;
     }
@@ -791,16 +810,27 @@ class MusicClawPage {
                     this._currentStreamingEl = this._appendMessage(assistantMsg);
                 }
             } else {
-                // Not a stream, or end of one? 
-                const assistantMsg = {
-                    role: 'assistant',
-                    content: update.content || '',
-                    timestamp: new Date().toISOString(),
-                };
-                this.messages.push(assistantMsg);
-                this._appendMessage(assistantMsg);
-                this._currentStreamingMsg = null;
-                this._currentStreamingEl = null;
+                // Not a stream (is_stream: false). Finalize or create new.
+                const content = update.content || '';
+                if (this._currentStreamingMsg) {
+                    this._currentStreamingMsg.content = content;
+                    if (this._currentStreamingEl) {
+                        const bodyEl = this._currentStreamingEl.querySelector('.message-body');
+                        if (bodyEl) {
+                            bodyEl.innerHTML = `<div class="message-text">${this._md(content)}</div>`;
+                        }
+                    }
+                    this._currentStreamingMsg = null;
+                    this._currentStreamingEl = null;
+                } else {
+                    const assistantMsg = {
+                        role: 'assistant',
+                        content,
+                        timestamp: new Date().toISOString(),
+                    };
+                    this.messages.push(assistantMsg);
+                    this._appendMessage(assistantMsg);
+                }
             }
             return;
         }
@@ -839,18 +869,33 @@ class MusicClawPage {
 
         if (update_type === 'complete') {
             this._hideThinking();
-            this._currentStreamingMsg = null;
-            this._currentStreamingEl = null;
-
+            
             const content = (update.content || '').trim();
             if (!content) {
+                this._currentStreamingMsg = null;
+                this._currentStreamingEl = null;
                 this._saveSession();
                 return;
             }
             
-            // If the last message was already this content (from a 'text' update), ignore
+            if (this._currentStreamingMsg) {
+                // Finalize streaming
+                this._currentStreamingMsg.content = content;
+                if (this._currentStreamingEl) {
+                    const bodyEl = this._currentStreamingEl.querySelector('.message-body');
+                    if (bodyEl) {
+                        bodyEl.innerHTML = `<div class="message-text">${this._md(content)}</div>`;
+                    }
+                }
+                this._currentStreamingMsg = null;
+                this._currentStreamingEl = null;
+                this._saveSession();
+                return;
+            }
+            
+            // Not streaming previously, just create new message if it doesn't match last
             const last = this.messages[this.messages.length - 1];
-            if (last && last.role === 'assistant' && last.content === content) {
+            if (last && last.role === 'assistant' && last.content.trim() === content) {
                 this._saveSession();
                 return;
             }
@@ -863,6 +908,7 @@ class MusicClawPage {
             this.messages.push(assistantMsg);
             this._appendMessage(assistantMsg);
             this._saveSession();
+            return;
         }
     }
 

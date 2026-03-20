@@ -1,34 +1,31 @@
 // frontend/modules/FavoriteManager.js
 
-const FAVORITES_STORAGE_KEY = 'favoriteSongs';
-
 class FavoriteManager {
-    constructor() {
-        this.favoriteSongIds = this._loadFavorites();
-        // Bind methods that might be used as callbacks or event handlers
+    constructor({ webSocketManager, appState }) {
+        this.webSocketManager = webSocketManager;
+        this.appState = appState;
+        this.favoriteSongIds = [];
+        this.playlistName = "Liked";
+        
+        // Bind methods
         this.toggleFavorite = this.toggleFavorite.bind(this);
         this.isFavorite = this.isFavorite.bind(this);
     }
 
-    _loadFavorites() {
-        try {
-            const storedFavorites = localStorage.getItem(FAVORITES_STORAGE_KEY);
-            if (storedFavorites) {
-                const parsedFavorites = JSON.parse(storedFavorites);
-                // Ensure it's an array of strings for consistency
-                return Array.isArray(parsedFavorites) ? parsedFavorites.map(String) : [];
-            }
-        } catch (error) {
-            console.error("FavoriteManager: Error loading favorites from localStorage", error);
-        }
-        return [];
+    async init() {
+        await this._loadFavorites();
+        console.log("FavoriteManager initialized.");
     }
 
-    _saveFavorites() {
+    async _loadFavorites() {
         try {
-            localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(this.favoriteSongIds));
+            const resp = await this.webSocketManager.sendWebSocketCommand('get_playlist_tracks', { name: this.playlistName });
+            if (resp.code === 0 && resp.data) {
+                const tracks = resp.data.tracks || [];
+                this.favoriteSongIds = tracks.map(t => String(t.music_id || t.id || t.bvid));
+            }
         } catch (error) {
-            console.error("FavoriteManager: Error saving favorites to localStorage", error);
+            console.error("FavoriteManager: Error loading favorites from backend", error);
         }
     }
 
@@ -41,45 +38,69 @@ class FavoriteManager {
         return this.favoriteSongIds.includes(String(songId));
     }
 
-    addFavorite(songId) {
-        if (songId === null || typeof songId === 'undefined') return;
-        const idStr = String(songId);
-        if (!this.favoriteSongIds.includes(idStr)) {
-            this.favoriteSongIds.push(idStr);
-            this._saveFavorites();
-            document.dispatchEvent(new CustomEvent('favoritesChanged', {
-                detail: { songId: idStr, isFavorite: true, source: 'FavoriteManager' }
-            }));
-            console.log(`FavoriteManager: Added ${idStr} to favorites.`);
+    async addFavorite(trackData) {
+        if (!trackData) return;
+        const songId = String(trackData.music_id || trackData.id || trackData.bvid);
+        
+        try {
+            const resp = await this.webSocketManager.sendWebSocketCommand('add_to_playlist', {
+                playlist_name: this.playlistName,
+                track_data: trackData
+            });
+            
+            if (resp.code === 0) {
+                if (!this.favoriteSongIds.includes(songId)) {
+                    this.favoriteSongIds.push(songId);
+                    document.dispatchEvent(new CustomEvent('favoritesChanged', {
+                        detail: { songId, isFavorite: true, source: 'FavoriteManager' }
+                    }));
+                    console.log(`FavoriteManager: Added ${songId} to favorites.`);
+                }
+                return true;
+            }
+        } catch (error) {
+            console.error("FavoriteManager: Error adding favorite to backend", error);
         }
+        return false;
     }
 
-    removeFavorite(songId) {
+    async removeFavorite(songId) {
         if (songId === null || typeof songId === 'undefined') return;
         const idStr = String(songId);
-        const index = this.favoriteSongIds.indexOf(idStr);
-        if (index > -1) {
-            this.favoriteSongIds.splice(index, 1);
-            this._saveFavorites();
-            document.dispatchEvent(new CustomEvent('favoritesChanged', {
-                detail: { songId: idStr, isFavorite: false, source: 'FavoriteManager' }
-            }));
-            console.log(`FavoriteManager: Removed ${idStr} from favorites.`);
+        
+        try {
+            const resp = await this.webSocketManager.sendWebSocketCommand('remove_from_playlist', {
+                playlist_name: this.playlistName,
+                music_id: idStr
+            });
+            
+            if (resp.code === 0) {
+                const index = this.favoriteSongIds.indexOf(idStr);
+                if (index > -1) {
+                    this.favoriteSongIds.splice(index, 1);
+                    document.dispatchEvent(new CustomEvent('favoritesChanged', {
+                        detail: { songId: idStr, isFavorite: false, source: 'FavoriteManager' }
+                    }));
+                    console.log(`FavoriteManager: Removed ${idStr} from favorites.`);
+                }
+                return true;
+            }
+        } catch (error) {
+            console.error("FavoriteManager: Error removing favorite from backend", error);
         }
+        return false;
     }
 
-    toggleFavorite(songId) {
-        if (songId === null || typeof songId === 'undefined') {
-            console.warn("FavoriteManager: toggleFavorite called with invalid songId");
+    async toggleFavorite(trackData) {
+        if (!trackData) {
+            console.warn("FavoriteManager: toggleFavorite called with invalid trackData");
             return false; 
         }
-        const idStr = String(songId);
-        if (this.isFavorite(idStr)) {
-            this.removeFavorite(idStr);
-            return false;
+        const songId = String(trackData.music_id || trackData.id || trackData.bvid);
+        if (this.isFavorite(songId)) {
+            return await this.removeFavorite(songId);
         } else {
-            this.addFavorite(idStr);
-            return true;
+            return await this.addFavorite(trackData);
         }
     }
 }

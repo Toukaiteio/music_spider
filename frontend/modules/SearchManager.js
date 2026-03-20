@@ -62,6 +62,12 @@ class SearchManager {
     // Listen for download status changes
     document.addEventListener('download-status-changed', this.updateDownloadButtonStatus);
 
+    // Listen for source status changes (e.g., from Source Manager)
+    document.addEventListener('source-status-changed', async () => {
+      console.log("SearchManager: Source status changed. Refreshing available sources...");
+      await this.fetchAvailableSources();
+    });
+
     console.log("SearchManager initialized.");
   }
 

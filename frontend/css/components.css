@@ -663,7 +663,8 @@
 }
 
 .dialog-box input[type="text"],
-.dialog-box textarea {
+.dialog-box textarea,
+.dialog-box select {
     width: 100%;
     padding: 8px;
     border: 1px solid var(--border-color);
@@ -671,6 +672,25 @@
     background-color: var(--primary-bg-color);
     color: var(--text-color-primary);
     font-size: 0.95em;
+    box-sizing: border-box;
+}
+
+#new-collection-category-custom-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 0;
+}
+
+#new-collection-category-custom-row input {
+    flex: 1;
+}
+
+#new-collection-category-back-btn {
+    margin-top: 0;
+    padding: 8px 10px;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .dialog-button {
@@ -729,6 +749,12 @@
 .custom-context-menu li:hover {
     background-color: rgba(255, 255, 255, 0.10);
     color: var(--text-color-primary);
+}
+
+.custom-context-menu li.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
 }
 
 /* Lyrics Tool Sub-component */

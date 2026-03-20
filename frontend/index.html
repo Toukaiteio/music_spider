@@ -387,9 +387,11 @@
       </nav>
     </aside>
     <main id="main-content"></main>
-    <div id="drawer-context-menu" class="custom-context-menu" style="display: none; position: absolute; z-index: 1500">
+    <div id="drawer-context-menu" class="custom-context-menu" style="display: none;">
       <ul>
-      <li data-action="delete_collection">Delete Collection</li>
+        <li data-action="create_collection">Create New Playlist</li>
+        <li data-action="edit_collection">Edit Playlist</li>
+        <li data-action="delete_collection">Delete Playlist</li>
       </ul>
     </div>
 
@@ -491,8 +493,12 @@
       <div id="create-collection-form" style="display: none">
         <label for="new-collection-name">Name (Required):</label>
         <input type="text" id="new-collection-name" required />
-        <label for="new-collection-category">Category (Optional):</label>
-        <input type="text" id="new-collection-category" />
+        <label for="new-collection-category-select">Category (Optional):</label>
+        <select id="new-collection-category-select"></select>
+        <div id="new-collection-category-custom-row" style="display: none;">
+          <input type="text" id="new-collection-category-custom" placeholder="Category name..." />
+          <button type="button" id="new-collection-category-back-btn" class="dialog-button secondary">← Back</button>
+        </div>
         <label for="new-collection-description">Description (Optional):</label>
         <textarea id="new-collection-description"></textarea>
         <label for="new-collection-color">Color (Optional):</label>
