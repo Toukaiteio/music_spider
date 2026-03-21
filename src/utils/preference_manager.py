@@ -1,5 +1,5 @@
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from utils.persistence import persistence
 
 class PreferenceManager:
@@ -33,6 +33,58 @@ class PreferenceManager:
         # 4. Default to English/Western
         return "en/western"
 
+    def _get_empty_day_data(self):
+        return {
+            "history": [],
+            "patterns": {
+                "artists": {},
+                "hourly_distribution": [0] * 24,
+                "languages": {},
+                "total_listening_time": 0
+            },
+            "last_update": 0
+        }
+
+    def _load_and_migrate_data(self):
+        data = persistence.get_module_data(self.module_name)
+        if not data:
+            return {}
+            
+        # Check if it needs migration
+        if "patterns" in data or "history" in data:
+            # It's in the old single-object format
+            new_data = {}
+            yesterday_str = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+            
+            # Distribute history
+            old_history = data.get("history", [])
+            for entry in old_history:
+                if "timestamp" in entry:
+                    try:
+                        date_str = datetime.fromtimestamp(entry["timestamp"]).strftime("%Y-%m-%d")
+                    except:
+                        date_str = yesterday_str
+                else:
+                    date_str = yesterday_str
+                    
+                if date_str not in new_data:
+                    new_data[date_str] = self._get_empty_day_data()
+                new_data[date_str]["history"].append(entry)
+                
+            # Distribute patterns to yesterday
+            if yesterday_str not in new_data:
+                new_data[yesterday_str] = self._get_empty_day_data()
+                
+            old_patterns = data.get("patterns", self._get_empty_day_data()["patterns"])
+            new_data[yesterday_str]["patterns"] = old_patterns
+            new_data[yesterday_str]["last_update"] = data.get("last_update", time.time())
+            
+            # Save the migrated data
+            persistence.set_module_data(self.module_name, new_data)
+            return new_data
+            
+        return data
+
     def report_event(self, event_data):
         """
         event_data: {
@@ -50,33 +102,28 @@ class PreferenceManager:
         if not music_id:
             return
 
-        # Load current data
-        data = persistence.get_module_data(self.module_name)
-        if not data:
-            data = {
-                "history": [],
-                "patterns": {
-                    "artists": {},
-                    "hourly_distribution": [0] * 24,
-                    "languages": {},
-                    "total_listening_time": 0
-                },
-                "last_update": 0
-            }
-
+        # Load current data (and migrate if necessary)
+        data = self._load_and_migrate_data()
+        
         now = datetime.now()
+        today_str = now.strftime("%Y-%m-%d")
         hour = now.hour
         timestamp = time.time()
+        
+        if today_str not in data:
+            data[today_str] = self._get_empty_day_data()
+            
+        day_data = data[today_str]
 
         # Update total listening time
         if duration > 0:
-            data["patterns"]["total_listening_time"] += duration
-            data["patterns"]["hourly_distribution"][hour] += duration
+            day_data["patterns"]["total_listening_time"] += duration
+            day_data["patterns"]["hourly_distribution"][hour] += duration
 
         # Update artist patterns
         artist = track_info.get("artist") or track_info.get("singer")
         if artist and duration > 0:
-            data["patterns"]["artists"][artist] = data["patterns"]["artists"].get(artist, 0) + duration
+            day_data["patterns"]["artists"][artist] = day_data["patterns"]["artists"].get(artist, 0) + duration
 
         # Update language patterns
         lang = track_info.get("language")
@@ -97,7 +144,7 @@ class PreferenceManager:
             lang = self._detect_language(detection_text)
             
         if lang and duration > 0:
-            data["patterns"]["languages"][lang] = data["patterns"]["languages"].get(lang, 0) + duration
+            day_data["patterns"]["languages"][lang] = day_data["patterns"]["languages"].get(lang, 0) + duration
 
         # Add to history if it's a "start" or "end" event (to keep history compact)
         if action in ["start", "end"]:
@@ -109,41 +156,78 @@ class PreferenceManager:
                 "timestamp": timestamp,
                 "hour": hour
             }
-            data["history"].append(history_entry)
+            day_data["history"].append(history_entry)
             
-            # Keep history to a reasonable size (e.g., last 1000 entries)
-            if len(data["history"]) > 1000:
-                data["history"] = data["history"][-1000:]
+            # Keep daily history to a reasonable size
+            if len(day_data["history"]) > 1000:
+                day_data["history"] = day_data["history"][-1000:]
 
-        data["last_update"] = timestamp
+        day_data["last_update"] = timestamp
+        
+        # Only keep the last 365 days of data to prevent infinite growth
+        if len(data) > 365:
+            sorted_dates = sorted(data.keys())
+            # Remove oldest entries to keep max 365 days
+            for d in sorted_dates[:-365]:
+                del data[d]
+                
         persistence.set_module_data(self.module_name, data)
 
     def get_aggregated_preferences(self):
         """
         Aggregates data for daily playlist or recommendation systems.
         """
-        data = persistence.get_module_data(self.module_name)
-        if not data:
-            return {}
-
-        patterns = data.get("patterns", {})
+        data = self._load_and_migrate_data()
         
-        # Sort artists by listening time
-        top_artists = sorted(patterns.get("artists", {}).items(), key=lambda x: x[1], reverse=True)[:10]
+        combined_artists = {}
+        combined_hourly = [0] * 24
+        combined_languages = {}
+        total_time = 0
+        all_history = []
+        
+        for date_str, day_data in data.items():
+            if not isinstance(day_data, dict) or "patterns" not in day_data:
+                continue
+                
+            patterns = day_data.get("patterns", {})
+            
+            # Aggregate artists
+            for artist, time in patterns.get("artists", {}).items():
+                combined_artists[artist] = combined_artists.get(artist, 0) + time
+                
+            # Aggregate hourly
+            hourly = patterns.get("hourly_distribution", [0] * 24)
+            for i in range(24):
+                combined_hourly[i] += hourly[i]
+                
+            # Aggregate languages
+            for lang, time in patterns.get("languages", {}).items():
+                combined_languages[lang] = combined_languages.get(lang, 0) + time
+                
+            # Total time
+            total_time += patterns.get("total_listening_time", 0)
+            
+            # History
+            all_history.extend(day_data.get("history", []))
+
+        # Sort combined artists by listening time
+        top_artists = sorted(combined_artists.items(), key=lambda x: x[1], reverse=True)[:10]
         
         # Identify preferred time slots
-        hourly = patterns.get("hourly_distribution", [0]*24)
-        peak_hours = sorted(range(24), key=lambda i: hourly[i], reverse=True)[:3]
+        peak_hours = sorted(range(24), key=lambda i: combined_hourly[i], reverse=True)[:3]
         
         # Top languages
-        top_langs = sorted(patterns.get("languages", {}).items(), key=lambda x: x[1], reverse=True)[:5]
+        top_langs = sorted(combined_languages.items(), key=lambda x: x[1], reverse=True)[:5]
+        
+        # Sort history by timestamp
+        all_history.sort(key=lambda x: x.get("timestamp", 0))
 
         return {
             "top_artists": dict(top_artists),
             "peak_listening_hours": peak_hours,
             "top_languages": dict(top_langs),
-            "total_listening_time_seconds": patterns.get("total_listening_time", 0),
-            "recent_history": data.get("history", [])[-50:] # Last 50 entries
+            "total_listening_time_seconds": total_time,
+            "recent_history": all_history[-50:] # Last 50 entries across all dates
         }
 
 preference_manager = PreferenceManager()

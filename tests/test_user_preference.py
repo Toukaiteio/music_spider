@@ -2,6 +2,7 @@ import unittest
 import os
 import json
 import time
+from datetime import datetime
 from src.utils.persistence import PersistenceStore
 from src.utils.preference_manager import PreferenceManager
 
@@ -49,11 +50,14 @@ class TestUserPreference(unittest.TestCase):
         })
         
         data = self.test_persistence.get_module_data("user_preferences")
-        self.assertEqual(data["patterns"]["total_listening_time"], 30)
-        self.assertEqual(data["patterns"]["artists"]["Test Artist"], 30)
-        self.assertEqual(data["patterns"]["languages"]["zh"], 30)
-        self.assertEqual(len(data["history"]), 1)
-        self.assertEqual(data["history"][0]["action"], "start")
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        
+        day_data = data[today_str]
+        self.assertEqual(day_data["patterns"]["total_listening_time"], 30)
+        self.assertEqual(day_data["patterns"]["artists"]["Test Artist"], 30)
+        self.assertEqual(day_data["patterns"]["languages"]["zh"], 30)
+        self.assertEqual(len(day_data["history"]), 1)
+        self.assertEqual(day_data["history"][0]["action"], "start")
 
     def test_aggregation(self):
         # Report some events
