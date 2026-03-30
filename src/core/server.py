@@ -84,6 +84,16 @@ from handlers.user_preference_handler import (
     handle_report_listening_event,
     handle_get_user_preferences
 )
+from handlers.auth_handler import (
+    handle_login,
+    handle_register,
+    handle_get_captcha,
+    handle_get_sys_config,
+    handle_set_sys_config,
+    handle_get_users,
+    handle_update_user
+)
+from core.auth import get_user_from_jwt, rate_limiter, current_user
 
 # Queues for inter-process communication for downloads
 download_task_queue = get_download_task_queue()
@@ -263,6 +273,18 @@ COMMAND_HANDLERS = {
     "update_playlist": handle_update_playlist,
     "report_listening_event": handle_report_listening_event,
     "get_user_preferences": handle_get_user_preferences,
+    "login": handle_login,
+    "register": handle_register,
+    "get_captcha": handle_get_captcha,
+    "get_sys_config": handle_get_sys_config,
+    "set_sys_config": handle_set_sys_config,
+    "get_users": handle_get_users,
+    "update_user": handle_update_user,
+}
+
+# Commands that do not require authentication
+UNAUTHENTICATED_COMMANDS = {
+    "login", "register", "get_captcha"
 }
 
 # Main WebSocket connection handler
@@ -286,6 +308,24 @@ async def ws_handler(websocket, path = None): # Renamed from 'handler' to 'ws_ha
                     increment_task_execution("failedTasks")
                     await send_response(websocket, cmd_id, code=1, error="Missing command")
                     continue
+                    
+                # Authentication and Rate Limiting
+                if command not in UNAUTHENTICATED_COMMANDS:
+                    token = payload.get("token") or data.get("token")
+                    user = get_user_from_jwt(token) if token else None
+                    if not user:
+                        increment_task_execution("failedTasks")
+                        await send_response(websocket, cmd_id, code=401, error="Authentication required")
+                        continue
+                        
+                    # Apply Rate Limiting
+                    if not rate_limiter.check_limit(user["user_id"]):
+                        increment_task_execution("failedTasks")
+                        await send_response(websocket, cmd_id, code=429, error="Rate limit exceeded")
+                        continue
+                        
+                    # Set Context for handlers
+                    current_user.set(user)
 
                 if command_handler_func := COMMAND_HANDLERS.get(command):
                     try:

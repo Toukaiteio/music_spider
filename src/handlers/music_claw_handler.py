@@ -48,6 +48,12 @@ async def handle_claw_auth_response(websocket, cmd_id: str, payload: dict):
 async def handle_get_llm_config(websocket, cmd_id: str, payload: dict):
     """Retrieve LLM configuration from persistence."""
     try:
+        from core.auth import current_user
+        user = current_user.get()
+        if not user or not user["is_admin"]:
+            await send_response(websocket, cmd_id, code=1, error="Permission denied: Admins only")
+            return
+            
         config = persistence.get_module_data("llm_config") or {
             "models": [],
             "active_model_id": ""
@@ -61,6 +67,12 @@ async def handle_get_llm_config(websocket, cmd_id: str, payload: dict):
 async def handle_save_llm_config(websocket, cmd_id: str, payload: dict):
     """Save LLM configuration to persistence."""
     try:
+        from core.auth import current_user
+        user = current_user.get()
+        if not user or not user["is_admin"]:
+            await send_response(websocket, cmd_id, code=1, error="Permission denied: Admins only")
+            return
+            
         config = payload.get("config")
         if config is None:
             await send_response(websocket, cmd_id, code=1, error="Missing config in payload")
@@ -290,12 +302,40 @@ async def handle_music_claw_chat(websocket, cmd_id: str, payload: dict):
         await send_response(websocket, cmd_id, code=1, error="Message cannot be empty.")
         return
 
-    # Extract LLM Config from payload
-    llm_config = payload.get("llm_config", {})
-    api_keys = llm_config.get("api_keys")
-    base_url = llm_config.get("base_url")
-    model_name = llm_config.get("model")
-    lb_mode = llm_config.get("lb_mode", "round_robin")
+    # Read from central persistence for global model settings
+    saved_config = persistence.get_module_data("llm_config") or {}
+    active_model_id = saved_config.get("active_model_id")
+    models = saved_config.get("models", [])
+    active_model = next((m for m in models if m.get("id") == active_model_id), None)
+
+    saved_api_keys = None
+    saved_base_url = None
+    saved_model_name = None
+    saved_lb_mode = "round_robin"
+
+    if active_model:
+        raw_keys = active_model.get("apiKeys", "")
+        saved_api_keys = [k.strip() for k in re.split(r'[\r\n]+', raw_keys) if k.strip()]
+        saved_base_url = active_model.get("baseUrl")
+        saved_model_name = active_model.get("model")
+        saved_lb_mode = active_model.get("lbMode", "round_robin")
+    
+    from core.auth import current_user
+    user = current_user.get()
+
+    if user and user.get("is_admin"):
+        # Extract LLM Config from payload (Admin can override)
+        llm_config = payload.get("llm_config", {})
+        api_keys = llm_config.get("api_keys") or saved_api_keys
+        base_url = llm_config.get("base_url") or saved_base_url
+        model_name = llm_config.get("model") or saved_model_name
+        lb_mode = llm_config.get("lb_mode") or saved_lb_mode
+    else:
+        # Non-admins must use the server's configured global model
+        api_keys = saved_api_keys
+        base_url = saved_base_url
+        model_name = saved_model_name
+        lb_mode = saved_lb_mode
     
     try:
         current_llm_client = LLMClient(api_keys=api_keys, base_url=base_url, model=model_name, lb_mode=lb_mode)

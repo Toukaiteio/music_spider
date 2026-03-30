@@ -223,7 +223,12 @@ class WebSocketManager {
             request.resolve(response);
           } else {
             const errorMsg = response.data?.error || response.data?.message || "Unknown server error";
-            request.reject(new Error(errorMsg));
+            const err = new Error(errorMsg);
+            err.code = code;
+            if (code === 401) {
+              document.dispatchEvent(new CustomEvent("claw_auth_required", { detail: err }));
+            }
+            request.reject(err);
           }
           delete this.pendingRequests[original_cmd_id];
         } else {
@@ -233,7 +238,12 @@ class WebSocketManager {
             clearTimeout(sl.timeout);
             delete this.streamListeners[original_cmd_id];
             const errorMsg = response.data?.error || response.data?.message || "Unknown server error";
-            sl.reject(new Error(errorMsg));
+            const err = new Error(errorMsg);
+            err.code = code;
+            if (code === 401) {
+              document.dispatchEvent(new CustomEvent("claw_auth_required", { detail: err }));
+            }
+            sl.reject(err);
           } else {
             console.warn(
               `Received response for unknown cmd_id: ${original_cmd_id}`
@@ -296,10 +306,20 @@ class WebSocketManager {
     return new Promise((resolve, reject) => {
       const executeCommand = () => {
         const cmd_id = this.generateCmdId();
+        
+        // Add JWT token if available
+        let finalPayload = { ...payload };
+        if (!["login", "register", "get_captcha"].includes(command)) {
+            const token = localStorage.getItem("jwt_token");
+            if (token) {
+                finalPayload.token = token;
+            }
+        }
+        
         const message = {
           cmd_id: cmd_id,
           command: command,
-          payload: payload,
+          payload: finalPayload,
         };
 
         try {
@@ -371,7 +391,12 @@ class WebSocketManager {
   sendClawCommand(command, payload, onUpdate) {
     return new Promise((resolve, reject) => {
       const cmd_id = this.generateCmdId();
-      const message = { cmd_id, command, payload };
+      
+      let finalPayload = { ...payload };
+      const token = localStorage.getItem("jwt_token");
+      if (token) finalPayload.token = token;
+        
+      const message = { cmd_id, command, payload: finalPayload };
 
       // 2-minute timeout for AI responses
       const timeout = setTimeout(() => {

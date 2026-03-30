@@ -261,7 +261,7 @@ class MusicClawPage {
                     <button id="claw-preferences-button" class="icon-button floating" title="Listening Insights">
                         <span class="material-icons">insights</span>
                     </button>
-                    <button id="claw-settings-button" class="icon-button floating" title="Settings">
+                    <button id="claw-settings-button" class="icon-button floating" title="Settings" style="display: none;">
                         <span class="material-icons">settings</span>
                     </button>
                     <button id="claw-new-chat-button" class="icon-button floating" title="New Chat">
@@ -313,6 +313,11 @@ class MusicClawPage {
         this._setupEventListeners(container);
         if (this.settingsModal) this.settingsModal.setup(container);
         if (this.preferencesModal) this.preferencesModal.setup(container);
+        
+        const settingsBtn = container.querySelector('#claw-settings-button');
+        if (settingsBtn) {
+            settingsBtn.style.display = localStorage.getItem("jwt_is_admin") === "true" ? "flex" : "none";
+        }
 
         // Register for real-time download progress updates
         if (this.managers.webSocketManager) {

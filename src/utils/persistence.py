@@ -90,13 +90,43 @@ class PersistenceStore:
         except Exception as e:
             print(f"Error saving persistence file: {e}")
 
+    def _db_get_conn(self):
+        import sqlite3
+        conn = sqlite3.connect("data/app.db", check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        return conn
+
     def get(self, module_name, key, default=None):
+        if module_name in ["playlists", "user_preferences"]:
+            from core.auth import current_user
+            user = current_user.get()
+            if not user: return default
+            conn = self._db_get_conn()
+            cursor = conn.cursor()
+            cursor.execute("SELECT data_json FROM user_data WHERE user_id=? AND module=? AND key=?", (user["user_id"], module_name, key))
+            row = cursor.fetchone()
+            conn.close()
+            if row and row["data_json"]:
+                return json.loads(row["data_json"])
+            return default
+            
         self._check_reload()
         with self.lock:
             module_data = self.data.get(module_name, {})
             return module_data.get(key, default)
 
     def set(self, module_name, key, value):
+        if module_name in ["playlists", "user_preferences"]:
+            from core.auth import current_user
+            user = current_user.get()
+            if not user: return
+            conn = self._db_get_conn()
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO user_data (user_id, module, key, data_json) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, module, key) DO UPDATE SET data_json=excluded.data_json", (user["user_id"], module_name, key, json.dumps(value, ensure_ascii=False)))
+            conn.commit()
+            conn.close()
+            return
+
         self._check_reload()
         with self.lock:
             if module_name not in self.data:
@@ -106,6 +136,17 @@ class PersistenceStore:
             self._last_mtime = os.path.getmtime(self.file_path)
 
     def delete(self, module_name, key):
+        if module_name in ["playlists", "user_preferences"]:
+            from core.auth import current_user
+            user = current_user.get()
+            if not user: return
+            conn = self._db_get_conn()
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM user_data WHERE user_id=? AND module=? AND key=?", (user["user_id"], module_name, key))
+            conn.commit()
+            conn.close()
+            return
+
         self._check_reload()
         with self.lock:
             if module_name in self.data and key in self.data[module_name]:
@@ -114,11 +155,37 @@ class PersistenceStore:
                 self._last_mtime = os.path.getmtime(self.file_path)
 
     def get_module_data(self, module_name):
+        if module_name in ["playlists", "user_preferences"]:
+            from core.auth import current_user
+            user = current_user.get()
+            if not user: return {}
+            conn = self._db_get_conn()
+            cursor = conn.cursor()
+            cursor.execute("SELECT key, data_json FROM user_data WHERE user_id=? AND module=?", (user["user_id"], module_name))
+            rows = cursor.fetchall()
+            conn.close()
+            data = {}
+            for r in rows:
+                data[r["key"]] = json.loads(r["data_json"])
+            return data
+            
         self._check_reload()
         with self.lock:
             return self.data.get(module_name, {}).copy()
 
     def set_module_data(self, module_name, data):
+        if module_name in ["playlists", "user_preferences"]:
+            from core.auth import current_user
+            user = current_user.get()
+            if not user: return
+            conn = self._db_get_conn()
+            cursor = conn.cursor()
+            for key, val in data.items():
+                cursor.execute("INSERT INTO user_data (user_id, module, key, data_json) VALUES (?, ?, ?, ?) ON CONFLICT(user_id, module, key) DO UPDATE SET data_json=excluded.data_json", (user["user_id"], module_name, key, json.dumps(val, ensure_ascii=False)))
+            conn.commit()
+            conn.close()
+            return
+            
         self._check_reload()
         with self.lock:
             self.data[module_name] = data
@@ -127,3 +194,4 @@ class PersistenceStore:
 
 # Global instance
 persistence = PersistenceStore()
+

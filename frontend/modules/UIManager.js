@@ -405,6 +405,143 @@ class UIManager {
     }
   }
 
+  static updateAuthStateUI() {
+    const token = localStorage.getItem("jwt_token");
+    const username = localStorage.getItem("jwt_username");
+    const isAdmin = localStorage.getItem("jwt_is_admin") === "true";
+    
+    const authLink = document.getElementById("auth-nav-link");
+    const authText = document.getElementById("auth-nav-text");
+    const adminLink = document.getElementById("admin-panel-nav");
+    
+    if (token && username) {
+        if (authText) authText.textContent = `Logout (${username})`;
+        if (adminLink) adminLink.style.display = isAdmin ? "block" : "none";
+    } else {
+        if (authText) authText.textContent = "Login";
+        if (adminLink) adminLink.style.display = "none";
+    }
+  }
+
+  static initAuthControls(webSocketManager) {
+    const authDialog = document.getElementById("auth-dialog");
+    const authLink = document.getElementById("auth-nav-link");
+    const closeBtn = document.getElementById("close-auth-dialog-button");
+    const submitBtn = document.getElementById("auth-submit-button");
+    const switchModeBtn = document.getElementById("auth-switch-mode-button");
+    const captchaContainer = document.getElementById("auth-captcha-container");
+    const captchaImg = document.getElementById("auth-captcha-img");
+    const title = document.getElementById("auth-dialog-title");
+    const subtitle = document.getElementById("auth-dialog-subtitle");
+    const confirmPasswordContainer = document.getElementById("auth-confirm-password-container");
+    const btnText = submitBtn ? submitBtn.querySelector(".btn-text") : null;
+    
+    let isLoginMode = true;
+    let currentCaptchaId = null;
+
+    UIManager.updateAuthStateUI();
+
+    const loadCaptcha = () => {
+        webSocketManager.sendWebSocketCommand("get_captcha", {}).then(res => {
+            currentCaptchaId = res.data.captcha_id;
+            captchaImg.src = res.data.image;
+        }).catch(err => UIManager.showToast("Failed to load captcha", "error"));
+    };
+
+    if (captchaImg) {
+        captchaImg.addEventListener("click", loadCaptcha);
+    }
+
+    if (authLink) {
+        authLink.addEventListener("click", (e) => {
+            e.preventDefault();
+            if (localStorage.getItem("jwt_token")) {
+                localStorage.removeItem("jwt_token");
+                localStorage.removeItem("jwt_username");
+                localStorage.removeItem("jwt_is_admin");
+                UIManager.updateAuthStateUI();
+                UIManager.showToast("Logged out successfully", "success");
+                setTimeout(() => location.reload(), 500);
+            } else {
+                authDialog.classList.add("visible");
+                authDialog.setAttribute("aria-hidden", "false");
+                loadCaptcha();
+            }
+        });
+    }
+
+    if (closeBtn) {
+        closeBtn.addEventListener("click", () => {
+            authDialog.classList.remove("visible");
+            authDialog.setAttribute("aria-hidden", "true");
+        });
+    }
+
+    if (switchModeBtn) {
+        switchModeBtn.addEventListener("click", () => {
+            isLoginMode = !isLoginMode;
+            title.textContent = isLoginMode ? "Login" : "Register";
+            if (subtitle) subtitle.textContent = isLoginMode ? "Welcome back to Music Claw" : "Create a new account";
+            if (btnText) btnText.textContent = isLoginMode ? "Login" : "Create Account";
+            else submitBtn.textContent = isLoginMode ? "Login" : "Create Account";
+            switchModeBtn.textContent = isLoginMode ? "Register here" : "Login here";
+            
+            if (confirmPasswordContainer) {
+                confirmPasswordContainer.style.display = isLoginMode ? "none" : "block";
+            }
+            if (captchaContainer) {
+                captchaContainer.style.display = "flex"; // Always show captcha now
+            }
+            loadCaptcha();
+        });
+    }
+
+    if (submitBtn) {
+        submitBtn.addEventListener("click", () => {
+            const user = document.getElementById("auth-username").value;
+            const pass = document.getElementById("auth-password").value;
+            const confirmPass = document.getElementById("auth-confirm-password") ? document.getElementById("auth-confirm-password").value : "";
+            const captcha = document.getElementById("auth-captcha").value;
+            
+            if (!user || !pass || !captcha) {
+               UIManager.showToast("Please fill in all fields", "warning");
+               return;
+            }
+
+            if (!isLoginMode && pass !== confirmPass) {
+               UIManager.showToast("Passwords do not match", "warning");
+               return;
+            }
+            
+            if (isLoginMode) {
+                webSocketManager.sendWebSocketCommand("login", { username: user, password: pass, captcha_id: currentCaptchaId, captcha: captcha })
+                .then(res => {
+                    localStorage.setItem("jwt_token", res.data.token);
+                    localStorage.setItem("jwt_username", res.data.username);
+                    localStorage.setItem("jwt_is_admin", res.data.is_admin);
+                    UIManager.updateAuthStateUI();
+                    authDialog.classList.remove("visible");
+                    authDialog.setAttribute("aria-hidden", "true");
+                    UIManager.showToast("Logged in successfully", "success");
+                    setTimeout(() => location.reload(), 500);
+                }).catch(err => {
+                    UIManager.showToast(err.message, "error");
+                    loadCaptcha(); // Refresh captcha on failure
+                });
+            } else {
+                webSocketManager.sendWebSocketCommand("register", { username: user, password: pass, captcha_id: currentCaptchaId, captcha: captcha })
+                .then(res => {
+                    UIManager.showToast("Registered successfully, please login", "success");
+                    switchModeBtn.click(); // Switch back to login
+                }).catch(err => {
+                    UIManager.showToast(err.message, "error");
+                    loadCaptcha(); // Refresh captcha on failure
+                });
+            }
+        });
+    }
+  }
+
   static updateFavoriteIcon(buttonElement, isFavorite) {
     if (buttonElement) {
       const iconElement = buttonElement.querySelector(".material-icons");

@@ -38,6 +38,7 @@ document.addEventListener("DOMContentLoaded", () => {
   UIManager.initTaskQueueControls();
   UIManager.initDrawerControls();
   UIManager.initGlobalMarqueeListener();
+  UIManager.initAuthControls(webSocketManager);
 
   // Add click listener for the task queue
   const expandedTaskQueue = document.getElementById("expanded-task-queue");
@@ -186,6 +187,25 @@ document.addEventListener("DOMContentLoaded", () => {
         remember_session: rememberSession
       });
     });
+  });
+
+  // Handle general authentication required errors from WebSocket (401)
+  document.addEventListener("claw_auth_required", (e) => {
+    const authLink = document.getElementById("auth-nav-link");
+    const authDialog = document.getElementById("auth-dialog");
+    
+    // Check if not already logged in/showing dialog
+    if (authLink && (!authDialog || !authDialog.classList.contains("visible"))) {
+      if (!localStorage.getItem("jwt_token")) {
+         UIManager.showToast("Authentication required! Please log in.", "warning");
+         authLink.click(); // This clicks the nav link which opens the dialog
+      } else {
+         UIManager.showToast("Session expired! Please log in again.", "warning");
+         localStorage.removeItem("jwt_token");
+         UIManager.updateAuthStateUI();
+         authLink.click();
+      }
+    }
   });
 
   // Initialize UIManager with all managers

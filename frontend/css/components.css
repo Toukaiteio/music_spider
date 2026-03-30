@@ -663,6 +663,7 @@
 }
 
 .dialog-box input[type="text"],
+.dialog-box input[type="password"],
 .dialog-box textarea,
 .dialog-box select {
     width: 100%;
