@@ -122,6 +122,21 @@ def download_worker_main(task_queue: Queue, results_queue: Queue, downloads_dir:
             track_data = task.get("track_data")
             original_cmd_id = task.get("original_cmd_id")
             client_id = task.get("client_id") # For future use if routing responses
+            proxy = task.get("proxy")
+
+            # Set proxy if provided
+            old_proxies = {
+                "http_proxy": os.environ.get("http_proxy"),
+                "https_proxy": os.environ.get("https_proxy"),
+                "HTTP_PROXY": os.environ.get("HTTP_PROXY"),
+                "HTTPS_PROXY": os.environ.get("HTTPS_PROXY")
+            }
+            
+            if proxy:
+                os.environ["http_proxy"] = proxy
+                os.environ["https_proxy"] = proxy
+                os.environ["HTTP_PROXY"] = proxy
+                os.environ["HTTPS_PROXY"] = proxy
 
             if not all([source, track_data, original_cmd_id]):
                 print(f"Worker {os.getpid()}: Invalid task received: {task}")
@@ -168,6 +183,25 @@ def download_worker_main(task_queue: Queue, results_queue: Queue, downloads_dir:
             # 从 track_data 中提取唯一标识，兼容 TrackAdapter 规范化后的字段名
             track_id_for_result = track_data.get("music_id") or track_data.get("bvid") or track_data.get("id")
 
+            # Check if paused
+            if original_cmd_id and original_cmd_id.startswith("crawler_task:"):
+                try:
+                    from utils.persistence import persistence
+                    task_id = original_cmd_id.split(":")[1]
+                    state_list = persistence.get("crawler_engine", "tasks_state", [])
+                    task_state = next((t for t in state_list if t["id"] == task_id), None)
+                    if task_state and task_state["status"] == "paused":
+                        print(f"Worker {os.getpid()}: Task {task_id} is paused. Skipping track ID {track_id_for_result}")
+                        results_queue.put({
+                            "type": "skipped",
+                            "original_cmd_id": original_cmd_id,
+                            "track_id": track_id_for_result,
+                            "client_id": client_id
+                        })
+                        continue
+                except Exception as e:
+                    print(f"Worker error checking pause state: {e}")
+
             try:
                 print(f"Worker {os.getpid()}: Starting download for track ID {track_id_for_result} using {source}")
                 # Ensure downloads_dir exists (it should, but good for workers to be robust)
@@ -206,6 +240,14 @@ def download_worker_main(task_queue: Queue, results_queue: Queue, downloads_dir:
                     "error": str(e),
                     "client_id": client_id
                 })
+            finally:
+                # Restore proxies
+                for k, v in old_proxies.items():
+                    if v is None:
+                        if k in os.environ:
+                            del os.environ[k]
+                    else:
+                        os.environ[k] = v
 
 
         except EOFError: # Can happen if queue is closed unexpectedly
@@ -416,6 +458,9 @@ async def process_download_results(results_queue: Queue):
                             task.completed_tracks += 1
                         elif message_type == "error":
                             task.failed_tracks += 1
+                        elif message_type == "skipped":
+                            task.dispatched_tracks -= 1
+                            continue # Don't update completion status for skipped 
                         
                         # Update status to completed if all tracks are processed
                         if task.total_tracks > 0 and task.completed_tracks + task.failed_tracks >= task.total_tracks:

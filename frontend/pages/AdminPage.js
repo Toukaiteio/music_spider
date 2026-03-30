@@ -28,6 +28,17 @@ class AdminPage {
                 .full-width-section {
                     grid-column: 1 / -1;
                 }
+                .rotating {
+                    animation: rotating 2s linear infinite;
+                }
+                @keyframes rotating {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
+                .admin-card input:focus, .admin-card select:focus, .admin-card textarea:focus {
+                    border-color: var(--accent-color) !important;
+                    box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.1);
+                }
                 @media (min-width: 1024px) {
                     .admin-dashboard-grid {
                         grid-template-columns: repeat(2, 1fr);
@@ -49,18 +60,51 @@ class AdminPage {
                 
                 <div class="admin-dashboard-grid">
                     
-                    <!-- System Settings -->
+                    <!-- Global Unified Settings -->
                     <div class="admin-card">
-                        <h3 style="margin-top: 0; margin-bottom: 20px; font-weight: 600; font-size: 1.2rem; display: flex; align-items: center; gap: 8px;">
-                            <span class="material-icons">settings</span> System Settings
+                        <h3 style="margin-top: 0; margin-bottom: 24px; font-weight: 600; font-size: 1.15rem; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px;">
+                            <span class="material-icons" style="color: var(--accent-color); font-size: 20px;">settings</span> Global Settings
                         </h3>
-                        <div class="setting-item" style="display: flex; gap: 16px; align-items: center; flex-wrap: wrap; flex: 1; align-content: flex-start;">
-                            <label style="color: rgba(255,255,255,0.8); font-size: 0.95rem;">Allow User Registration:</label>
-                            <select id="admin-reg-toggle" style="padding: 10px 16px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3); color: #fff; outline: none; flex: 1; min-width: 150px;">
-                                <option value="1">Enabled</option>
-                                <option value="0">Disabled</option>
-                            </select>
-                            <button id="admin-save-cfg-btn" class="dialog-button primary" style="margin: 0; padding: 10px 24px; border-radius: 8px; font-weight: 500;">Save Changes</button>
+                        
+                        <div style="display: flex; flex-direction: column; gap: 16px;">
+                            <div style="display: flex; gap: 16px;">
+                                <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                                    <label style="font-size: 0.85rem; color: rgba(255,255,255,0.7); font-weight: 500;">User Registration</label>
+                                    <select id="admin-reg-toggle" style="width: 100%; box-sizing: border-box; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3); color: #fff; outline: none; font-size: 0.9rem;">
+                                        <option value="1">Enabled</option>
+                                        <option value="0">Disabled</option>
+                                    </select>
+                                </div>
+                                <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                                    <label style="font-size: 0.85rem; color: rgba(255,255,255,0.7); font-weight: 500;">Use Proxy Pool</label>
+                                    <select id="crawler-use-proxy-toggle" style="width: 100%; box-sizing: border-box; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3); color: #fff; outline: none; font-size: 0.9rem;">
+                                        <option value="0">Disabled</option>
+                                        <option value="1">Enabled</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div style="display: flex; gap: 16px;">
+                                <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                                    <label style="font-size: 0.85rem; color: rgba(255,255,255,0.7); font-weight: 500;">Max Concurrency</label>
+                                    <input type="number" id="crawler-concurrency-input" placeholder="8" style="width: 100%; box-sizing: border-box; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3); color: #fff; outline: none;" />
+                                </div>
+                                <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
+                                    <label style="font-size: 0.85rem; color: rgba(255,255,255,0.7); font-weight: 500;">Interval (Sec)</label>
+                                    <input type="number" id="crawler-interval-input" step="0.1" placeholder="1.5" style="width: 100%; box-sizing: border-box; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3); color: #fff; outline: none;" />
+                                </div>
+                            </div>
+
+                            <div style="display: flex; flex-direction: column; gap: 6px;">
+                                <label style="font-size: 0.85rem; color: rgba(255,255,255,0.7); font-weight: 500;">Proxy List (One per line: http://user:pass@host:port)</label>
+                                <textarea id="crawler-proxy-pool-text" placeholder="http://user:pass@host:port" style="width: 100%; box-sizing: border-box; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: #fff; outline: none; min-height: 120px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; resize: vertical;"></textarea>
+                            </div>
+                            
+                            <div style="display: flex; justify-content: flex-end; margin-top: 4px;">
+                                <button id="admin-save-all-settings-btn" class="dialog-button primary" style="margin: 0; padding: 10px 32px; border-radius: 8px; font-weight: 600; font-size: 0.95rem; display: flex; align-items: center; gap: 6px;">
+                                    <span class="material-icons" style="font-size: 18px;">save</span> Save Settings
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -74,7 +118,7 @@ class AdminPage {
                         </h3>
                         
                         <div style="display: flex; flex-direction: column; gap: 16px; flex: 1;">
-                            <div class="crawler-inputs-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                            <div class="crawler-inputs-row" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
                                 <div style="display: flex; flex-direction: column; gap: 6px;">
                                     <label style="font-size: 0.85rem; color: rgba(255,255,255,0.7);">Source Platform</label>
                                     <select id="crawler-source-select" style="padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3); color: #fff; outline: none;">
@@ -189,15 +233,66 @@ class AdminPage {
         
         const tbody = document.getElementById("admin-users-tbody");
         const regToggle = document.getElementById("admin-reg-toggle");
-        const saveCfgBtn = document.getElementById("admin-save-cfg-btn");
 
         const loadConfig = () => {
              webSocketManager.sendWebSocketCommand("get_sys_config", {}).then((res) => {
                  if (res.data.registration_enabled) {
                      regToggle.value = res.data.registration_enabled;
                  }
+                 
+                 // Populate Crawler Settings
+                 document.getElementById("crawler-concurrency-input").value = res.data.crawler_concurrency || "8";
+                 document.getElementById("crawler-interval-input").value = res.data.crawler_interval || "1.5";
+                 document.getElementById("crawler-use-proxy-toggle").value = res.data.crawler_use_proxy || "0";
+                 
+                 if (res.data.crawler_proxy_pool) {
+                     try {
+                         const pool = JSON.parse(res.data.crawler_proxy_pool);
+                         document.getElementById("crawler-proxy-pool-text").value = pool.join("\n");
+                     } catch(e) {
+                         document.getElementById("crawler-proxy-pool-text").value = "";
+                     }
+                 }
              }).catch(err => console.error(err));
         };
+
+        document.getElementById("admin-save-all-settings-btn").addEventListener("click", () => {
+            const regValue = document.getElementById("admin-reg-toggle").value;
+            const concurrency = document.getElementById("crawler-concurrency-input").value;
+            const interval = document.getElementById("crawler-interval-input").value;
+            const useProxy = document.getElementById("crawler-use-proxy-toggle").value;
+            const proxyText = document.getElementById("crawler-proxy-pool-text").value;
+            const proxyPool = proxyText.split("\n").map(p => p.trim()).filter(p => p.length > 0);
+
+            const btn = document.getElementById("admin-save-all-settings-btn");
+            const originalText = btn.innerHTML;
+            btn.innerHTML = `<span class="material-icons rotating" style="font-size: 18px;">sync</span> Updating...`;
+            btn.disabled = true;
+
+            const updates = [
+                { key: "registration_enabled", value: regValue },
+                { key: "crawler_concurrency", value: concurrency },
+                { key: "crawler_interval", value: interval },
+                { key: "crawler_use_proxy", value: useProxy },
+                { key: "crawler_proxy_pool", value: JSON.stringify(proxyPool) }
+            ];
+
+            Promise.all(updates.map(u => webSocketManager.sendWebSocketCommand("set_sys_config", u)))
+            .then(() => {
+                btn.innerHTML = `<span class="material-icons">check</span> Saved!`;
+                btn.style.background = "#10b981";
+                setTimeout(() => {
+                    btn.innerHTML = originalText;
+                    btn.style.background = "";
+                    btn.disabled = false;
+                }, 2000);
+            })
+            .catch(e => {
+                alert("Error saving settings: " + e.message);
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            });
+        });
         
         const loadUsers = () => {
             webSocketManager.sendWebSocketCommand("get_users", {}).then((res) => {
@@ -221,11 +316,7 @@ class AdminPage {
             }).catch(err => console.error(err));
         };
 
-        saveCfgBtn.addEventListener("click", () => {
-            webSocketManager.sendWebSocketCommand("set_sys_config", { key: "registration_enabled", value: regToggle.value })
-            .then(() => alert("Saved"))
-            .catch(e => alert(e.message));
-        });
+        // Former saveCfgBtn listener removed as it is now handled by the unified admin-save-all-settings-btn
 
         tbody.addEventListener("click", (e) => {
             if (e.target.classList.contains("edit-user-btn")) {

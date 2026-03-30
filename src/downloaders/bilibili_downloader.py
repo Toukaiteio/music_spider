@@ -213,74 +213,86 @@ def getCorrespondPath(ts):
 
 
 
-if not is_refreshed_cookie :
+def refresh_cookie_if_needed():
+    global is_refreshed_cookie
+    if is_refreshed_cookie:
+        return
+    
     load_cookie()
-    is_need_update, ts = check_is_update_needed(bili_account.get("csrf", ""))
-    if is_need_update:
-        correspond_path = getCorrespondPath(ts)
-        data_url = f"https://www.bilibili.com/correspond/1/{correspond_path}"
-        res = requests.get(data_url, headers=get_headers())
-        refresh_token = bili_account.get("refresh_token", "")
-        source = "main_web"
-        if not refresh_token:
-            print("No refresh token found. Please log in again.")
+    
+    # Only refresh every 24 hours to avoid SSLErrors on startup and rate limiting
+    last_refresh = persistence.get("bilibili", "last_refresh_time", 0)
+    current_time = time.time()
+    
+    if current_time - last_refresh < 24 * 3600:
+        is_refreshed_cookie = True
+        return
 
-        if res.status_code == 200:
-            doc = pyquery.PyQuery(res.text)
-            refresh_csrf = doc("#1-name").text()
-            print(f"Extracted name: {refresh_csrf}")
-        else:
-            print(f"Failed to fetch data_url: {res.status_code}")
+    try:
+        csrf = bili_account.get("csrf", "")
+        if not csrf:
+            is_refreshed_cookie = True
+            return
 
-        print(f"Refresh CSRF: {refresh_csrf}")
-        print(f"Refresh Token: {refresh_token}")
-        print(f"Source: {source}")
-        print(f"CSRF: {bili_account.get('csrf', '')}")
-        if refresh_csrf and refresh_token and bili_account["csrf"] and source:
-            api = "https://passport.bilibili.com/x/passport-login/web/cookie/refresh"
-            params = {
-                "refresh_token": refresh_token,
-                "refresh_csrf": refresh_csrf,
-                "source": source,
-                "csrf": bili_account["csrf"],
-            }
-            res = requests.post(api, headers=get_headers(), params=params)
+        is_need_update, ts = check_is_update_needed(csrf)
+        if is_need_update:
+            correspond_path = getCorrespondPath(ts)
+            data_url = f"https://www.bilibili.com/correspond/1/{correspond_path}"
+            res = requests.get(data_url, headers=get_headers(), timeout=10)
+            refresh_token = bili_account.get("refresh_token", "")
+            source = "main_web"
+            
+            if not refresh_token:
+                print("[Bilibili] No refresh token found. Skipping auto-refresh.")
+                is_refreshed_cookie = True
+                return
+
             if res.status_code == 200:
-                data = res.json()
-                if data["code"] == 0:
-                    print("Refresh successful!")
-                    cookies = parse_cookies_from_headers(res.headers)
-                    cookies["refresh_token"] = data["data"].get("refresh_token", "")
-                    bili_account["refresh_token"] = cookies["refresh_token"]
-                    if cookies:
-                        save_cookies(cookies)
-                        print("Cookies updated successfully.Refresh old cookies.")
-                        api = "https://passport.bilibili.com/x/passport-login/web/confirm/refresh"
-                        res = requests.post(
-                            api,
-                            headers=get_headers(),
-                            params={
-                                "csrf": bili_account["csrf"],
-                                "refresh_token": refresh_token,
-                            },
-                        )
-                        if res.status_code == 200:
-                            data = res.json()
-                            if data["code"] == 0:
-                                print("Refresh confirmed successfully.")
-                            else:
-                                print(f"Failed to confirm refresh: {data['message']}")
-                        else:
-                            print(
-                                f"Failed to confirm refresh: {res.status_code} - {res.text}"
-                            )
-                    else:
-                        print("No cookies found in the response.")
-                else:
-                    print(f"Refresh failed: {data['message']}")
+                doc = pyquery.PyQuery(res.text)
+                refresh_csrf = doc("#1-name").text()
+                
+                if refresh_csrf:
+                    api = "https://passport.bilibili.com/x/passport-login/web/cookie/refresh"
+                    params = {
+                        "refresh_token": refresh_token,
+                        "refresh_csrf": refresh_csrf,
+                        "source": source,
+                        "csrf": bili_account["csrf"],
+                    }
+                    res = requests.post(api, headers=get_headers(), params=params, timeout=10)
+                    if res.status_code == 200:
+                        data = res.json()
+                        if data["code"] == 0:
+                            cookies = parse_cookies_from_headers(res.headers)
+                            cookies["refresh_token"] = data["data"].get("refresh_token", "")
+                            bili_account["refresh_token"] = cookies["refresh_token"]
+                            if cookies:
+                                save_cookies(cookies)
+                                # Confirm refresh
+                                requests.post(
+                                    "https://passport.bilibili.com/x/passport-login/web/confirm/refresh",
+                                    headers=get_headers(),
+                                    params={"csrf": bili_account["csrf"], "refresh_token": refresh_token},
+                                    timeout=10
+                                )
+                                persistence.set("bilibili", "last_refresh_time", current_time)
+                                print("[Bilibili] Cookie refreshed and confirmed successfully.")
             else:
-                print(f"Failed to refresh: {res.status_code} - {res.text}")
+                print(f"[Bilibili] Failed to fetch correspond path: {res.status_code}")
+        else:
+            # Even if no update needed, mark the check as done for 24h
+            persistence.set("bilibili", "last_refresh_time", current_time)
+            print("[Bilibili] Cookie is still fresh.")
+            
+    except Exception as e:
+        print(f"[Bilibili] Warning: Background cookie refresh failed: {e}")
+    
     is_refreshed_cookie = True
+
+# Initialize state on import without crashing
+load_cookie()
+# Throttled refresh
+refresh_cookie_if_needed()
 
 MIXIN_KEY_ENC_TAB = [
     46,

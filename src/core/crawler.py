@@ -58,6 +58,78 @@ class AutonomousCrawler:
     def __init__(self):
         self.tasks: Dict[str, CrawlerTask] = {}
         self.is_running = False
+        self._load_state()
+        self._proxy_index = 0
+
+    def _get_config(self, key, default):
+        try:
+            from database.db import get_db
+            conn = get_db()
+            cursor = conn.cursor()
+            cursor.execute("SELECT value FROM sys_config WHERE key = ?", (key,))
+            res = cursor.fetchone()
+            if res:
+                return res[0]
+        except Exception as e:
+            logger.error(f"[Crawler] Error reading config {key}: {e}")
+        return default
+
+    def _get_next_proxy(self):
+        proxies_raw = self._get_config("crawler_proxy_pool", "[]")
+        try:
+            proxies = json.loads(proxies_raw)
+            if not isinstance(proxies, list) or not proxies:
+                return None
+            proxy = proxies[self._proxy_index % len(proxies)]
+            self._proxy_index += 1
+            return proxy
+        except:
+            return None
+
+    def _save_state(self):
+        state_list = []
+        for task in self.tasks.values():
+            state_list.append({
+                "id": task.id,
+                "task_type": task.task_type,
+                "source": task.source,
+                "target": task.target,
+                "desired_quality": getattr(task, "desired_quality", "lossless"),
+                "retry_count": getattr(task, "retry_count", 0),
+                "status": task.status if task.status in ["completed", "failed"] else "paused",
+                "error_log": getattr(task, "error_log", []),
+                "created_at": getattr(task, "created_at", datetime.datetime.now().isoformat()),
+                "results_preview": getattr(task, "results_preview", []),
+                "total_tracks": getattr(task, "total_tracks", 0),
+                "completed_tracks": getattr(task, "completed_tracks", 0),
+                "failed_tracks": getattr(task, "failed_tracks", 0),
+                "target_name": getattr(task, "target_name", "")
+            })
+        persistence.set("crawler_engine", "tasks_state", state_list)
+
+    def _load_state(self):
+        state_list = persistence.get("crawler_engine", "tasks_state", [])
+        for state in state_list:
+            task = CrawlerTask(state["task_type"], state["source"], state["target"], state.get("desired_quality", "lossless"))
+            task.id = state["id"]
+            task.retry_count = state.get("retry_count", 0)
+            task.status = state.get("status", "paused") # pause by default on interrupt
+            task.error_log = state.get("error_log", [])
+            task.created_at = state.get("created_at", datetime.datetime.now().isoformat())
+            task.results_preview = state.get("results_preview", [])
+            task.total_tracks = state.get("total_tracks", len(task.results_preview))
+            task.completed_tracks = state.get("completed_tracks", 0)
+            task.failed_tracks = state.get("failed_tracks", 0)
+            
+            # PERFECT RECOVERY: Roll back the dispatched tracks.
+            # Any tasks that were queued but not confirmed completed will be re-queued.
+            # The downloader is idempotent due to local file checks.
+            task.dispatched_tracks = task.completed_tracks + task.failed_tracks
+            
+            task.target_name = state.get("target_name", "")
+            self.tasks[task.id] = task
+        if state_list:
+            logger.info(f"[Crawler] Reloaded {len(state_list)} tasks from persistence state.")
 
     async def start(self):
         if self.is_running: return
@@ -69,6 +141,7 @@ class AutonomousCrawler:
     def add_task(self, task_type: str, source: str, target: str, quality: str = "lossless"):
         task = CrawlerTask(task_type, source, target, quality)
         self.tasks[task.id] = task
+        self._save_state()
         logger.info(f"[Crawler] Task added: {source} - {task_type} - {target}")
         return task.id
 
@@ -76,11 +149,13 @@ class AutonomousCrawler:
         task = self.tasks.get(task_id)
         if task and task.status in ["pending", "running"]:
             task.status = "paused"
+            self._save_state()
 
     def resume_task(self, task_id: str):
         task = self.tasks.get(task_id)
         if task and task.status == "paused":
             task.status = "pending"
+            self._save_state()
 
     async def _process_loop(self):
         while self.is_running:
@@ -150,6 +225,7 @@ class AutonomousCrawler:
         if task.status != "paused" and task.status != "completed":
             task.status = "failed"
         logger.error(f"[Crawler] Task Finished resolving: {task.target}. Logs: {task.error_log}")
+        self._save_state()
 
     def _store_results(self, task, results):
         """将爬取结果存盘持久化 / 发送给下载机制"""
@@ -162,8 +238,8 @@ class AutonomousCrawler:
         task.completed_tracks = 0
         task.failed_tracks = 0
         task.dispatched_tracks = 0
-        task.pending_downloads = results.copy() 
         logger.info(f"[Crawler] Prepared {len(results)} items for batched background download queue.")
+        self._save_state()
 
     async def _dispatch_loop(self):
         """Periodically dispatch pending downloads if task is running, maintaining a small buffer so pause is respected."""
@@ -171,23 +247,43 @@ class AutonomousCrawler:
             from core.state import get_download_task_queue
             queue = get_download_task_queue()
             
+            should_save = False
+            
+            # Read dynamic config from DB
+            concurrency = int(self._get_config("crawler_concurrency", 8))
+            interval = float(self._get_config("crawler_interval", 1.5))
+            use_proxy = self._get_config("crawler_use_proxy", "0") == "1"
+
             for task in list(self.tasks.values()):
-                if task.status == "running" and hasattr(task, 'pending_downloads'):
-                    in_progress = getattr(task, 'dispatched_tracks', 0) - (task.completed_tracks + task.failed_tracks)
+                if task.status == "running" and hasattr(task, 'results_preview'):
+                    task.dispatched_tracks = getattr(task, 'dispatched_tracks', 0)
+                    in_progress = task.dispatched_tracks - (task.completed_tracks + task.failed_tracks)
                     
-                    while in_progress < 8 and len(task.pending_downloads) > 0:
-                        item = task.pending_downloads.pop(0)
+                    while in_progress < concurrency and task.dispatched_tracks < len(task.results_preview):
+                        item = task.results_preview[task.dispatched_tracks].copy() # Copy to avoid mod original
                         item['desired_quality'] = task.desired_quality
-                        queue.put({
+                        
+                        payload = {
                             "source": task.source,
                             "track_data": item,
                             "original_cmd_id": f"crawler_task:{task.id}",
                             "client_id": "crawler_auto"
-                        })
+                        }
+                        
+                        if use_proxy:
+                            proxy = self._get_next_proxy()
+                            if proxy:
+                                payload["proxy"] = proxy
+
+                        queue.put(payload)
                         
                         task.dispatched_tracks += 1
                         in_progress += 1
+                        should_save = True
+
+            if should_save:
+                self._save_state()
                         
-            await asyncio.sleep(1.5)
+            await asyncio.sleep(interval)
 
 global_crawler = AutonomousCrawler()
