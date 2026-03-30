@@ -491,3 +491,15 @@ class MusicSkills:
             "message": "Plan generated.",
             "steps": [s.strip() for s in task_description.split(".") if s.strip()]
         }
+
+    async def autonomous_crawl_target(self, task_type: str, source: str, target: str) -> Dict:
+        """
+        Add a target string (url or id) to the autonomous background crawler engine.
+        task_type must be one of: 'artist', 'album', 'playlist'
+        source must be one of: 'netease', 'kugou'
+        """
+        from core.crawler import global_crawler
+        if not global_crawler.is_running:
+             await global_crawler.start()
+        global_crawler.add_task(task_type, source, target)
+        return {"status": "success", "message": f"Crawler engine accepted task to autonomously pull {task_type} from {source}: {target}"}

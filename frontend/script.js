@@ -137,7 +137,6 @@ document.addEventListener("DOMContentLoaded", () => {
     navigationManager.setCollectionManager(collectionManager);
     navigationManager.setFavoriteManager(favoriteManager);
     searchManager.setFavoriteManager(favoriteManager);
-    UIManager.setManagers({ favoriteManager, collectionManager, webSocketManager });
     
     // Initial navigation
     navigationManager.init();

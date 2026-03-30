@@ -93,6 +93,11 @@ from handlers.auth_handler import (
     handle_get_users,
     handle_update_user
 )
+from handlers.crawler_handler import (
+    handle_add_crawler_task,
+    handle_get_crawler_status,
+    handle_control_crawler_task
+)
 from core.auth import get_user_from_jwt, rate_limiter, current_user
 
 # Queues for inter-process communication for downloads
@@ -280,6 +285,9 @@ COMMAND_HANDLERS = {
     "set_sys_config": handle_set_sys_config,
     "get_users": handle_get_users,
     "update_user": handle_update_user,
+    "add_crawler_task": handle_add_crawler_task,
+    "get_crawler_status": handle_get_crawler_status,
+    "control_crawler_task": handle_control_crawler_task,
 }
 
 # Commands that do not require authentication
@@ -396,6 +404,35 @@ async def process_download_results(results_queue: Queue):
             if not client_id or not original_cmd_id or not message_type:
                 print(f"Invalid result message received (missing fields): {result_message}")
                 continue
+
+            # Update Crawler Task Progress if applicable
+            if original_cmd_id.startswith("crawler_task:"):
+                try:
+                    from core.crawler import global_crawler
+                    task_id = original_cmd_id.split(":")[1]
+                    task = global_crawler.tasks.get(task_id)
+                    if task:
+                        if message_type == "success":
+                            task.completed_tracks += 1
+                        elif message_type == "error":
+                            task.failed_tracks += 1
+                        
+                        # Update status to completed if all tracks are processed
+                        if task.total_tracks > 0 and task.completed_tracks + task.failed_tracks >= task.total_tracks:
+                            if task.status != "completed":
+                                task.status = "completed"
+                                import logging
+                                logger = logging.getLogger("CrawlerSystem")
+                                logger.info(f"[Crawler] Task {task_id} fully completed ({task.completed_tracks} success, {task.failed_tracks} fail).")
+                        
+                        # Broadcast update to all clients
+                        from core.state import CONNECTED_CLIENTS_MAP
+                        from core.ws_messaging import send_response
+                        for c in list(CONNECTED_CLIENTS_MAP.values()):
+                            asyncio.create_task(send_response(c, "crawler_status_update", code=0, data={"task_id": task_id, "status": task.status}))
+
+                except Exception as e:
+                    print(f"Error updating crawler task progress: {e}")
 
             websocket_client = get_websocket_by_client_id(client_id)
             if websocket_client:
@@ -525,6 +562,9 @@ async def start_server(): # Renamed from 'main' to 'start_server' for clarity
 
         ws_server = await websockets.serve(ws_handler, HOST, WEBSOCKET_PORT) # Use config values
         print(f"WebSocket server started on ws://{HOST}:{WEBSOCKET_PORT}")
+
+        from core.crawler import global_crawler
+        await global_crawler.start()
 
         # Start the download results processor task
         print("Starting download results processor task...")

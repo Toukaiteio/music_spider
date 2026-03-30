@@ -282,6 +282,57 @@ def _get_lyrics_kugou(hash_val, title):
                 return base64.b64decode(lyrics_data["content"]).decode('utf-8')
     return ""
 
+# --- Crawler Parsers ---
+async def parse_playlist(target: str) -> tuple[str, list[dict]]:
+    import httpx, re
+    gid = None
+    if "t1.kugou.com" in target or "zlist.html" in target or "songlist" in target:
+        async with httpx.AsyncClient(follow_redirects=False) as client:
+            resp = await client.get(target)
+            loc = resp.headers.get("location") or target
+            match = re.search(r'global_collection_id=([^&?#/]+)', loc)
+            if match:
+                gid = match.group(1)
+            else:
+                match = re.search(r'gcid_([a-zA-Z0-9]+)', loc)
+                if match: gid = match.group(1)
+    gid = gid or target
+    
+    params = {"area_code": 1, "begin_idx": 0, "plat": 1, "mode": 1, "pagesize": 300, "global_collection_id": gid}
+    loop = asyncio.get_event_loop()
+    res, _ = await loop.run_in_executor(None, create_kugou_request, "/pubsongs/v2/get_other_list_file_nofilt", params, None, "GET", "android", "https://mobilecdnbj.kugou.com")
+    
+    if not res or res.get('status') != 1: raise Exception("Kugou playlist API returned error")
+        
+    songs = res.get('data', {}).get('info', [])
+    playlist_name = "Kugou Playlist" # Endpoint does not directly return playlist name
+    results = []
+    for song in songs:
+        hash_val = song.get("hash")
+        if not hash_val: continue
+        title_full = song.get("filename", "")
+        artist = "Unknown"
+        title = title_full
+        if " - " in title_full:
+            parts = title_full.split(" - ", 1)
+            artist = parts[0]
+            title = parts[1]
+        results.append({
+            "music_id": f"kugou_{hash_val}",
+            "title": title,
+            "artist": artist,
+            "duration": song.get("duration", 0),
+            "_hash": hash_val,
+            "_album_id": song.get("album_id") or song.get("AlbumID")
+        })
+    return playlist_name, results
+
+async def parse_artist(target: str) -> tuple[str, list[dict]]:
+    raise Exception("Kugou artist crawler not implemented")
+
+async def parse_album(target: str) -> tuple[str, list[dict]]:
+    raise Exception("Kugou album crawler not implemented")
+
 async def download_track(track_info: dict, base_download_path: str = "./downloads", progress_callback: callable = None) -> MusicItem | None:
     load_cookie()
     track_id = track_info.get("music_id")
@@ -312,6 +363,13 @@ async def download_track(track_info: dict, base_download_path: str = "./download
 
     # Download Audio
     downloaded_audio_path = None
+    
+    desired_quality = track_info.get("desired_quality", "high")
+    existing_item = MusicItem.load_from_json(track_id)
+    if existing_item and existing_item.lossless and desired_quality != "lossless":
+        print(f"Already have lossless quality for {track_id}, skipping redundant lower quality download.")
+        return existing_item
+
     audio_options = await loop.run_in_executor(None, _get_audio_options_kugou, hash_val, album_id)
     if audio_options:
         audio_url = audio_options[0].get("url")
@@ -323,7 +381,21 @@ async def download_track(track_info: dict, base_download_path: str = "./download
             success = await loop.run_in_executor(None, _save_file_with_progress, audio_url, audio_filename, track_id, progress_callback, "audio")
             if success:
                 downloaded_audio_path = os.path.join(music_item.read_path, f"audio{ext}")
-                music_item.set_audio(downloaded_audio_path)
+                is_lossless = ext == ".flac"
+                
+                if existing_item and existing_item.audio and existing_item.audio != downloaded_audio_path:
+                    if not existing_item.lossless and is_lossless:
+                        music_item.set_audio(downloaded_audio_path)
+                        music_item.set_audio(existing_item.audio, is_backup=True)
+                        music_item.lossless = True
+                    else:
+                        music_item.set_audio(downloaded_audio_path)
+                        music_item.lossless = is_lossless
+                else:
+                    music_item.set_audio(downloaded_audio_path)
+                    music_item.lossless = is_lossless
+                    if existing_item and existing_item.backup_audio:
+                        music_item.set_audio(existing_item.backup_audio, is_backup=True)
     
     if not downloaded_audio_path:
         print(f"Failed to download audio for Kugou track: {track_id}")

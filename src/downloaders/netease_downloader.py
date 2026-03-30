@@ -231,6 +231,68 @@ def _get_lyrics_netease(track_id: str):
         return data.get("lrc", {}).get("lyric", "")
     return ""
 
+# --- Crawler Parsers ---
+async def parse_playlist(target: str) -> tuple[str, list[dict]]:
+    import re
+    pid = re.search(r'id=(\d+)', target)
+    pid = pid.group(1) if pid else target
+    
+    loop = asyncio.get_event_loop()
+    data = {
+        'id': str(pid), 'n': 10000, 's': 8,
+        'header': {'os': 'pc', 'appver': '2.10.2.200154', 'osver': 'Microsoft Windows 10', 'deviceId': 'pyncm!'}
+    }
+    res, _ = await loop.run_in_executor(None, post_eapi_request, "https://interface3.music.163.com/eapi/v6/playlist/detail", data)
+    if not res or res.get('code') != 200:
+        raise Exception("Failed to get netease playlist detail")
+        
+    playlist_name = res.get('playlist', {}).get('name', 'Netease Playlist')
+    tracks = res.get('playlist', {}).get('trackIds', [])
+    track_ids = [str(t['id']) for t in tracks]
+    
+    results = []
+    for i in range(0, len(track_ids), 100):
+        batch = track_ids[i:i+100]
+        song_data = {
+            'c': json.dumps([{'id': int(sid), 'v': 0} for sid in batch]),
+            'header': {'os': 'pc', 'appver': '2.10.2.200154', 'osver': 'Microsoft Windows 10', 'deviceId': 'pyncm!'}
+        }
+        song_res, _ = await loop.run_in_executor(None, post_eapi_request, "https://interface3.music.163.com/eapi/v3/song/detail", song_data)
+        
+        if song_res and song_res.get('code') == 200:
+            for song in song_res.get('songs', []):
+                results.append({
+                    "music_id": f"netease_{song.get('id')}",
+                    "title": song.get('name'),
+                    "artist": '/'.join([ar.get('name', '') for ar in song.get('ar', [])]),
+                    "album": song.get('al', {}).get('name', ''),
+                    "artwork_url": song.get('al', {}).get('picUrl'),
+                    "duration": int(song.get('dt', 0) / 1000)
+                })
+    return playlist_name, results
+
+async def parse_artist(target: str) -> tuple[str, list[dict]]:
+    import re
+    aid = re.search(r'id=(\d+)', target)
+    aid = aid.group(1) if aid else target
+    loop = asyncio.get_event_loop()
+    data = {'id': str(aid), 'header': {'os': 'pc', 'appver': '2.10.2.200154', 'osver': 'Microsoft Windows 10', 'deviceId': 'pyncm!'}}
+    res, _ = await loop.run_in_executor(None, post_eapi_request, f"https://interface3.music.163.com/eapi/v1/artist/{aid}", data)
+    if not res or res.get("code") != 200: raise Exception("Failed to get artist tracks")
+    artist_name = res.get("artist", {}).get("name", "Netease Artist")
+    return artist_name, [{"music_id": f"netease_{s.get('id')}", "title": s.get('name')} for s in res.get('hotSongs', [])]
+
+async def parse_album(target: str) -> tuple[str, list[dict]]:
+    import re
+    aid = re.search(r'id=(\d+)', target)
+    aid = aid.group(1) if aid else target
+    loop = asyncio.get_event_loop()
+    data = {'id': str(aid), 'header': {'os': 'pc', 'appver': '2.10.2.200154', 'osver': 'Microsoft Windows 10', 'deviceId': 'pyncm!'}}
+    res, _ = await loop.run_in_executor(None, post_eapi_request, f"https://interface3.music.163.com/eapi/v1/album/{aid}", data)
+    if not res or res.get("code") != 200: raise Exception("Failed to get album tracks")
+    album_name = res.get("album", {}).get("name", "Netease Album")
+    return album_name, [{"music_id": f"netease_{s.get('id')}", "title": s.get('name')} for s in res.get('songs', [])]
+
 async def download_track(track_info: dict, base_download_path: str = "./downloads", progress_callback: callable = None) -> MusicItem | None:
     load_cookie() # Ensure latest cookies in worker process
     track_id = track_info.get("music_id")
@@ -260,26 +322,54 @@ async def download_track(track_info: dict, base_download_path: str = "./download
 
     # Download Audio (Try multiple qualities)
     downloaded_audio_path = None
-    qualities = ["lossless", "exhigh", "higher", "standard"]
     
-    for q in qualities:
+    desired_quality = track_info.get("desired_quality", "lossless")
+    quality_rank = {"lossless": 4, "exhigh": 3, "higher": 2, "standard": 1}
+    
+    desired_rank = quality_rank.get(desired_quality, 4)
+    qualities_to_try = [q for q in ["lossless", "exhigh", "higher", "standard"] if quality_rank[q] <= desired_rank]
+    
+    existing_item = MusicItem.load_from_json(track_id)
+    if existing_item and existing_item.lossless and desired_quality != "lossless":
+        print(f"Already have lossless quality for {track_id}, skipping redundant lower quality download.")
+        return existing_item
+
+    for q in qualities_to_try:
         audio_options = await loop.run_in_executor(None, _get_audio_options_netease, track_id, q)
         if audio_options:
             option = audio_options[0]
             audio_url = option.get("url")
             if audio_url:
-                # Better extension detection
                 parsed_url = urllib.parse.urlparse(audio_url)
                 ext = os.path.splitext(parsed_url.path)[1]
-                if not ext:
-                    ext = ".flac" if q in ["lossless", "hires"] else ".mp3"
+                if not ext: ext = ".flac" if q in ["lossless", "hires"] else ".mp3"
                 
                 audio_filename = os.path.join(music_item.work_path, f"audio{ext}")
                 success = await loop.run_in_executor(None, _save_file_with_progress, audio_url, audio_filename, track_id, progress_callback, "audio")
                 if success:
                     downloaded_audio_path = os.path.join(music_item.read_path, f"audio{ext}")
-                    music_item.set_audio(downloaded_audio_path)
-                    music_item.lossless = option.get("level") in ["lossless", "hires"]
+                    is_lossless = option.get("level") in ["lossless", "hires"]
+                    
+                    if existing_item and existing_item.audio and existing_item.audio != downloaded_audio_path:
+                         if not existing_item.lossless and is_lossless:
+                              # new is lossless, keep old standard as backup
+                              music_item.set_audio(downloaded_audio_path)
+                              music_item.set_audio(existing_item.audio, is_backup=True)
+                              music_item.lossless = True
+                         elif existing_item.lossless and not is_lossless:
+                              # this shouldn't happen due to our early exit, but just in case
+                              music_item.set_audio(existing_item.audio)
+                              music_item.set_audio(downloaded_audio_path, is_backup=True)
+                              music_item.lossless = True
+                         else:
+                              music_item.set_audio(downloaded_audio_path)
+                              music_item.lossless = is_lossless
+                    else:
+                         music_item.set_audio(downloaded_audio_path)
+                         music_item.lossless = is_lossless
+                         if existing_item and existing_item.backup_audio:
+                             music_item.set_audio(existing_item.backup_audio, is_backup=True)
+
                     break # Success!
     
     if not downloaded_audio_path:

@@ -114,8 +114,8 @@ async def handle_get_users(websocket, cmd_id, payload):
     cursor = conn.cursor()
     cursor.execute("SELECT id, username, is_admin, created_at FROM users")
     users = cursor.fetchall()
-    res = [{"id": u["id"], "username": u["username"], "is_admin": bool(u["is_admin"]), "created_at": u["created_at"]} for u in users]
-    await send_response(websocket, cmd_id, code=0, data=res)
+    res = [{"id": u[0], "username": u[1], "is_admin": bool(u[2]), "created_at": u[3]} for u in users]
+    await send_response(websocket, cmd_id, code=0, data={"users": res})
 
 async def handle_update_user(websocket, cmd_id, payload):
     from core.auth import current_user

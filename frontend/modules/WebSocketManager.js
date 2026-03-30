@@ -66,7 +66,7 @@ class WebSocketManager {
         const { original_cmd_id } = data || {};
 
         // ── Push Notifications (Server-initiated) ──────────────────────────
-        if (original_cmd_id === "llm_action" || original_cmd_id === "claw_auth_request") {
+        if (original_cmd_id === "llm_action" || original_cmd_id === "claw_auth_request" || original_cmd_id === "crawler_status_update") {
           const handler = this.pushHandlers[original_cmd_id];
           if (handler) {
             handler(data);

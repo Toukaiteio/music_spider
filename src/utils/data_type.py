@@ -46,6 +46,7 @@ class TrackInfo(DictSerializable):
         self.source = source # Added source field
         self.cover_path = None # Path to local cover file
         self.audio_path = None # Path to local audio file
+        self.backup_audio_path = None # Path to backup audio file
         self.loudness_lufs = loudness_lufs # Integrated loudness in LUFS (EBU R128)
         self.loudness_peak = loudness_peak # True peak level in dBFS
 
@@ -89,6 +90,7 @@ class MusicItem:
         
         self._cover_path = "" # Path to the actual cover file
         self._audio_path = "" # Path to the actual audio file
+        self._backup_audio_path = "" # Backup audio
 
     @property
     def music_id(self):
@@ -200,18 +202,27 @@ class MusicItem:
     def audio(self): # Corresponds to self._audio_path
         return self._audio_path
 
+    @property
+    def backup_audio(self):
+        return self._backup_audio_path
+
     def set_cover(self, cover_path: str):
         self._cover_path = cover_path
         self.data.cover_path = cover_path
 
-    def set_audio(self, audio_path: str):
-        self._audio_path = audio_path
-        self.data.audio_path = audio_path
+    def set_audio(self, audio_path: str, is_backup: bool = False):
+        if is_backup:
+            self._backup_audio_path = audio_path
+            self.data.backup_audio_path = audio_path
+        else:
+            self._audio_path = audio_path
+            self.data.audio_path = audio_path
 
     def dump_self(self):
         # Ensure data object's paths are sync'd before dumping
         self.data.cover_path = self._cover_path
         self.data.audio_path = self._audio_path
+        self.data.backup_audio_path = self._backup_audio_path
         # The work_path should be for the folder, not the file itself
         file_path = os.path.join(self.work_path, "music.json")
         with open(file_path, "w", encoding="utf-8") as f:
@@ -246,6 +257,8 @@ class MusicItem:
                 item.set_cover(data_dict["cover_path"])
             if data_dict.get("audio_path"):
                 item.set_audio(data_dict["audio_path"])
+            if data_dict.get("backup_audio_path"):
+                item.set_audio(data_dict["backup_audio_path"], is_backup=True)
             return item
         return None
 
