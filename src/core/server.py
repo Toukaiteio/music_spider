@@ -19,7 +19,7 @@ import threading
 # Relative imports for project modules
 # Assuming utils and downloaders are in PYTHONPATH or structured to be found
 
-from downloaders import soundcloud_downloader, bilibili_downloader
+from downloaders import bilibili_downloader
 from core.state import (
     DOWNLOADER_MODULES,
     increment_task_execution, get_task_execution, update_task_execution, get_all_task_execution,
@@ -56,6 +56,49 @@ from handlers.analyze_loudness_websocket_handler import (
     handle_analyze_loudness_batch,
     handle_get_loudness_data
 )
+from handlers.source_handler import (
+    handle_get_all_source_status,
+    handle_get_auth_action,
+    handle_poll_auth_status,
+    handle_login_with_params,
+    handle_logout,
+    handle_enable_source,
+    handle_disable_source
+)
+from handlers.music_claw_handler import (
+    handle_music_claw_chat,
+    handle_get_llm_config,
+    handle_save_llm_config,
+    handle_claw_auth_response
+)
+from handlers.playlist_handler import (
+    handle_get_playlists,
+    handle_get_playlist_tracks,
+    handle_create_playlist,
+    handle_update_playlist,
+    handle_add_to_playlist,
+    handle_remove_from_playlist,
+    handle_delete_playlist
+)
+from handlers.user_preference_handler import (
+    handle_report_listening_event,
+    handle_get_user_preferences
+)
+from handlers.auth_handler import (
+    handle_login,
+    handle_register,
+    handle_get_captcha,
+    handle_get_sys_config,
+    handle_set_sys_config,
+    handle_get_users,
+    handle_update_user
+)
+from handlers.crawler_handler import (
+    handle_add_crawler_task,
+    handle_get_crawler_status,
+    handle_control_crawler_task
+)
+from core.auth import get_user_from_jwt, rate_limiter, current_user
 
 # Queues for inter-process communication for downloads
 download_task_queue = get_download_task_queue()
@@ -79,6 +122,21 @@ def download_worker_main(task_queue: Queue, results_queue: Queue, downloads_dir:
             track_data = task.get("track_data")
             original_cmd_id = task.get("original_cmd_id")
             client_id = task.get("client_id") # For future use if routing responses
+            proxy = task.get("proxy")
+
+            # Set proxy if provided
+            old_proxies = {
+                "http_proxy": os.environ.get("http_proxy"),
+                "https_proxy": os.environ.get("https_proxy"),
+                "HTTP_PROXY": os.environ.get("HTTP_PROXY"),
+                "HTTPS_PROXY": os.environ.get("HTTPS_PROXY")
+            }
+            
+            if proxy:
+                os.environ["http_proxy"] = proxy
+                os.environ["https_proxy"] = proxy
+                os.environ["HTTP_PROXY"] = proxy
+                os.environ["HTTPS_PROXY"] = proxy
 
             if not all([source, track_data, original_cmd_id]):
                 print(f"Worker {os.getpid()}: Invalid task received: {task}")
@@ -125,6 +183,25 @@ def download_worker_main(task_queue: Queue, results_queue: Queue, downloads_dir:
             # 从 track_data 中提取唯一标识，兼容 TrackAdapter 规范化后的字段名
             track_id_for_result = track_data.get("music_id") or track_data.get("bvid") or track_data.get("id")
 
+            # Check if paused
+            if original_cmd_id and original_cmd_id.startswith("crawler_task:"):
+                try:
+                    from utils.persistence import persistence
+                    task_id = original_cmd_id.split(":")[1]
+                    state_list = persistence.get("crawler_engine", "tasks_state", [])
+                    task_state = next((t for t in state_list if t["id"] == task_id), None)
+                    if task_state and task_state["status"] == "paused":
+                        print(f"Worker {os.getpid()}: Task {task_id} is paused. Skipping track ID {track_id_for_result}")
+                        results_queue.put({
+                            "type": "skipped",
+                            "original_cmd_id": original_cmd_id,
+                            "track_id": track_id_for_result,
+                            "client_id": client_id
+                        })
+                        continue
+                except Exception as e:
+                    print(f"Worker error checking pause state: {e}")
+
             try:
                 print(f"Worker {os.getpid()}: Starting download for track ID {track_id_for_result} using {source}")
                 # Ensure downloads_dir exists (it should, but good for workers to be robust)
@@ -134,14 +211,25 @@ def download_worker_main(task_queue: Queue, results_queue: Queue, downloads_dir:
                 # The actual download call
                 music_item = asyncio.run(downloader_module.download_track(track_data, downloads_dir, progress_callback_mp))
 
-                print(f"Worker {os.getpid()}: Download successful for track ID {track_id_for_result}")
-                results_queue.put({
-                    "type": "success",
-                    "original_cmd_id": original_cmd_id,
-                    "track_id": track_id_for_result,
-                    "music_item": music_item.data.to_dict(),
-                    "client_id": client_id
-                })
+                if music_item:
+                    print(f"Worker {os.getpid()}: Download successful for track ID {track_id_for_result}")
+                    results_queue.put({
+                        "type": "success",
+                        "original_cmd_id": original_cmd_id,
+                        "track_id": track_id_for_result,
+                        "music_item": music_item.data.to_dict(),
+                        "client_id": client_id
+                    })
+                else:
+                    # downloader_module likely already called progress_callback_mp with error status
+                    print(f"Worker {os.getpid()}: Download failed for track ID {track_id_for_result}")
+                    results_queue.put({
+                        "type": "error",
+                        "original_cmd_id": original_cmd_id,
+                        "track_id": track_id_for_result,
+                        "error": "Download failed: No accessible audio file found.",
+                        "client_id": client_id
+                    })
 
             except Exception as e:
                 print(f"Worker {os.getpid()}: Error downloading track ID {track_id_for_result}: {e}")
@@ -152,6 +240,14 @@ def download_worker_main(task_queue: Queue, results_queue: Queue, downloads_dir:
                     "error": str(e),
                     "client_id": client_id
                 })
+            finally:
+                # Restore proxies
+                for k, v in old_proxies.items():
+                    if v is None:
+                        if k in os.environ:
+                            del os.environ[k]
+                    else:
+                        os.environ[k] = v
 
 
         except EOFError: # Can happen if queue is closed unexpectedly
@@ -171,6 +267,22 @@ def download_worker_main(task_queue: Queue, results_queue: Queue, downloads_dir:
     print(f"Download worker process {os.getpid()} finished.")
 
 
+# Commands that must run as background asyncio tasks so they don't block the
+# ws_handler message loop while streaming long-running responses to the client.
+_BACKGROUND_COMMANDS = {'music_claw_chat'}
+
+async def _run_background_command(websocket, cmd_id, command, handler_func, payload):
+    """Wrapper that runs a handler as a background task and surfaces unhandled exceptions."""
+    try:
+        await handler_func(websocket, cmd_id, payload)
+    except Exception as e:
+        print(f"Error in background command '{command}' (cmd_id: {cmd_id}): {e}")
+        try:
+            await send_response(websocket, cmd_id, code=1, error=f"Server error processing command '{command}': {str(e)}")
+        except Exception:
+            pass  # WebSocket may already be closed
+
+
 # Command Handlers (imports handlers from src.handlers)
 COMMAND_HANDLERS = {
     "search": handle_search,
@@ -188,6 +300,41 @@ COMMAND_HANDLERS = {
     "analyze_loudness_single": handle_analyze_loudness_single,
     "analyze_loudness_batch": handle_analyze_loudness_batch,
     "get_loudness_data": handle_get_loudness_data,
+    "get_all_auth_status": handle_get_all_source_status,
+    "get_auth_action": handle_get_auth_action,
+    "poll_auth_status": handle_poll_auth_status,
+    "login_with_params": handle_login_with_params,
+    "logout": handle_logout,
+    "enable_source": handle_enable_source,
+    "disable_source": handle_disable_source,
+    "music_claw_chat": handle_music_claw_chat,
+    "get_llm_config": handle_get_llm_config,
+    "save_llm_config": handle_save_llm_config,
+    "claw_auth_response": handle_claw_auth_response,
+    "get_playlists": handle_get_playlists,
+    "get_playlist_tracks": handle_get_playlist_tracks,
+    "create_playlist": handle_create_playlist,
+    "add_to_playlist": handle_add_to_playlist,
+    "remove_from_playlist": handle_remove_from_playlist,
+    "delete_playlist": handle_delete_playlist,
+    "update_playlist": handle_update_playlist,
+    "report_listening_event": handle_report_listening_event,
+    "get_user_preferences": handle_get_user_preferences,
+    "login": handle_login,
+    "register": handle_register,
+    "get_captcha": handle_get_captcha,
+    "get_sys_config": handle_get_sys_config,
+    "set_sys_config": handle_set_sys_config,
+    "get_users": handle_get_users,
+    "update_user": handle_update_user,
+    "add_crawler_task": handle_add_crawler_task,
+    "get_crawler_status": handle_get_crawler_status,
+    "control_crawler_task": handle_control_crawler_task,
+}
+
+# Commands that do not require authentication
+UNAUTHENTICATED_COMMANDS = {
+    "login", "register", "get_captcha"
 }
 
 # Main WebSocket connection handler
@@ -211,10 +358,36 @@ async def ws_handler(websocket, path = None): # Renamed from 'handler' to 'ws_ha
                     increment_task_execution("failedTasks")
                     await send_response(websocket, cmd_id, code=1, error="Missing command")
                     continue
+                    
+                # Authentication and Rate Limiting
+                if command not in UNAUTHENTICATED_COMMANDS:
+                    token = payload.get("token") or data.get("token")
+                    user = get_user_from_jwt(token) if token else None
+                    if not user:
+                        increment_task_execution("failedTasks")
+                        await send_response(websocket, cmd_id, code=401, error="Authentication required")
+                        continue
+                        
+                    # Apply Rate Limiting
+                    if not rate_limiter.check_limit(user["user_id"]):
+                        increment_task_execution("failedTasks")
+                        await send_response(websocket, cmd_id, code=429, error="Rate limit exceeded")
+                        continue
+                        
+                    # Set Context for handlers
+                    current_user.set(user)
 
                 if command_handler_func := COMMAND_HANDLERS.get(command):
                     try:
-                        await command_handler_func(websocket, cmd_id, payload)
+                        # Long-running streaming commands are dispatched as background tasks so
+                        # the ws_handler loop is NOT blocked and can process other messages
+                        # (e.g. get_llm_config) while the AI is streaming.
+                        if command in _BACKGROUND_COMMANDS:
+                            asyncio.create_task(
+                                _run_background_command(websocket, cmd_id, command, command_handler_func, payload)
+                            )
+                        else:
+                            await command_handler_func(websocket, cmd_id, payload)
                         increment_task_execution("successfulTasks")
                     except Exception as e:
                         increment_task_execution("failedTasks")
@@ -273,6 +446,38 @@ async def process_download_results(results_queue: Queue):
             if not client_id or not original_cmd_id or not message_type:
                 print(f"Invalid result message received (missing fields): {result_message}")
                 continue
+
+            # Update Crawler Task Progress if applicable
+            if original_cmd_id.startswith("crawler_task:"):
+                try:
+                    from core.crawler import global_crawler
+                    task_id = original_cmd_id.split(":")[1]
+                    task = global_crawler.tasks.get(task_id)
+                    if task:
+                        if message_type == "success":
+                            task.completed_tracks += 1
+                        elif message_type == "error":
+                            task.failed_tracks += 1
+                        elif message_type == "skipped":
+                            task.dispatched_tracks -= 1
+                            continue # Don't update completion status for skipped 
+                        
+                        # Update status to completed if all tracks are processed
+                        if task.total_tracks > 0 and task.completed_tracks + task.failed_tracks >= task.total_tracks:
+                            if task.status != "completed":
+                                task.status = "completed"
+                                import logging
+                                logger = logging.getLogger("CrawlerSystem")
+                                logger.info(f"[Crawler] Task {task_id} fully completed ({task.completed_tracks} success, {task.failed_tracks} fail).")
+                        
+                        # Broadcast update to all clients
+                        from core.state import CONNECTED_CLIENTS_MAP
+                        from core.ws_messaging import send_response
+                        for c in list(CONNECTED_CLIENTS_MAP.values()):
+                            asyncio.create_task(send_response(c, "crawler_status_update", code=0, data={"task_id": task_id, "status": task.status}))
+
+                except Exception as e:
+                    print(f"Error updating crawler task progress: {e}")
 
             websocket_client = get_websocket_by_client_id(client_id)
             if websocket_client:
@@ -402,6 +607,9 @@ async def start_server(): # Renamed from 'main' to 'start_server' for clarity
 
         ws_server = await websockets.serve(ws_handler, HOST, WEBSOCKET_PORT) # Use config values
         print(f"WebSocket server started on ws://{HOST}:{WEBSOCKET_PORT}")
+
+        from core.crawler import global_crawler
+        await global_crawler.start()
 
         # Start the download results processor task
         print("Starting download results processor task...")

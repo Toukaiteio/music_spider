@@ -9,6 +9,8 @@ class WebSocketManager {
     }
     this.socket = null;
     this.pendingRequests = {};
+    this.streamListeners = {}; // cmd_id -> { onUpdate, resolve, reject, timeout }
+    this.pushHandlers = {};    // type -> callback
     this.cmdIdCounter = 0;
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 5;
@@ -60,7 +62,33 @@ class WebSocketManager {
         const response = JSON.parse(event.data);
         console.log("WebSocket message received:", response);
 
-        const { code, data: { original_cmd_id } = {} } = response;
+        const { code, data } = response;
+        const { original_cmd_id } = data || {};
+
+        // ── Push Notifications (Server-initiated) ──────────────────────────
+        if (original_cmd_id === "llm_action" || original_cmd_id === "claw_auth_request" || original_cmd_id === "crawler_status_update") {
+          const handler = this.pushHandlers[original_cmd_id];
+          if (handler) {
+            handler(data);
+          } else {
+            document.dispatchEvent(new CustomEvent(original_cmd_id, { detail: data }));
+          }
+          return;
+        }
+
+        // ── Music Claw streaming updates ─────────────────────────────────────
+        if (response.data && response.data.status_type === "claw_update") {
+          const sl = this.streamListeners[original_cmd_id];
+          if (sl) {
+            sl.onUpdate(response.data);
+            if (response.data.update_type === "complete") {
+              clearTimeout(sl.timeout);
+              delete this.streamListeners[original_cmd_id];
+              sl.resolve(response.data);
+            }
+          }
+          return;
+        }
 
         if (
           response.data &&
@@ -161,6 +189,22 @@ class WebSocketManager {
                 progress: queueItem.progressPercent
               }
             }));
+          } else if (status === 'downloading' || status === 'pending' || status === 'completed_track') {
+            // Auto-create item for unknown downloads (e.g. AI tool calls)
+            const details = progressData.track_details || {};
+            const newItem = {
+                music_id: effectiveTrackId,
+                title: details.title || "Background Download",
+                artist: details.artist || "Unknown",
+                artwork_url: details.artwork_url || details.preview_cover || "placeholder_album_art_2.png",
+                progressPercent: progress_percent || 0,
+                status: status,
+                statusMessage: `AI triggered download...`,
+                original_cmd_id: progressData.original_cmd_id || "ai_trigger"
+            };
+            window.appState.downloadQueue.push(newItem);
+            renderTaskQueue();
+            updateMainTaskQueueIcon();
           } else {
             console.warn(`Received progress for unknown track_id: ${track_id}`, progressData);
           }
@@ -178,15 +222,33 @@ class WebSocketManager {
           if (code === 0) {
             request.resolve(response);
           } else {
-            request.reject(
-              new Error(response.data?.message || "Unknown server error")
-            );
+            const errorMsg = response.data?.error || response.data?.message || "Unknown server error";
+            const err = new Error(errorMsg);
+            err.code = code;
+            if (code === 401) {
+              document.dispatchEvent(new CustomEvent("claw_auth_required", { detail: err }));
+            }
+            request.reject(err);
           }
           delete this.pendingRequests[original_cmd_id];
         } else {
-          console.warn(
-            `Received response for unknown cmd_id: ${original_cmd_id}`
-          );
+          // Check if it's an error for a streaming claw command
+          const sl = this.streamListeners[original_cmd_id];
+          if (sl && code !== 0) {
+            clearTimeout(sl.timeout);
+            delete this.streamListeners[original_cmd_id];
+            const errorMsg = response.data?.error || response.data?.message || "Unknown server error";
+            const err = new Error(errorMsg);
+            err.code = code;
+            if (code === 401) {
+              document.dispatchEvent(new CustomEvent("claw_auth_required", { detail: err }));
+            }
+            sl.reject(err);
+          } else {
+            console.warn(
+              `Received response for unknown cmd_id: ${original_cmd_id}`
+            );
+          }
         }
       } catch (error) {
         console.error(
@@ -244,10 +306,20 @@ class WebSocketManager {
     return new Promise((resolve, reject) => {
       const executeCommand = () => {
         const cmd_id = this.generateCmdId();
+        
+        // Add JWT token if available
+        let finalPayload = { ...payload };
+        if (!["login", "register", "get_captcha"].includes(command)) {
+            const token = localStorage.getItem("jwt_token");
+            if (token) {
+                finalPayload.token = token;
+            }
+        }
+        
         const message = {
           cmd_id: cmd_id,
           command: command,
-          payload: payload,
+          payload: finalPayload,
         };
 
         try {
@@ -309,6 +381,56 @@ class WebSocketManager {
     }
   }
 
+  /**
+   * Send a streaming command (Music Claw).
+   * @param {string} command
+   * @param {object} payload
+   * @param {function} onUpdate  - called for each intermediate update object
+   * @returns {Promise<object>}  - resolves with the final complete update
+   */
+  sendClawCommand(command, payload, onUpdate) {
+    return new Promise((resolve, reject) => {
+      const cmd_id = this.generateCmdId();
+      
+      let finalPayload = { ...payload };
+      const token = localStorage.getItem("jwt_token");
+      if (token) finalPayload.token = token;
+        
+      const message = { cmd_id, command, payload: finalPayload };
+
+      // 2-minute timeout for AI responses
+      const timeout = setTimeout(() => {
+        delete this.streamListeners[cmd_id];
+        reject(new Error("Music Claw request timed out."));
+      }, 120000);
+
+      this.streamListeners[cmd_id] = { onUpdate, resolve, reject, timeout };
+
+      const send = () => {
+        try {
+          this.socket.send(JSON.stringify(message));
+          console.log("Claw command sent:", message);
+        } catch (err) {
+          clearTimeout(timeout);
+          delete this.streamListeners[cmd_id];
+          reject(err);
+        }
+      };
+
+      if (!this.commandQueue) this.commandQueue = [];
+      if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+        this.commandQueue.push(send);
+        if (!this.socket ||
+          (this.socket.readyState !== WebSocket.CONNECTING &&
+           this.socket.readyState !== WebSocket.OPEN)) {
+          this.connect();
+        }
+      } else {
+        send();
+      }
+    });
+  }
+
   async testWebSocketGetLibrary() {
     console.log('Testing "get_downloaded_music" command...');
     try {
@@ -322,6 +444,10 @@ class WebSocketManager {
       console.error("Error getting library data:", error.message);
       return error;
     }
+  }
+
+  registerPushHandler(type, callback) {
+    this.pushHandlers[type] = callback;
   }
 }
 

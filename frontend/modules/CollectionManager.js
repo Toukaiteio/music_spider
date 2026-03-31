@@ -4,6 +4,7 @@ class CollectionManager {
     constructor({
         navigationManager = null, 
         appState, 
+        webSocketManager,
         dialogElementId = "add-to-collection-dialog",
         drawerListElementId = "local-collections-list",
         contextMenuElementId = "drawer-context-menu",
@@ -14,7 +15,10 @@ class CollectionManager {
         saveCollectionButtonId = "save-collection-button", // For metadata
         confirmCollectionChangesButtonId = "confirm-collection-changes-button", // For song assignments
         newCollectionNameInputId = "new-collection-name",
-        newCollectionCategoryInputId = "new-collection-category",
+        newCollectionCategorySelectId = "new-collection-category-select",
+        newCollectionCategoryCustomInputId = "new-collection-category-custom",
+        newCollectionCategoryCustomRowId = "new-collection-category-custom-row",
+        newCollectionCategoryBackBtnId = "new-collection-category-back-btn",
         newCollectionDescriptionInputId = "new-collection-description",
         newCollectionColorInputId = "new-collection-color", // Added color input ID
         existingCollectionsListId = "existing-collections-list",
@@ -23,6 +27,7 @@ class CollectionManager {
     }) {
         this.navigationManager = navigationManager;
         this.appState = appState;
+        this.webSocketManager = webSocketManager;
 
         this.currentSongIdToCollect = null;
         this.dialogMode = 'add_song';
@@ -42,7 +47,10 @@ class CollectionManager {
             this.saveCollectionButton = document.getElementById(saveCollectionButtonId);
             this.confirmCollectionChangesButton = document.getElementById(confirmCollectionChangesButtonId);
             this.newCollectionNameInput = document.getElementById(newCollectionNameInputId);
-            this.newCollectionCategoryInput = document.getElementById(newCollectionCategoryInputId);
+            this.newCollectionCategorySelect = document.getElementById(newCollectionCategorySelectId);
+            this.newCollectionCategoryCustomInput = document.getElementById(newCollectionCategoryCustomInputId);
+            this.newCollectionCategoryCustomRow = document.getElementById(newCollectionCategoryCustomRowId);
+            this.newCollectionCategoryBackBtn = document.getElementById(newCollectionCategoryBackBtnId);
             this.newCollectionDescriptionInput = document.getElementById(newCollectionDescriptionInputId);
             this.newCollectionColorInput = document.getElementById(newCollectionColorInputId); // Get color input
             this.existingCollectionsList = document.getElementById(existingCollectionsListId);
@@ -51,13 +59,11 @@ class CollectionManager {
         }
 
         this._bindMethods();
-        this._ensureCollectionColors(); // Ensure all collections have colors on instantiation
     }
 
     _bindMethods() {
         this.init = this.init.bind(this);
         this.getCollections = this.getCollections.bind(this);
-        this.saveCollections = this.saveCollections.bind(this);
         this._populateDialogCollectionsList = this._populateDialogCollectionsList.bind(this);
         this.openDialog = this.openDialog.bind(this);
         this.closeDialog = this.closeDialog.bind(this);
@@ -71,29 +77,75 @@ class CollectionManager {
         this.removeSongFromCollection = this.removeSongFromCollection.bind(this);
         this._handleDialogCollectionToggle = this._handleDialogCollectionToggle.bind(this);
         this._generateRandomHexColor = this._generateRandomHexColor.bind(this);
+        this._populateCategorySelector = this._populateCategorySelector.bind(this);
+        this._getCategoryValue = this._getCategoryValue.bind(this);
+        this._renderCollectionItems = this._renderCollectionItems.bind(this);
     }
 
     _generateRandomHexColor() {
         return '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
     }
 
-    _ensureCollectionColors() {
-        let collections = this.getCollections(); // Use getCollections to load
-        let collectionsModified = false;
-        collections = collections.map(collection => {
-            if (!collection.color) {
-                collection.color = this._generateRandomHexColor();
-                collectionsModified = true;
-            }
-            return collection;
-        });
+    async _populateCategorySelector() {
+        const select = this.newCollectionCategorySelect;
+        const customRow = this.newCollectionCategoryCustomRow;
+        const backBtn = this.newCollectionCategoryBackBtn;
+        if (!select || !customRow) return;
 
-        if (collectionsModified) {
-            this.saveCollections(collections);
+        const collections = await this.getCollections();
+        const categories = [...new Set(
+            collections.map(c => c.category || '').filter(c => c !== '')
+        )].sort();
+
+        select.innerHTML = '';
+
+        if (categories.length === 0) {
+            // No existing categories — show text input directly
+            select.style.display = 'none';
+            customRow.style.display = '';
+            if (backBtn) backBtn.style.display = 'none';
+            return;
         }
+
+        const emptyOpt = document.createElement('option');
+        emptyOpt.value = '';
+        emptyOpt.textContent = '— No Category —';
+        select.appendChild(emptyOpt);
+
+        for (const cat of categories) {
+            const opt = document.createElement('option');
+            opt.value = cat;
+            opt.textContent = cat;
+            select.appendChild(opt);
+        }
+
+        const sep = document.createElement('option');
+        sep.disabled = true;
+        sep.textContent = '──────────';
+        select.appendChild(sep);
+
+        const customOpt = document.createElement('option');
+        customOpt.value = '__custom__';
+        customOpt.textContent = 'Custom...';
+        select.appendChild(customOpt);
+
+        select.value = '';
+        select.style.display = '';
+        customRow.style.display = 'none';
+    }
+
+    _getCategoryValue() {
+        const select = this.newCollectionCategorySelect;
+        const customInput = this.newCollectionCategoryCustomInput;
+        if (!select || !customInput) return '';
+        if (select.style.display === 'none') {
+            return customInput.value.trim();
+        }
+        const val = select.value;
+        return val === '__custom__' ? '' : val;
     }
     
-    init() {
+    async init() {
         if (!this.dialogElement || !this.drawerListElement || !this.contextMenuElement) {
             console.error("CollectionManager: Crucial DOM elements not found. Initialization aborted.");
             return;
@@ -104,7 +156,8 @@ class CollectionManager {
             if (event.target === this.dialogElement) this.closeDialog();
         });
         if (this.createNewCollectionButton) {
-            this.createNewCollectionButton.addEventListener('click', () => {
+            this.createNewCollectionButton.addEventListener('click', async () => {
+                await this._populateCategorySelector();
                 if(this.createCollectionForm) this.createCollectionForm.style.display = 'block';
                 if(this.existingCollectionsList) this.existingCollectionsList.style.display = 'none';
                 if(this.noCollectionsMessageDialog) this.noCollectionsMessageDialog.style.display = 'none';
@@ -124,6 +177,29 @@ class CollectionManager {
                 }
             });
         }
+        if (this.newCollectionCategorySelect) {
+            this.newCollectionCategorySelect.addEventListener('change', () => {
+                if (this.newCollectionCategorySelect.value === '__custom__') {
+                    this.newCollectionCategorySelect.style.display = 'none';
+                    if (this.newCollectionCategoryCustomRow) this.newCollectionCategoryCustomRow.style.display = '';
+                    if (this.newCollectionCategoryBackBtn) this.newCollectionCategoryBackBtn.style.display = '';
+                    if (this.newCollectionCategoryCustomInput) {
+                        this.newCollectionCategoryCustomInput.value = '';
+                        this.newCollectionCategoryCustomInput.focus();
+                    }
+                }
+            });
+        }
+        if (this.newCollectionCategoryBackBtn) {
+            this.newCollectionCategoryBackBtn.addEventListener('click', () => {
+                if (this.newCollectionCategoryCustomInput) this.newCollectionCategoryCustomInput.value = '';
+                if (this.newCollectionCategoryCustomRow) this.newCollectionCategoryCustomRow.style.display = 'none';
+                if (this.newCollectionCategorySelect) {
+                    this.newCollectionCategorySelect.style.display = '';
+                    this.newCollectionCategorySelect.value = '';
+                }
+            });
+        }
         if (this.saveCollectionButton) this.saveCollectionButton.addEventListener('click', this.handleSaveCollection);
         if (this.confirmCollectionChangesButton) this.confirmCollectionChangesButton.addEventListener('click', this.handleConfirmAddToCollection);
 
@@ -136,17 +212,20 @@ class CollectionManager {
                 this.contextMenuElement.style.display = 'none';
             }
         });
-        this.renderDrawerCollections();
+        await this.renderDrawerCollections();
         console.log("CollectionManager initialized.");
     }
 
-    getCollections() {
-        // This method now just retrieves, color ensuring is done at init and save.
-        return JSON.parse(localStorage.getItem("userCollections")) || [];
-    }
-
-    saveCollections(collections) {
-        localStorage.setItem("userCollections", JSON.stringify(collections));
+    async getCollections() {
+        try {
+            const resp = await this.webSocketManager.sendWebSocketCommand('get_playlists', {});
+            if (resp.code === 0 && resp.data) {
+                return resp.data.playlists || [];
+            }
+        } catch (e) {
+            console.error("CollectionManager: Failed to get collections from backend", e);
+        }
+        return [];
     }
 
     _handleDialogCollectionToggle(event, collectionName) {
@@ -173,23 +252,35 @@ class CollectionManager {
         }
     }
     
-    _populateDialogCollectionsList() {
+    async _populateDialogCollectionsList() {
         if (!this.existingCollectionsList || !this.noCollectionsMessageDialog) {
             console.error("CollectionManager: Dialog list elements not found for populating.");
             return;
         }
-        const collections = this.getCollections();
+        const collections = await this.getCollections();
         this.existingCollectionsList.innerHTML = ""; 
         const songIdStr = String(this.currentSongIdToCollect);
 
         if (collections.length > 0) {
-            collections.forEach((collection) => {
+            // Need tracks for each collection to check selection state
+            for (const collection of collections) {
                 const button = document.createElement("button");
                 button.className = "collection-item-button dialog-button";
-                button.textContent = collection.name;
+                const displayName = collection.name === 'Liked' ? 'My Favorites' : collection.name;
+                button.textContent = displayName;
                 button.dataset.collectionName = collection.name;
 
-                const isOriginallyInCollection = collection.songs && collection.songs.includes(songIdStr);
+                // For efficiency, backend should ideally return if song is in playlist,
+                // but for now we fetch tracks or use a different approach.
+                // Re-think: if we have many collections, fetching tracks for each is slow.
+                // Let's assume the backend 'get_playlists' could optionally include if song is in it,
+                // or we just fetch tracks for the active song's memberships once.
+                
+                // Let's fetch tracks for this collection to check if song is in it
+                const tracksResp = await this.webSocketManager.sendWebSocketCommand('get_playlist_tracks', { name: collection.name });
+                const tracks = (tracksResp.code === 0 && tracksResp.data) ? tracksResp.data.tracks : [];
+                const isOriginallyInCollection = tracks.some(t => String(t.music_id || t.id || t.bvid) === songIdStr);
+
                 button.dataset.originallySelected = isOriginallyInCollection;
                 if (isOriginallyInCollection) {
                     button.classList.add('selected');
@@ -197,7 +288,7 @@ class CollectionManager {
                 
                 button.onclick = (event) => this._handleDialogCollectionToggle(event, collection.name);
                 this.existingCollectionsList.appendChild(button);
-            });
+            }
             this.noCollectionsMessageDialog.style.display = "none";
             this.existingCollectionsList.style.display = "block";
         } else {
@@ -206,25 +297,27 @@ class CollectionManager {
         }
     }
 
-    openDialog(songId = null, mode = 'add_song', collectionNameToEdit = null) {
+    async openDialog(songId = null, mode = 'add_song', collectionNameToEdit = null) {
         this.currentSongIdToCollect = songId ? String(songId) : null;
         this.dialogMode = mode;
         this.editingCollectionName = mode === 'edit' ? collectionNameToEdit : null;
         this.dialogSelectionChanges = { additions: new Set(), removals: new Set() };
 
-        if (!this.dialogElement || !this.dialogTitleElement || !this.createCollectionForm || 
-            !this.existingCollectionsList || !this.noCollectionsMessageDialog || 
+        if (!this.dialogElement || !this.dialogTitleElement || !this.createCollectionForm ||
+            !this.existingCollectionsList || !this.noCollectionsMessageDialog ||
             !this.createNewCollectionButton || !this.saveCollectionButton || !this.confirmCollectionChangesButton ||
-            !this.newCollectionNameInput || !this.newCollectionCategoryInput || !this.newCollectionDescriptionInput ||
-            !this.newCollectionColorInput ) { // Check for color input
+            !this.newCollectionNameInput || !this.newCollectionDescriptionInput ||
+            !this.newCollectionColorInput) {
             console.error("CollectionManager: Essential dialog elements are missing. Cannot open dialog.");
             return;
         }
-        
+
         this.newCollectionNameInput.value = "";
-        this.newCollectionCategoryInput.value = "";
+        if (this.newCollectionCategorySelect) this.newCollectionCategorySelect.innerHTML = '';
+        if (this.newCollectionCategoryCustomInput) this.newCollectionCategoryCustomInput.value = '';
+        if (this.newCollectionCategoryCustomRow) this.newCollectionCategoryCustomRow.style.display = 'none';
         this.newCollectionDescriptionInput.value = "";
-        this.newCollectionColorInput.value = this.defaultCollectionColor; // Reset color picker
+        this.newCollectionColorInput.value = this.defaultCollectionColor;
 
         const isAddingSongMode = this.dialogMode === 'add_song';
         if(this.saveCollectionButton) this.saveCollectionButton.style.display = isAddingSongMode ? 'none' : 'inline-block'; 
@@ -232,33 +325,52 @@ class CollectionManager {
 
         if (isAddingSongMode) {
             this.dialogTitleElement.textContent = "Add/Remove from Playlists";
-            this._populateDialogCollectionsList(); 
+            await this._populateDialogCollectionsList(); 
             this.createCollectionForm.style.display = "none"; 
             this.existingCollectionsList.style.display = "block";
-            this.noCollectionsMessageDialog.style.display = this.getCollections().length === 0 ? "block" : "none";
+            const collections = await this.getCollections();
+            this.noCollectionsMessageDialog.style.display = collections.length === 0 ? "block" : "none";
             this.createNewCollectionButton.style.display = "block"; 
         } else if (this.dialogMode === 'create_direct') {
             this.dialogTitleElement.textContent = "Create New Playlist";
             if(this.saveCollectionButton) this.saveCollectionButton.textContent = "Save Playlist";
+            await this._populateCategorySelector();
             this.createCollectionForm.style.display = "block";
             this.existingCollectionsList.style.display = "none";
             this.noCollectionsMessageDialog.style.display = "none";
-            this.createNewCollectionButton.style.display = "none"; 
+            this.createNewCollectionButton.style.display = "none";
         } else if (this.dialogMode === 'edit') {
             this.dialogTitleElement.textContent = "Edit Playlist";
             if(this.saveCollectionButton) this.saveCollectionButton.textContent = "Save Changes";
-            const collectionToEdit = this.getCollections().find(c => c.name === this.editingCollectionName);
+            const collections = await this.getCollections();
+            const collectionToEdit = collections.find(c => c.name === this.editingCollectionName);
             if (collectionToEdit) {
                 this.newCollectionNameInput.value = collectionToEdit.name || "";
-                this.newCollectionCategoryInput.value = collectionToEdit.category || "";
+                await this._populateCategorySelector();
+                // Set existing category value on the selector
+                const existingCat = collectionToEdit.category || '';
+                if (this.newCollectionCategorySelect && this.newCollectionCategorySelect.style.display !== 'none') {
+                    const hasOpt = [...this.newCollectionCategorySelect.options].some(o => o.value === existingCat);
+                    if (hasOpt) {
+                        this.newCollectionCategorySelect.value = existingCat;
+                    } else if (existingCat) {
+                        // Switch to custom input for unrecognised category
+                        this.newCollectionCategorySelect.style.display = 'none';
+                        if (this.newCollectionCategoryCustomRow) this.newCollectionCategoryCustomRow.style.display = '';
+                        if (this.newCollectionCategoryBackBtn) this.newCollectionCategoryBackBtn.style.display = '';
+                        if (this.newCollectionCategoryCustomInput) this.newCollectionCategoryCustomInput.value = existingCat;
+                    }
+                } else if (this.newCollectionCategoryCustomInput) {
+                    this.newCollectionCategoryCustomInput.value = existingCat;
+                }
                 this.newCollectionDescriptionInput.value = collectionToEdit.description || "";
-                this.newCollectionColorInput.value = collectionToEdit.color || this._generateRandomHexColor(); // Populate color
+                this.newCollectionColorInput.value = collectionToEdit.color || this._generateRandomHexColor();
             } else {
                 console.error(`CollectionManager: Cannot edit. Playlist "${this.editingCollectionName}" not found.`);
-                this.closeDialog(); 
+                this.closeDialog();
                 return;
             }
-            this.createCollectionForm.style.display = "block"; 
+            this.createCollectionForm.style.display = "block";
             this.existingCollectionsList.style.display = "none";
             this.noCollectionsMessageDialog.style.display = "none";
             this.createNewCollectionButton.style.display = "none";
@@ -276,9 +388,14 @@ class CollectionManager {
 
         if (this.createCollectionForm) this.createCollectionForm.style.display = "none";
         if (this.newCollectionNameInput) this.newCollectionNameInput.value = "";
-        if (this.newCollectionCategoryInput) this.newCollectionCategoryInput.value = "";
+        if (this.newCollectionCategorySelect) {
+            this.newCollectionCategorySelect.innerHTML = '';
+            this.newCollectionCategorySelect.style.display = '';
+        }
+        if (this.newCollectionCategoryCustomInput) this.newCollectionCategoryCustomInput.value = '';
+        if (this.newCollectionCategoryCustomRow) this.newCollectionCategoryCustomRow.style.display = 'none';
         if (this.newCollectionDescriptionInput) this.newCollectionDescriptionInput.value = "";
-        if (this.newCollectionColorInput) this.newCollectionColorInput.value = this.defaultCollectionColor; // Reset color picker
+        if (this.newCollectionColorInput) this.newCollectionColorInput.value = this.defaultCollectionColor;
         
         if(this.createNewCollectionButton) this.createNewCollectionButton.style.display = 'block';
         if(this.existingCollectionsList) this.existingCollectionsList.style.display = 'block'; 
@@ -292,13 +409,13 @@ class CollectionManager {
         this.dialogSelectionChanges = { additions: new Set(), removals: new Set() }; 
     }
 
-    handleSaveCollection() { 
+    async handleSaveCollection() { 
         if (!this.newCollectionNameInput) {
             alert("Playlist name input not found.");
             return;
         }
         const name = this.newCollectionNameInput.value.trim();
-        const category = this.newCollectionCategoryInput ? this.newCollectionCategoryInput.value.trim() : "";
+        const category = this._getCategoryValue();
         const description = this.newCollectionDescriptionInput ? this.newCollectionDescriptionInput.value.trim() : "";
         let color = this.newCollectionColorInput ? this.newCollectionColorInput.value : this.defaultCollectionColor;
 
@@ -307,7 +424,7 @@ class CollectionManager {
             return;
         }
 
-        let collections = this.getCollections();
+        const collections = await this.getCollections();
         const isEditing = this.dialogMode === 'edit';
         const originalName = this.editingCollectionName;
 
@@ -316,131 +433,202 @@ class CollectionManager {
             return;
         }
 
-        if (isEditing) {
-            const collectionToUpdate = collections.find(c => c.name === originalName);
-            if (collectionToUpdate) {
-                collectionToUpdate.name = name;
-                collectionToUpdate.category = category;
-                collectionToUpdate.description = description;
-                collectionToUpdate.color = (color && color !== this.defaultCollectionColor && color !=='#000000') ? color : (collectionToUpdate.color || this._generateRandomHexColor());
-            } else {
-                alert("Error: Could not find the playlist to update.");
-                this.closeDialog(); 
-                return;
+        try {
+            if (isEditing) {
+                await this.webSocketManager.sendWebSocketCommand('update_playlist', {
+                    old_name: originalName,
+                    new_metadata: { name, category, description, color }
+                });
+            } else { 
+                if (!color || color === this.defaultCollectionColor || color === '#000000') {
+                    color = this._generateRandomHexColor();
+                }
+                await this.webSocketManager.sendWebSocketCommand('create_playlist', {
+                    name, category, description, color
+                });
             }
-        } else { 
-            // Creating new collection
-            if (!color || color === this.defaultCollectionColor || color === '#000000') { // Ensure a distinct color if default wasn't changed
-                color = this._generateRandomHexColor();
-            }
-            collections.push({ name, category, description, color, songs: [] });
+            await this.renderDrawerCollections(); 
+            this.closeDialog();
+        } catch (e) {
+            console.error("CollectionManager: Failed to save collection", e);
+            alert("Failed to save playlist. See console for details.");
         }
-
-        this.saveCollections(collections); // This will also ensure colors for older collections if any were missed by _ensureCollectionColors
-        this.renderDrawerCollections(); 
-        this.closeDialog(); 
     }
 
-    handleConfirmAddToCollection() {
+    async handleConfirmAddToCollection() {
         if (!this.currentSongIdToCollect) {
             console.error("CollectionManager: No song selected to add/remove from collections.");
             this.closeDialog();
             return;
         }
         const songIdStr = String(this.currentSongIdToCollect);
-        let collections = this.getCollections();
-        let changed = false;
+        
+        // Find the track data in appState.library or searchResults
+        let trackData = null;
+        if (this.appState.library) {
+            trackData = this.appState.library.find(t => String(t.music_id || t.id || t.bvid) === songIdStr);
+        }
+        if (!trackData && this.appState.searchResults) {
+            trackData = this.appState.searchResults.find(t => String(t.music_id || t.id || t.bvid) === songIdStr);
+        }
 
-        this.dialogSelectionChanges.additions.forEach(collectionName => {
-            const collection = collections.find(c => c.name === collectionName);
-            if (collection) {
-                if (!collection.songs) collection.songs = [];
-                if (!collection.songs.includes(songIdStr)) {
-                    collection.songs.push(songIdStr);
-                    changed = true;
-                    document.dispatchEvent(new CustomEvent('collectionChanged', {
-                        detail: { collectionName, songId: songIdStr, action: 'added' }
-                    }));
-                }
+        if (!trackData) {
+            console.error("CollectionManager: Track data not found for ID", songIdStr);
+            this.closeDialog();
+            return;
+        }
+
+        try {
+            for (const collectionName of this.dialogSelectionChanges.additions) {
+                await this.webSocketManager.sendWebSocketCommand('add_to_playlist', {
+                    playlist_name: collectionName,
+                    track_data: trackData
+                });
+                document.dispatchEvent(new CustomEvent('collectionChanged', {
+                    detail: { collectionName, songId: songIdStr, action: 'added' }
+                }));
             }
-        });
 
-        this.dialogSelectionChanges.removals.forEach(collectionName => {
-            const collection = collections.find(c => c.name === collectionName);
-            if (collection && collection.songs && collection.songs.includes(songIdStr)) {
-                collection.songs = collection.songs.filter(id => id !== songIdStr);
-                changed = true;
+            for (const collectionName of this.dialogSelectionChanges.removals) {
+                await this.webSocketManager.sendWebSocketCommand('remove_from_playlist', {
+                    playlist_name: collectionName,
+                    music_id: songIdStr
+                });
                 document.dispatchEvent(new CustomEvent('collectionChanged', {
                     detail: { collectionName, songId: songIdStr, action: 'removed' }
                 }));
             }
-        });
-
-        if (changed) {
-            this.saveCollections(collections);
+            this.closeDialog();
+        } catch (e) {
+            console.error("CollectionManager: Failed to update song assignments", e);
+            alert("Failed to update playlist assignments.");
         }
-        this.closeDialog();
     }
 
-    renderDrawerCollections() {
+    async renderDrawerCollections() {
         if (!this.drawerListElement) {
             console.error("CollectionManager: Drawer list element not found. Cannot render collections.");
             return;
         }
-        const collections = this.getCollections();
-        this.drawerListElement.innerHTML = ""; 
 
-        if (collections.length === 0) {
+        this.drawerListElement.style.minHeight = "100px";
+
+        const allCollections = await this.getCollections();
+        const visibleCollections = allCollections.filter(c => c.name !== 'Liked');
+
+        this.drawerListElement.innerHTML = "";
+
+        if (visibleCollections.length === 0) {
             const noCollectionsLi = document.createElement("li");
-            noCollectionsLi.innerHTML = `<span class="no-collections-message" style="padding: 10px; color: var(--text-color-secondary); font-size: 0.9em;">No playlists yet. Right-click to create one.</span>`;
+            noCollectionsLi.innerHTML = `<span class="no-collections-message" style="padding: 10px; color: var(--text-color-secondary); font-size: 0.9em; display: block;">No playlists yet. Right-click here to create one.</span>`;
             this.drawerListElement.appendChild(noCollectionsLi);
         } else {
-            collections.forEach((collection) => {
-                const listItem = document.createElement("li");
-                const link = document.createElement("a");
-                link.href = `#collection-detail/${encodeURIComponent(collection.name)}`;
-                link.className = "drawer-link local-collection-link"; 
-                link.dataset.page = "collection-detail";
-                link.dataset.collectionName = collection.name;
-                link.draggable = false;
-                const initial = collection.name.charAt(0).toUpperCase();
-                const color = collection.color || this.defaultCollectionColor; // Use default if no color
+            // Group by category; empty-category key = ''
+            const groups = new Map();
+            for (const c of visibleCollections) {
+                const cat = c.category || '';
+                if (!groups.has(cat)) groups.set(cat, []);
+                groups.get(cat).push(c);
+            }
 
-                // Inner HTML for the link
-                link.innerHTML = `
-                    <span class="collection-initial" style="background-color: ${color};">
-                        ${initial}
-                    </span>
-                    <span class="link-text">${collection.name}</span>
-                `;
-                
-                listItem.appendChild(link);
-                this.drawerListElement.appendChild(listItem);
+            // If more than one distinct category exists (counting '' as one), use grouped layout
+            const hasMultipleGroups = groups.size > 1;
+
+            // Named categories sorted A-Z, uncategorised last
+            const sortedCategories = [...groups.keys()].sort((a, b) => {
+                if (a === '') return 1;
+                if (b === '') return -1;
+                return a.localeCompare(b);
             });
+
+            for (const category of sortedCategories) {
+                const collections = groups.get(category);
+
+                if (hasMultipleGroups) {
+                    const storageKey = `collection_category_collapsed_${category}`;
+                    const isCollapsed = localStorage.getItem(storageKey) === 'true';
+                    const displayName = category || 'Uncategorized';
+
+                    // Category header
+                    const headerLi = document.createElement('li');
+                    headerLi.className = 'collection-category-group-header';
+                    if (isCollapsed) headerLi.classList.add('collapsed');
+
+                    const toggleBtn = document.createElement('button');
+                    toggleBtn.className = 'collection-category-toggle';
+                    toggleBtn.setAttribute('aria-expanded', String(!isCollapsed));
+                    toggleBtn.innerHTML = `
+                        <span class="category-name">${displayName}</span>
+                        <span class="category-count">${collections.length}</span>
+                        <span class="material-icons category-chevron">${isCollapsed ? 'chevron_right' : 'expand_more'}</span>
+                    `;
+                    headerLi.appendChild(toggleBtn);
+                    this.drawerListElement.appendChild(headerLi);
+
+                    // Items container
+                    const itemsLi = document.createElement('li');
+                    itemsLi.className = 'collection-category-items';
+                    if (isCollapsed) itemsLi.style.display = 'none';
+                    const itemsUl = document.createElement('ul');
+                    itemsLi.appendChild(itemsUl);
+                    this._renderCollectionItems(itemsUl, collections);
+                    this.drawerListElement.appendChild(itemsLi);
+
+                    toggleBtn.addEventListener('click', () => {
+                        const nowCollapsed = !headerLi.classList.contains('collapsed');
+                        headerLi.classList.toggle('collapsed', nowCollapsed);
+                        toggleBtn.setAttribute('aria-expanded', String(!nowCollapsed));
+                        toggleBtn.querySelector('.category-chevron').textContent = nowCollapsed ? 'chevron_right' : 'expand_more';
+                        itemsLi.style.display = nowCollapsed ? 'none' : '';
+                        localStorage.setItem(storageKey, String(nowCollapsed));
+                    });
+                } else {
+                    // Single group — flat list, no header
+                    this._renderCollectionItems(this.drawerListElement, collections);
+                }
+            }
         }
 
         if (this.navigationManager) {
-            this.navigationManager.init(); 
+            this.navigationManager.init();
         }
     }
 
-    removeSongFromCollection(songId, collectionName) {
+    _renderCollectionItems(container, collections) {
+        for (const collection of collections) {
+            const listItem = document.createElement("li");
+            const link = document.createElement("a");
+            link.href = `#collection-detail/${encodeURIComponent(collection.name)}`;
+            link.className = "drawer-link local-collection-link";
+            link.dataset.page = "collection-detail";
+            link.dataset.collectionName = collection.name;
+            link.draggable = false;
+            const initial = collection.name.charAt(0).toUpperCase();
+            const color = collection.color || this.defaultCollectionColor;
+            link.innerHTML = `
+                <span class="collection-initial" style="background-color: ${color};">
+                    ${initial}
+                </span>
+                <span class="link-text">${collection.name}</span>
+            `;
+            listItem.appendChild(link);
+            container.appendChild(listItem);
+        }
+    }
+
+    async removeSongFromCollection(songId, collectionName) {
         if (!songId || !collectionName) {
             console.error("CollectionManager: songId and collectionName are required to remove a song.");
             return false;
         }
         const songIdStr = String(songId);
-        let collections = this.getCollections();
-        const collectionIndex = collections.findIndex(c => c.name === collectionName);
-
-        if (collectionIndex > -1) {
-            const collection = collections[collectionIndex];
-            if (collection.songs && collection.songs.includes(songIdStr)) {
-                collection.songs = collection.songs.filter(id => id !== songIdStr);
-                collections[collectionIndex] = collection;
-                this.saveCollections(collections);
+        try {
+            const resp = await this.webSocketManager.sendWebSocketCommand('remove_from_playlist', {
+                playlist_name: collectionName,
+                music_id: songIdStr
+            });
+            if (resp.code === 0) {
                 console.log(`CollectionManager: Song ${songIdStr} removed from collection ${collectionName}.`);
-                
                 document.dispatchEvent(new CustomEvent('collectionChanged', {
                     detail: {
                         collectionName: collectionName,
@@ -448,22 +636,22 @@ class CollectionManager {
                         action: 'removed'
                     }
                 }));
-                return true; 
-            } else {
-                console.warn(`CollectionManager: Song ${songIdStr} not found in collection ${collectionName}.`);
+                return true;
             }
-        } else {
-            console.warn(`CollectionManager: Collection ${collectionName} not found.`);
+        } catch (e) {
+            console.error("CollectionManager: Failed to remove song from playlist", e);
         }
         return false; 
     }
 
-    deleteCollection(collectionName) {
-        let collections = this.getCollections();
-        collections = collections.filter(c => c.name !== collectionName);
-        this.saveCollections(collections);
-        console.log(`Playlist "${collectionName}" deleted.`);
-        this.renderDrawerCollections(); 
+    async deleteCollection(collectionName) {
+        try {
+            await this.webSocketManager.sendWebSocketCommand('delete_playlist', { name: collectionName });
+            console.log(`Playlist "${collectionName}" deleted.`);
+            await this.renderDrawerCollections(); 
+        } catch (e) {
+            console.error("CollectionManager: Failed to delete collection", e);
+        }
     }
 
     _handleDrawerListContextMenu(event) {
@@ -489,7 +677,7 @@ class CollectionManager {
         }
     }
 
-    _handleContextMenuClick(event) {
+    async _handleContextMenuClick(event) {
         if (!this.contextMenuElement) return;
         const actionElement = event.target.closest('li[data-action]');
         if (!actionElement) return;
@@ -500,11 +688,11 @@ class CollectionManager {
 
         switch (action) {
             case "create_collection":
-                this.openDialog(null, 'create_direct');
+                await this.openDialog(null, 'create_direct');
                 break;
             case "edit_collection":
                 if (collectionName) {
-                    this.openDialog(null, 'edit', collectionName);
+                    await this.openDialog(null, 'edit', collectionName);
                 } else {
                     console.warn("CollectionManager: Edit action clicked but no playlist was targeted.");
                 }
@@ -512,7 +700,7 @@ class CollectionManager {
             case "delete_collection":
                 if (collectionName) {
                     if (confirm(`Are you sure you want to delete the playlist "${collectionName}"? This cannot be undone.`)) {
-                        this.deleteCollection(collectionName);
+                        await this.deleteCollection(collectionName);
                     }
                 } else {
                     console.warn("CollectionManager: Delete action clicked but no playlist was targeted.");
@@ -521,9 +709,9 @@ class CollectionManager {
         }
     }
 
-    handleAddToCollectionButtonClick(songId) {
+    async handleAddToCollectionButtonClick(songId) {
         if (songId) {
-            this.openDialog(songId, 'add_song');
+            await this.openDialog(songId, 'add_song');
         } else {
             console.error("CollectionManager: Could not determine song ID for 'Add to Playlist' button.");
         }

@@ -15,8 +15,10 @@
     opacity: 0.28;
     filter: blur(90px);
     border-radius: 50%;
-    transition: top 0.8s ease-in-out, left 0.8s ease-in-out, background 0.5s ease-in-out, opacity 0.5s ease-in-out;
-    will-change: transform, top, left, background, opacity;
+    /* top/left 由 JS 直接设置（无过渡），浮动动画会掩盖瞬间跳变；
+       background/opacity 保留过渡用于配色主题切换 */
+    transition: background 0.5s ease-in-out, opacity 0.5s ease-in-out;
+    will-change: transform;
 }
 
 @keyframes floatBand {

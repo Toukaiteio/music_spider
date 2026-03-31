@@ -8,6 +8,9 @@ import SongDetailPage from '../pages/SongDetailPage.js';
 import SearchResultsPage from '../pages/SearchResultsPage.js';
 import UpdateTrackPage from '../pages/UpdateTrackPage.js';
 import UploadTrackPage from '../pages/UploadTrackPage.js';
+import AuthManagerPage from '../pages/AuthManagerPage.js';
+import MusicClawPage from '../pages/MusicClawPage.js';
+import AdminPage from '../pages/AdminPage.js';
 import UIManager from '../modules/UIManager.js';
 
 // Utility Imports (keep if still used directly by NM)
@@ -55,7 +58,10 @@ class NavigationManager {
       'collection-detail': CollectionDetailPage,
       'search-results': SearchResultsPage,
       'update-track': UpdateTrackPage,
-      'upload-track': UploadTrackPage
+      'upload-track': UploadTrackPage,
+      'auth-manager': AuthManagerPage,
+      'music-claw': MusicClawPage,
+      'admin-panel': AdminPage
     };
 
     // Bind methods
@@ -144,13 +150,20 @@ class NavigationManager {
     }
 
     this._performNavigateTo(pageId, title, path, skipPushState, subPageId);
-    this._performNavigateTo(pageId, title, path, skipPushState, subPageId);
   }
 
   _performNavigateTo(pageId, title, path, skipPushState = false, subPageId = null) {
     if (!this.mainContent) {
       console.error("Main content area not found in _performNavigateTo!");
       return;
+    }
+
+    // Auto close song detail when switching pages
+    if (pageId !== "song-detail") {
+      const overlay = document.getElementById('song-detail-overlay');
+      if (overlay && overlay.classList.contains('active')) {
+        UIManager.toggleSongDetail(false);
+      }
     }
 
     // Call onUnload for the previous active page module if it exists and has the method

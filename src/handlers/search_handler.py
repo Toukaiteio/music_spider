@@ -16,6 +16,11 @@ async def handle_search(websocket, cmd_id: str, payload: dict):
         await send_response(websocket, cmd_id, code=1, error="Search query is missing.")
         return
 
+    from core.source_manager import get_source_enabled_status
+    if not get_source_enabled_status(source):
+        await send_response(websocket, cmd_id, code=1, error=f"Source '{source}' is currently disabled.")
+        return
+
     downloader_module = DOWNLOADER_MODULES.get(source)
 
     if not downloader_module:

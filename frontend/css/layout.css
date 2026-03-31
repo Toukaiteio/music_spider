@@ -45,10 +45,12 @@
     grid-column: 3;
     justify-self: end;
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-end; /* Move items to the far right */
     height: 100%;
     align-items: center;
-    width: 106px;
+    width: auto; /* Allow items to define width */
+    gap: 15px; /* Spacing between any right-side actions */
+    padding-right: 10px; /* Extra padding from the very edge */
 }
 
 /* ---- Main Content ---- */
@@ -74,12 +76,12 @@
     width: var(--sidebar-width);
     padding: 18px 10px 20px 10px;
 
-    background: rgba(12, 12, 14, 0.94);
-    backdrop-filter: blur(48px) saturate(180%) brightness(0.9);
-    -webkit-backdrop-filter: blur(48px) saturate(180%) brightness(0.9);
+    background: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
 
-    /* Hair-thin right border */
-    border-right: 1px solid rgba(255, 255, 255, 0.06);
+    /* Hair-thin right border removed */
+    border-right: none;
 
     transition: width 0.32s cubic-bezier(0.4, 0, 0.2, 1),
                 padding 0.32s cubic-bezier(0.4, 0, 0.2, 1);
@@ -343,4 +345,81 @@
 
 #main-drawer.collapsed #local-collections-list .no-collections-message {
     display: none;
+}
+
+/* ============================================================
+   Collection category groups
+   ============================================================ */
+.collection-category-group-header {
+    list-style: none;
+    margin-top: 4px;
+}
+
+.collection-category-toggle {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px 14px 3px 14px;
+    color: var(--text-color-secondary);
+    gap: 6px;
+    text-align: left;
+    border-radius: 6px;
+    transition: color 0.15s ease;
+}
+
+.collection-category-toggle:hover {
+    color: var(--text-color-primary);
+}
+
+.category-name {
+    font-size: 0.7em;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.category-count {
+    font-size: 0.68em;
+    font-weight: 600;
+    opacity: 0.45;
+    flex-shrink: 0;
+}
+
+.category-chevron {
+    font-size: 15px !important;
+    opacity: 0.45;
+    flex-shrink: 0;
+}
+
+.collection-category-items {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.collection-category-items ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+/* Indent items inside a category group */
+.collection-category-items .local-collection-link {
+    padding-left: 26px;
+}
+
+/* Collapsed drawer: hide category headers, always show items */
+#main-drawer.collapsed .collection-category-group-header {
+    display: none;
+}
+
+#main-drawer.collapsed .collection-category-items {
+    display: block !important;
 }

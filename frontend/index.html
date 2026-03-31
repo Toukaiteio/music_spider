@@ -293,14 +293,21 @@
       <div class="search-bar-container">
         <span class="material-icons search-icon">search</span>
         <input type="text" id="header-search-input" placeholder="Search for music..." autocomplete="off" />
-        <button id="search-source-button" class="icon-button" aria-label="Change Search Source"
-          style="margin-left: 8px; padding: 4px;">
-          <img id="search-source-icon" src="source_icon/soundcloud.ico" alt="Current Search Source"
-            style="width: 24px; height: 24px; padding: 4px;">
-        </button>
+        <div class="search-source-selector">
+          <button id="search-source-button" class="icon-button" aria-label="Change Search Source">
+            <img id="search-source-icon" src="source_icon/soundcloud.ico" alt="Current Search Source" />
+          </button>
+          <div id="search-source-dropdown" class="search-source-dropdown-menu" style="display: none;">
+            <!-- Dropdown items will be populated by SearchManager.js -->
+          </div>
+        </div>
         <!-- <span class="search-source-indicator" style="margin-left: 8px; font-size: 0.9em; color: var(--text-color-secondary);">Source: SoundCloud</span> -->
       </div>
-      <div class="header-actions-right">
+      <div class="header-actions-right" style="display: flex; align-items: center; gap: 15px;">
+        <button id="auth-nav-link" class="icon-button" title="Login" style="width: auto; padding: 0 12px; border-radius: 20px; font-size: 13px; gap: 6px; border: 1px solid var(--border-color); display: flex; align-items: center; background: rgba(255,255,255,0.05);">
+            <span class="material-icons" style="font-size: 18px;">account_circle</span>
+            <span id="auth-nav-text" style="font-weight: 500;">Login</span>
+        </button>
         <!-- New container -->
         <div class="task-queue-container">
           <!-- This existing container is fine for the button + dropdown -->
@@ -360,6 +367,24 @@
               <span class="link-text">Upload Track</span>
             </a>
           </li>
+          <li>
+            <a draggable="false" href="#auth-manager" class="drawer-link" data-page="auth-manager">
+              <span class="material-icons">extension</span>
+              <span class="link-text">Source Manager</span>
+            </a>
+          </li>
+          <li>
+            <a draggable="false" href="#music-claw" class="drawer-link" data-page="music-claw">
+              <span class="material-icons">auto_awesome</span>
+              <span class="link-text">Music Claw</span>
+            </a>
+          </li>
+          <li id="admin-panel-nav" style="display: none;">
+            <a draggable="false" href="#admin-panel" class="drawer-link" data-page="admin-panel">
+              <span class="material-icons">admin_panel_settings</span>
+              <span class="link-text">Admin Panel</span>
+            </a>
+          </li>
           <!-- Add more links as needed -->
         </ul>
 
@@ -372,17 +397,30 @@
       </nav>
     </aside>
     <main id="main-content"></main>
-    <div id="drawer-context-menu" class="custom-context-menu" style="display: none; position: absolute; z-index: 1500">
+    <div id="drawer-context-menu" class="custom-context-menu" style="display: none;">
       <ul>
-      <li data-action="delete_collection">Delete Collection</li>
+        <li data-action="create_collection">Create New Playlist</li>
+        <li data-action="edit_collection">Edit Playlist</li>
+        <li data-action="delete_collection">Delete Playlist</li>
       </ul>
     </div>
 
     <!-- Song Detail Overlay (Component State) -->
     <div id="song-detail-overlay" class="hidden"></div>
 
-    <footer id="main-player">
-      <div id="player-content" class="hidden">
+    <!-- MiniPlayer 气泡按钮：独立于播放器之外，固定在右下角，只做 scale/opacity 动画 -->
+    <button id="player-show-button" class="hidden" aria-label="Show Player">
+      <svg class="circular-progress" viewBox="0 0 40 40">
+        <circle class="progress-background" cx="20" cy="20" r="18" fill="none" stroke-width="4" pathLength="100" />
+        <circle class="progress-bar" cx="20" cy="20" r="18" fill="none" stroke-width="4" stroke-dasharray="0, 100"
+          pathLength="100" />
+      </svg>
+      <span class="material-icons">music_note</span>
+    </button>
+
+    <!-- 播放器主体：固定尺寸，只做 translateY/opacity 动画 -->
+    <footer id="main-player" class="player-collapsed">
+      <div id="player-content">
         <div id="player-main-row">
           <div class="player-left" id="player-cover-area">
             <img src="placeholder_album_art.png" alt="Album Art" id="player-album-art" />
@@ -433,14 +471,6 @@
           </div>
         </div>
       </div>
-      <button id="player-show-button" class="hidden" aria-label="Show Player">
-        <svg class="circular-progress" viewBox="0 0 40 40">
-          <circle class="progress-background" cx="20" cy="20" r="18" fill="none" stroke-width="4" pathLength="100" />
-          <circle class="progress-bar" cx="20" cy="20" r="18" fill="none" stroke-width="4" stroke-dasharray="0, 100"
-            pathLength="100" />
-        </svg>
-        <span class="material-icons">music_note</span>
-      </button>
     </footer>
   </div>
 
@@ -473,8 +503,12 @@
       <div id="create-collection-form" style="display: none">
         <label for="new-collection-name">Name (Required):</label>
         <input type="text" id="new-collection-name" required />
-        <label for="new-collection-category">Category (Optional):</label>
-        <input type="text" id="new-collection-category" />
+        <label for="new-collection-category-select">Category (Optional):</label>
+        <select id="new-collection-category-select"></select>
+        <div id="new-collection-category-custom-row" style="display: none;">
+          <input type="text" id="new-collection-category-custom" placeholder="Category name..." />
+          <button type="button" id="new-collection-category-back-btn" class="dialog-button secondary">← Back</button>
+        </div>
         <label for="new-collection-description">Description (Optional):</label>
         <textarea id="new-collection-description"></textarea>
         <label for="new-collection-color">Color (Optional):</label>
@@ -491,6 +525,56 @@
       </div>
       <button id="close-dialog-button" class="dialog-close-button" aria-label="Close Dialog">
         <span class="material-icons">close</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Auth Dialog -->
+  <div id="auth-dialog" class="dialog-overlay" aria-hidden="true">
+    <div class="dialog-box auth-dialog-box" role="dialog" aria-labelledby="auth-dialog-title" style="max-width: 420px; padding: 32px; border-radius: 16px; background: rgba(30,30,35,0.95); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 20px 40px rgba(0,0,0,0.4); position: relative;">
+      <div style="text-align: center; margin-bottom: 24px;">
+        <span class="material-icons" style="font-size: 48px; color: var(--accent-color); margin-bottom: 8px;">account_circle</span>
+        <h3 id="auth-dialog-title" style="margin: 0; font-size: 1.5rem; font-weight: 600; color: #fff;">Login</h3>
+        <p id="auth-dialog-subtitle" style="margin: 8px 0 0 0; color: rgba(255,255,255,0.5); font-size: 0.9rem;">Welcome back to Music Claw</p>
+      </div>
+      
+      <div id="auth-form-container" style="display: flex; flex-direction: column; gap: 16px;">
+        <div class="form-group">
+            <label for="auth-username" style="display: block; margin-bottom: 8px; font-size: 0.85rem; color: rgba(255,255,255,0.7); font-weight: 500;">Username</label>
+            <input type="text" id="auth-username" style="width: 100%; padding: 12px 16px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: #fff; outline: none; transition: border-color 0.2s;" placeholder="Enter your username" required />
+        </div>
+        
+        <div class="form-group">
+            <label for="auth-password" style="display: block; margin-bottom: 8px; font-size: 0.85rem; color: rgba(255,255,255,0.7); font-weight: 500;">Password</label>
+            <input type="password" id="auth-password" style="width: 100%; padding: 12px 16px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: #fff; outline: none; transition: border-color 0.2s;" placeholder="••••••••" required />
+        </div>
+        
+        <div class="form-group" id="auth-confirm-password-container" style="display: none;">
+            <label for="auth-confirm-password" style="display: block; margin-bottom: 8px; font-size: 0.85rem; color: rgba(255,255,255,0.7); font-weight: 500;">Confirm Password</label>
+            <input type="password" id="auth-confirm-password" style="width: 100%; padding: 12px 16px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: #fff; outline: none; transition: border-color 0.2s;" placeholder="••••••••" />
+        </div>
+
+        <div class="form-group" id="auth-captcha-container" style="display: flex; flex-direction: column; gap: 8px;">
+            <label for="auth-captcha" style="display: block; font-size: 0.85rem; color: rgba(255,255,255,0.7); font-weight: 500;">Security Code</label>
+            <div style="display: flex; gap: 12px; align-items: stretch;">
+                <input type="text" id="auth-captcha" placeholder="Enter code" style="flex: 1; min-width: 0; padding: 12px 16px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: #fff; outline: none; transition: border-color 0.2s;" />
+                <img id="auth-captcha-img" src="" alt="CAPTCHA Image" style="height: 44px; min-width: 110px; cursor: pointer; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: white; object-fit: contain;" title="Click to refresh" />
+            </div>
+        </div>
+
+        <div style="margin-top: 16px; display: flex; flex-direction: column; gap: 12px;">
+          <button id="auth-submit-button" style="width: 100%; padding: 14px; border-radius: 8px; background: var(--accent-color); color: #fff; font-weight: 600; border: none; cursor: pointer; transition: background 0.2s, transform 0.1s; display: flex; align-items: center; justify-content: center; gap: 8px;">
+             <span class="btn-text">Login</span> <span class="material-icons" style="font-size: 18px;">arrow_forward</span>
+          </button>
+          
+          <div style="text-align: center; margin-top: 8px;">
+              <span id="auth-switch-mode-text" style="color: rgba(255,255,255,0.5); font-size: 0.9rem;">Don't have an account?</span>
+              <button id="auth-switch-mode-button" style="background: none; border: none; color: var(--accent-color); font-weight: 600; cursor: pointer; padding: 4px 8px; font-size: 0.9rem;">Register here</button>
+          </div>
+        </div>
+      </div>
+      <button id="close-auth-dialog-button" class="dialog-close-button" aria-label="Close Dialog" style="position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.1); border-radius: 50%; padding: 4px; display: flex; align-items: center; justify-content: center; border: none; color: #fff; cursor: pointer;">
+        <span class="material-icons" style="font-size: 20px;">close</span>
       </button>
     </div>
   </div>

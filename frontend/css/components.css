@@ -9,8 +9,13 @@
     border-radius: 25px;
     border: 1px solid var(--glass-border-color);
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-    width: 480px;
-    transition: all 0.3s ease;
+    /* 用 max-width 代替 width 动画，避免触发布局重排 */
+    width: 100%;
+    max-width: 480px;
+    transition: max-width 0.3s ease,
+                background-color 0.3s ease,
+                box-shadow 0.3s ease,
+                border-color 0.3s ease;
 }
 
 .search-bar-container:hover,
@@ -18,7 +23,7 @@
     background-color: rgba(255, 255, 255, 0.05);
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
     border-color: rgba(255, 255, 255, 0.2);
-    width: 520px;
+    max-width: 520px;
 }
 
 .search-bar-container .search-icon {
@@ -38,6 +43,85 @@
 #header-search-input::placeholder {
     color: var(--text-color-secondary);
 }
+
+/* ---- Search Source Dropdown ---- */
+.search-source-selector {
+    position: relative;
+    margin-left: 8px;
+    display: flex;
+    align-items: center;
+}
+
+#search-source-button {
+    margin-left: 8px;
+    padding: 4px;
+    background: transparent;
+    border: none;
+}
+
+#search-source-button:hover {
+    background-color: var(--shadow-color);
+}
+
+#search-source-icon {
+    width: 24px;
+    height: 24px;
+    padding: 4px;
+}
+
+
+.search-source-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    min-width: 140px;
+    max-height: 240px;
+    overflow-y: auto;
+    background: rgba(30, 30, 32, 0.85);
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+    z-index: 1200;
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.search-source-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    white-space: nowrap;
+}
+
+.search-source-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.search-source-item.active {
+    background: rgba(255, 255, 255, 0.15);
+    pointer-events: none;
+}
+
+.search-source-item img {
+    width: 18px;
+    height: 18px;
+}
+
+.search-source-item span {
+    font-size: 0.9em;
+    font-weight: 500;
+    color: var(--text-color-primary);
+    text-transform: capitalize;
+}
+
 
 /* Task Queue */
 .task-queue-container {
@@ -234,9 +318,9 @@
     padding: 15px;
     border: 1px solid var(--glass-border-color);
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), 
-                box-shadow 0.3s ease, 
-                background-color 0.3s ease;
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+        box-shadow 0.3s ease,
+        background-color 0.3s ease;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -293,7 +377,9 @@
     cursor: pointer;
     opacity: 0;
     transform: translateY(15px);
-    transition: all 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: opacity 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+                transform 0.28s cubic-bezier(0.4, 0, 0.2, 1),
+                box-shadow 0.28s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
 }
 
@@ -304,7 +390,7 @@
 
 .play-on-card-button .material-icons {
     font-size: 24px;
-    color: #111111;
+    color: var(--icon-color);
 }
 
 .play-on-card-button:hover {
@@ -313,17 +399,41 @@
     box-shadow: 0 6px 24px rgba(0, 0, 0, 0.55);
 }
 
-.lossless-tag {
+.card-tags-container {
     position: absolute;
     bottom: 8px;
     left: 8px;
-    background-color: rgba(0, 0, 0, 0.75);
-    color: white;
-    padding: 3px 7px;
-    font-size: 0.65em;
-    font-weight: bold;
+    display: flex;
+    gap: 4px;
+    z-index: 5;
+    pointer-events: none;
+}
+
+.song-tag {
+    background-color: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: rgba(255, 255, 255, 0.9);
+    padding: 2px 6px;
+    font-size: 0.62em;
+    font-weight: 700;
     border-radius: 4px;
-    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    border: 0.5px solid rgba(255, 255, 255, 0.1);
+}
+
+.song-tag.source-tag {
+    padding: 2px 4px;
+}
+
+.source-tag-icon {
+    width: 13px;
+    height: 13px;
+    display: block;
 }
 
 .song-card-info {
@@ -345,7 +455,8 @@
 
 /* 仅在 Hover 且文本可滚动时，在该固定容器上应用遮罩 */
 .song-card:hover .song-card-title.can-scroll {
-    margin-right: 0; /* 确保不影响容器宽度 */
+    margin-right: 0;
+    /* 确保不影响容器宽度 */
 }
 
 .song-card:hover .song-card-title-scroller:has(.can-scroll) {
@@ -380,8 +491,13 @@
 }
 
 @keyframes songCardMarquee {
-    from { transform: translateX(0); }
-    to { transform: translateX(-50%); }
+    from {
+        transform: translateX(0);
+    }
+
+    to {
+        transform: translateX(-50%);
+    }
 }
 
 .song-card-artist {
@@ -392,7 +508,8 @@
     text-overflow: ellipsis;
     color: var(--text-color-secondary);
     opacity: 0.8;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     /* 核心修复：强制高度与图标按钮一致 */
     height: 36px;
     line-height: 36px;
@@ -401,16 +518,18 @@
 
 .song-card:hover .song-card-artist {
     opacity: 0;
-    transform: translateY(8px); /* 稍微减小偏移量，让切换更紧凑 */
+    transform: translateY(8px);
+    /* 稍微减小偏移量，让切换更紧凑 */
     pointer-events: none;
 }
 
 .song-card-actions {
     position: absolute;
     /* 微调 bottom 值，使其中心点与歌手名完全重合 */
-    bottom: 15px; 
+    bottom: 15px;
     right: 15px;
-    height: 36px; /* 明确高度 */
+    height: 36px;
+    /* 明确高度 */
     display: flex;
     justify-content: flex-end;
     align-items: center;
@@ -418,7 +537,8 @@
     opacity: 0;
     pointer-events: none;
     transform: translateY(8px);
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+                transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     z-index: 10;
 }
 
@@ -456,6 +576,12 @@
 .delete-track-button:hover,
 .add-to-download-queue-button:hover {
     background-color: var(--shadow-color);
+}
+
+.action-button-disabled {
+    opacity: 0.4 !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
 }
 
 .remove-from-collection-button {
@@ -537,7 +663,9 @@
 }
 
 .dialog-box input[type="text"],
-.dialog-box textarea {
+.dialog-box input[type="password"],
+.dialog-box textarea,
+.dialog-box select {
     width: 100%;
     padding: 8px;
     border: 1px solid var(--border-color);
@@ -545,6 +673,25 @@
     background-color: var(--primary-bg-color);
     color: var(--text-color-primary);
     font-size: 0.95em;
+    box-sizing: border-box;
+}
+
+#new-collection-category-custom-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 0;
+}
+
+#new-collection-category-custom-row input {
+    flex: 1;
+}
+
+#new-collection-category-back-btn {
+    margin-top: 0;
+    padding: 8px 10px;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
 .dialog-button {
@@ -603,6 +750,12 @@
 .custom-context-menu li:hover {
     background-color: rgba(255, 255, 255, 0.10);
     color: var(--text-color-primary);
+}
+
+.custom-context-menu li.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
 }
 
 /* Lyrics Tool Sub-component */

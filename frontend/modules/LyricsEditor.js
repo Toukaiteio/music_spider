@@ -698,7 +698,7 @@ export function initLyricsEditorControls(lyricsEditorContainerElement) {
       applyBtn.addEventListener("click", () => {
         const val = input.value.trim();
         // Match: optional -, mm:ss.xx or mm:ss.xxx
-        const match = val.match(/^(-)?(\d{1,2}):(\d{2})\.(\d{2,3})$/);
+        const match = val.match(/^(-)?(\d{1,2}):(\d{2})[\.:](\d{2,3})$/);
         if (!match) {
           if (
             UIManagerForLyricsEditor &&
@@ -729,9 +729,9 @@ export function initLyricsEditorControls(lyricsEditorContainerElement) {
 
         // Parse and update all lines
         const lines = lrcInputAreaElement.value.split("\n");
-        const timeTagRegex = /^\[(\d{2}):(\d{2})\.(\d{2,3})\]/;
+        const timeTagRegex = /^\[(\d{2}):(\d{2})[\.:](\d{2,3})\]/;
         // 行内单个字符时间点 <mm:ss.xx>，只处理长度为7或8的标签
-        const inlineTimeTagRegex = /<(\d{1,2}):(\d{2})\.(\d{2,3})>/g;
+        const inlineTimeTagRegex = /<(\d{1,2}):(\d{2})[\.:](\d{2,3})>/g;
         let changed = false;
         for (let i = 0; i < lines.length; i++) {
           // 行首时间标签
@@ -1233,7 +1233,7 @@ function updateCursorHighlight(
   for (let i = 0; i < currentLineNumberInEditor; i++) {
     const editorLineText = editorAllLines[i];
     // A simple check: does it look like an LRC line (starts with '[xx:xx.xx]')?
-    if (/^\[\d{2}:\d{2}\.\d{2,3}\]/.test(editorLineText.trim())) {
+    if (/^\[\d{2}:\d{2}[\.:]\d{2,3}\]/.test(editorLineText.trim())) {
       editorLineCounter++;
     }
   }
@@ -1411,8 +1411,8 @@ function drawWaveform(audioBuffer, canvas, ctx, currentTime) {
 export function parseLRC(lrcString) {
   const lines = lrcString.trim().split("\n");
   const parsedLyrics = [];
-  const timeTagRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\]/;
-  const wordTimeTagRegex = /<(\d{2}):(\d{2})\.(\d{2,3})>/g;
+  const timeTagRegex = /\[(\d{2}):(\d{2})[\.:](\d{2,3})\]/;
+  const wordTimeTagRegex = /<(\d{2}):(\d{2})[\.:](\d{2,3})>/g;
   let lastLineTime = -1;
 
   for (let i = 0; i < lines.length; i++) {
@@ -1482,7 +1482,7 @@ export function parseLRC(lrcString) {
 
       for (const part of parts) {
         if (part.match(wordTimeTagRegex)) {
-          const wordMatch = part.match(/<(\d{2}):(\d{2})\.(\d{2,3})>/);
+          const wordMatch = part.match(/<(\d{2}):(\d{2})[\.:](\d{2,3})>/);
           if (!wordMatch) {
             return {
               lyrics: parsedLyrics,

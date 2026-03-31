@@ -8,6 +8,7 @@
 import { pauseEditorAndResetButton } from './LyricsEditor.js';
 import UIManager from "./UIManager.js";
 import TrackAdapter from './TrackAdapter.js';
+import WebSocketManager from "./WebSocketManager.js";
 
 const ALLOWED_PLAY_MODE = ["list-loop", "single-loop", "random"];
 const PLAY_MODE_MAPPED_ICON = ["repeat", "repeat_one", "shuffle"];
@@ -38,7 +39,53 @@ class PlayerManager {
     this.theme = this.getTheme();
     this.isAnimating = false;
     this.lyricsEditorAudioRef = null; // Reference to LyricsEditor audio
+
+    // Preference Tracking
+    this.lastReportTime = Date.now();
+    this.heartbeatTimer = null;
+    this.heartbeatInterval = 30000; // 30 seconds
+
     this.init();
+  }
+
+  reportListening(action) {
+    const track = this.getCurrentTrack();
+    if (!track || !track.music_id) return;
+
+    const now = Date.now();
+    const duration = (now - this.lastReportTime) / 1000;
+    this.lastReportTime = now;
+
+    const payload = {
+      music_id: track.music_id,
+      action: action,
+      duration: action === 'start' ? 0 : duration,
+      track_info: {
+        title: track.title,
+        artist: TrackAdapter.getArtist(track),
+        album: track.album,
+        source: track.source,
+        language: track.language // Might be undefined, that's okay
+      }
+    };
+
+    WebSocketManager.getInstance().sendWebSocketCommand('report_listening_event', payload)
+      .catch(err => console.error('[PlayerManager] Failed to report preference event:', err));
+  }
+
+  startHeartbeat() {
+    this.stopHeartbeat();
+    this.lastReportTime = Date.now();
+    this.heartbeatTimer = setInterval(() => {
+      this.reportListening('heartbeat');
+    }, this.heartbeatInterval);
+  }
+
+  stopHeartbeat() {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
   }
 
   init() {
@@ -148,8 +195,7 @@ class PlayerManager {
     // 隐藏/显示播放器
     if (this.playerHideButton && this.playerShowButton && this.playerContent) {
       this.playerHideButton.addEventListener("click", () => {
-        this.playerContent.classList.add("hidden");
-        this.playerShowButton.classList.remove("hidden");
+        this._collapsePlayer();
       });
       this.playerShowButton.addEventListener("click", () => {
         if (!this.isPlaying && this.playlist.length > 0) {
@@ -160,25 +206,21 @@ class PlayerManager {
           // 等封面加载完再显示播放器
           if (this.coverImgElement) {
             this.coverImgElement.onload = () => {
-              this.playerContent.classList.remove("hidden");
-              this.playerShowButton.classList.add("hidden");
+              this._expandPlayer();
               this.coverImgElement.onload = null; // 防止多次触发
             };
             // 重新设置src以触发onload
             this.coverImgElement.src =
               "." + this.playlist[randomIndex].cover_path;
           } else {
-            this.playerContent.classList.remove("hidden");
-            this.playerShowButton.classList.add("hidden");
+            this._expandPlayer();
           }
         } else if (this.playlist.length === 0) {
           if (this.playerTrackTitle)
             this.playerTrackTitle.textContent = "库中还没有歌曲~";
-          this.playerContent.classList.remove("hidden");
-          this.playerShowButton.classList.add("hidden");
+          this._expandPlayer();
         } else {
-          this.playerContent.classList.remove("hidden");
-          this.playerShowButton.classList.add("hidden");
+          this._expandPlayer();
         }
       });
     }
@@ -222,17 +264,14 @@ class PlayerManager {
 
     // 切换曲目时更新UI
     this.audio.addEventListener("loadeddata", () => {
-      if (this.playlist[this.currentIndex]) {
+      const track = this.currentLoadedTrack || this.playlist[this.currentIndex];
+      if (track) {
         if (this.playerTrackTitle)
-          this.playerTrackTitle.textContent =
-            this.playlist[this.currentIndex].title || "";
+          this.playerTrackTitle.textContent = track.title || "";
         if (this.playerTrackArtist)
-          this.playerTrackArtist.textContent =
-            this.playlist[this.currentIndex].artist || "Unknown Artist";
+          this.playerTrackArtist.textContent = TrackAdapter.getArtist(track) || "Unknown Artist";
         if (this.playerAlbumArt)
-          this.playerAlbumArt.src = this.playlist[this.currentIndex].cover_path
-            ? "." + this.playlist[this.currentIndex].cover_path
-            : this.playlist[this.currentIndex].artwork_url || 'placeholder_album_art.png';
+          this.playerAlbumArt.src = TrackAdapter.getCoverUrl(track);
       }
     });
     const savedMode = localStorage.getItem("player_mode");
@@ -291,6 +330,23 @@ class PlayerManager {
       };
     }
   }
+  // ---- 播放器展开/收起辅助方法 ----
+  // 用统一入口同步管理 player-collapsed、playerContent.hidden、playerShowButton.hidden，
+  // 确保三者始终保持一致，避免状态漂移。
+  _expandPlayer() {
+    if (this.playerFooter) this.playerFooter.classList.remove('player-collapsed');
+    if (this.playerContent) this.playerContent.classList.remove('hidden');
+    if (this.playerShowButton) this.playerShowButton.classList.add('hidden');
+    localStorage.setItem('playerVisible', 'true');
+  }
+
+  _collapsePlayer() {
+    if (this.playerFooter) this.playerFooter.classList.add('player-collapsed');
+    if (this.playerContent) this.playerContent.classList.add('hidden');
+    if (this.playerShowButton) this.playerShowButton.classList.remove('hidden');
+    localStorage.setItem('playerVisible', 'false');
+  }
+
   getCurrentTime() {
     if (this.audio && this.audio.currentTime) {
       return this.audio.currentTime;
@@ -569,6 +625,10 @@ class PlayerManager {
     this.isPlaying = true;
     this.notifyStateChange();
     this.startVisualizer();
+    
+    // Preference Tracking
+    this.reportListening('start');
+    this.startHeartbeat();
   }
 
   pause() {
@@ -576,6 +636,10 @@ class PlayerManager {
     this.isPlaying = false;
     this.notifyStateChange();
     this.stopVisualizer();
+
+    // Preference Tracking
+    this.reportListening('pause');
+    this.stopHeartbeat();
   }
 
   playTrackFromCard(trackInfoString) {
@@ -687,6 +751,7 @@ class PlayerManager {
   }
 
   handleTrackEnd() {
+    this.reportListening('end');
     if (this.mode === "single-loop") {
       this.audio.currentTime = 0;
       this.play();

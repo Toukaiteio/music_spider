@@ -10,6 +10,24 @@ class SongCardRenderer {
      * @param {object} options - Additional options, e.g., { isDownloaded: true/false } for search results.
      * @returns {string} HTML string for the song card.
      */
+    static getSourceIcon(track) {
+        let source = track.source || '';
+        const musicId = TrackAdapter.getMusicId(track) || '';
+        
+        // If source is missing, try to infer from music_id for older tracks
+        if (!source && typeof musicId === 'string') {
+            if (musicId.startsWith('netease_')) source = 'netease';
+            else if (musicId.startsWith('kugou_')) source = 'kugou';
+            else if (musicId.startsWith('BV') || musicId.startsWith('av')) source = 'bilibili';
+            else if (musicId.includes('soundcloud')) source = 'soundcloud';
+        }
+        
+        if (source && ['netease', 'kugou', 'bilibili', 'soundcloud'].includes(source)) {
+            return `<img src="source_icon/${source}.ico" class="source-tag-icon" alt="${source}" title="${source}">`;
+        }
+        return '';
+    }
+
     static render(track, context = 'library', options = {}) {
         if (!track) {
             console.warn("SongCardRenderer: Track object is undefined. Cannot render card.");
@@ -87,7 +105,11 @@ class SongCardRenderer {
             <div class="song-card" data-song-id="${musicId}" data-track-info='${trackInfoJson}' data-source="${track.source || 'unknown'}">
                 <div class="card-art-container">
                     <img referrerpolicy="no-referrer" src="${imageUrl}" alt="Album Art for ${title}" class="song-card-art">
-                    ${track.lossless ? '<span class="lossless-tag">无损</span>' : ''}
+                    <div class="card-tags-container">
+                        ${track.lossless ? '<span class="song-tag lossless-tag">无损</span>' : ''}
+                        ${track.lyrics ? '<span class="song-tag lyrics-tag">歌词</span>' : ''}
+                        ${this.getSourceIcon(track) ? `<span class="song-tag source-tag">${this.getSourceIcon(track)}</span>` : ''}
+                    </div>
                     ${context !== 'search-result' ? `
                     <button class="play-on-card-button icon-button" aria-label="Play Song" data-track-info='${trackInfoJson}'>
                         <span class="material-icons">play_arrow</span>

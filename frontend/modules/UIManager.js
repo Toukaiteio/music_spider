@@ -18,6 +18,64 @@ class UIManager {
     }
   }
 
+  static addTrackToDownloadQueue(trackObject, wsManager) {
+    if (!trackObject) return;
+
+    // Standardize ID
+    const music_id = trackObject.music_id || trackObject.id || trackObject.bvid || `gen-${Date.now()}`;
+    const stringId = String(music_id);
+
+    // Check if already in queue
+    const existing = window.appState.downloadQueue.find(item => 
+      String(item.music_id) === stringId || 
+      String(item.id) === stringId || 
+      String(item.bvid) === stringId
+    );
+
+    if (existing && existing.status !== 'error') {
+      UIManager.showToast(`"${trackObject.title || 'Track'}" is already in the download queue.`, 'info');
+      return;
+    }
+
+    const queueItem = {
+      ...trackObject,
+      music_id: stringId,
+      progressPercent: 0,
+      status: "pending",
+      statusMessage: "Queued for download...",
+      original_cmd_id: null,
+    };
+
+    window.appState.downloadQueue.push(queueItem);
+    UIManager.renderTaskQueue();
+    UIManager.updateMainTaskQueueIcon();
+
+    if (!wsManager) {
+      console.error("UIManager: No WebSocketManager provided for download.");
+      queueItem.status = "error";
+      queueItem.statusMessage = "Internal error: No connection manager";
+      return;
+    }
+
+    wsManager.sendWebSocketCommand("download_track", {
+      source: trackObject.source || 'netease',
+      track_data: trackObject,
+    })
+    .then((response) => {
+      queueItem.original_cmd_id = response.data ? response.data.original_cmd_id : null;
+      UIManager.renderTaskQueue();
+      UIManager.updateMainTaskQueueIcon();
+    })
+    .catch((error) => {
+      console.error("UIManager: Download request failed:", error);
+      queueItem.status = "error";
+      queueItem.statusMessage = "Download request failed";
+      UIManager.renderTaskQueue();
+      UIManager.updateMainTaskQueueIcon();
+      UIManager.showToast(`Failed to start download: ${error.message || 'Unknown error'}`, 'error');
+    });
+  }
+
   // Another static method
   static renderTaskQueue() {
     const taskQueueULElement = document.querySelector(
@@ -155,12 +213,12 @@ class UIManager {
     if (!mainPlayer || !playerContent || !playerShowButton) return;
 
     if (visible) {
-      mainPlayer.classList.remove("collapsed-player");
+      mainPlayer.classList.remove("player-collapsed");
       playerContent.classList.remove("hidden");
       playerShowButton.classList.add("hidden");
       localStorage.setItem("playerVisible", "true");
     } else {
-      mainPlayer.classList.add("collapsed-player");
+      mainPlayer.classList.add("player-collapsed");
       playerContent.classList.add("hidden");
       playerShowButton.classList.remove("hidden");
       localStorage.setItem("playerVisible", "false");
@@ -347,6 +405,143 @@ class UIManager {
     }
   }
 
+  static updateAuthStateUI() {
+    const token = localStorage.getItem("jwt_token");
+    const username = localStorage.getItem("jwt_username");
+    const isAdmin = localStorage.getItem("jwt_is_admin") === "true";
+    
+    const authLink = document.getElementById("auth-nav-link");
+    const authText = document.getElementById("auth-nav-text");
+    const adminLink = document.getElementById("admin-panel-nav");
+    
+    if (token && username) {
+        if (authText) authText.textContent = `Logout (${username})`;
+        if (adminLink) adminLink.style.display = isAdmin ? "block" : "none";
+    } else {
+        if (authText) authText.textContent = "Login";
+        if (adminLink) adminLink.style.display = "none";
+    }
+  }
+
+  static initAuthControls(webSocketManager) {
+    const authDialog = document.getElementById("auth-dialog");
+    const authLink = document.getElementById("auth-nav-link");
+    const closeBtn = document.getElementById("close-auth-dialog-button");
+    const submitBtn = document.getElementById("auth-submit-button");
+    const switchModeBtn = document.getElementById("auth-switch-mode-button");
+    const captchaContainer = document.getElementById("auth-captcha-container");
+    const captchaImg = document.getElementById("auth-captcha-img");
+    const title = document.getElementById("auth-dialog-title");
+    const subtitle = document.getElementById("auth-dialog-subtitle");
+    const confirmPasswordContainer = document.getElementById("auth-confirm-password-container");
+    const btnText = submitBtn ? submitBtn.querySelector(".btn-text") : null;
+    
+    let isLoginMode = true;
+    let currentCaptchaId = null;
+
+    UIManager.updateAuthStateUI();
+
+    const loadCaptcha = () => {
+        webSocketManager.sendWebSocketCommand("get_captcha", {}).then(res => {
+            currentCaptchaId = res.data.captcha_id;
+            captchaImg.src = res.data.image;
+        }).catch(err => UIManager.showToast("Failed to load captcha", "error"));
+    };
+
+    if (captchaImg) {
+        captchaImg.addEventListener("click", loadCaptcha);
+    }
+
+    if (authLink) {
+        authLink.addEventListener("click", (e) => {
+            e.preventDefault();
+            if (localStorage.getItem("jwt_token")) {
+                localStorage.removeItem("jwt_token");
+                localStorage.removeItem("jwt_username");
+                localStorage.removeItem("jwt_is_admin");
+                UIManager.updateAuthStateUI();
+                UIManager.showToast("Logged out successfully", "success");
+                setTimeout(() => location.reload(), 500);
+            } else {
+                authDialog.classList.add("visible");
+                authDialog.setAttribute("aria-hidden", "false");
+                loadCaptcha();
+            }
+        });
+    }
+
+    if (closeBtn) {
+        closeBtn.addEventListener("click", () => {
+            authDialog.classList.remove("visible");
+            authDialog.setAttribute("aria-hidden", "true");
+        });
+    }
+
+    if (switchModeBtn) {
+        switchModeBtn.addEventListener("click", () => {
+            isLoginMode = !isLoginMode;
+            title.textContent = isLoginMode ? "Login" : "Register";
+            if (subtitle) subtitle.textContent = isLoginMode ? "Welcome back to Music Claw" : "Create a new account";
+            if (btnText) btnText.textContent = isLoginMode ? "Login" : "Create Account";
+            else submitBtn.textContent = isLoginMode ? "Login" : "Create Account";
+            switchModeBtn.textContent = isLoginMode ? "Register here" : "Login here";
+            
+            if (confirmPasswordContainer) {
+                confirmPasswordContainer.style.display = isLoginMode ? "none" : "block";
+            }
+            if (captchaContainer) {
+                captchaContainer.style.display = "flex"; // Always show captcha now
+            }
+            loadCaptcha();
+        });
+    }
+
+    if (submitBtn) {
+        submitBtn.addEventListener("click", () => {
+            const user = document.getElementById("auth-username").value;
+            const pass = document.getElementById("auth-password").value;
+            const confirmPass = document.getElementById("auth-confirm-password") ? document.getElementById("auth-confirm-password").value : "";
+            const captcha = document.getElementById("auth-captcha").value;
+            
+            if (!user || !pass || !captcha) {
+               UIManager.showToast("Please fill in all fields", "warning");
+               return;
+            }
+
+            if (!isLoginMode && pass !== confirmPass) {
+               UIManager.showToast("Passwords do not match", "warning");
+               return;
+            }
+            
+            if (isLoginMode) {
+                webSocketManager.sendWebSocketCommand("login", { username: user, password: pass, captcha_id: currentCaptchaId, captcha: captcha })
+                .then(res => {
+                    localStorage.setItem("jwt_token", res.data.token);
+                    localStorage.setItem("jwt_username", res.data.username);
+                    localStorage.setItem("jwt_is_admin", res.data.is_admin);
+                    UIManager.updateAuthStateUI();
+                    authDialog.classList.remove("visible");
+                    authDialog.setAttribute("aria-hidden", "true");
+                    UIManager.showToast("Logged in successfully", "success");
+                    setTimeout(() => location.reload(), 500);
+                }).catch(err => {
+                    UIManager.showToast(err.message, "error");
+                    loadCaptcha(); // Refresh captcha on failure
+                });
+            } else {
+                webSocketManager.sendWebSocketCommand("register", { username: user, password: pass, captcha_id: currentCaptchaId, captcha: captcha })
+                .then(res => {
+                    UIManager.showToast("Registered successfully, please login", "success");
+                    switchModeBtn.click(); // Switch back to login
+                }).catch(err => {
+                    UIManager.showToast(err.message, "error");
+                    loadCaptcha(); // Refresh captcha on failure
+                });
+            }
+        });
+    }
+  }
+
   static updateFavoriteIcon(buttonElement, isFavorite) {
     if (buttonElement) {
       const iconElement = buttonElement.querySelector(".material-icons");
@@ -505,17 +700,18 @@ class UIManager {
 
     if (show) {
       // 存储进入前的展开状态，以便退出时恢复
-      this._prevPlayerExpanded = !playerContent.classList.contains('hidden');
-      
-      // 1. 如果播放器是隐藏状态，强制显示并将其贴底
+      this._prevPlayerExpanded = !player.classList.contains('player-collapsed');
+
+      // 1. 如果播放器是收起状态，强制展开并移除 player-collapsed
       if (!this._prevPlayerExpanded) {
+        player.classList.remove('player-collapsed');
         playerContent.classList.remove('hidden');
         showButton.classList.add('hidden');
       }
-      
+
       // 2. 赋予贴底类，触发弹性动画
       player.classList.add('attached-to-detail');
-      
+
       // 2.5 隐藏收起按钮 (因为贴底状态不允许收起，否则布局会乱)
       const hideBtn = document.getElementById('player-hide-button');
       if (hideBtn) hideBtn.style.display = 'none';
@@ -545,15 +741,20 @@ class UIManager {
       import('../pages/SongDetailPage.js').then(module => {
         const page = new module.default();
         overlay.innerHTML = page.getHTML();
-        
+
         // Remove 'hidden' first, then add 'active' in next frame for transition
         overlay.classList.remove('hidden');
+        const trackId = trackObject ? (trackObject.music_id || trackObject.id) : null;
+
         requestAnimationFrame(() => {
           overlay.classList.add('active');
+          // 将 onLoad 推迟到动画开始后的第二帧执行：
+          // 歌词画布初始化（measureText 循环、RAF 动画启动）若与过渡首帧争抢主线程会掉帧。
+          // 两次 rAF 可确保浏览器先提交过渡起始帧再做重计算。
+          requestAnimationFrame(() => {
+            page.onLoad(overlay, String(trackId), appState, managers);
+          });
         });
-
-        const trackId = trackObject ? (trackObject.music_id || trackObject.id) : null;
-        page.onLoad(overlay, String(trackId), appState, managers);
       });
       
     } else {
@@ -563,6 +764,7 @@ class UIManager {
       
       // 如果进入前是收起状态，现在立即触发收起动画，使其直接从贴底状态过渡到气泡状态
       if (!this._prevPlayerExpanded) {
+        player.classList.add('player-collapsed');
         playerContent.classList.add('hidden');
         showButton.classList.remove('hidden');
       }
@@ -584,6 +786,103 @@ class UIManager {
         if (hideBtn) hideBtn.style.display = '';
       }, 600); // 严格匹配 CSS 0.6s 的过渡动画
     }
+  }
+
+  static showAuthDialog(action, details, onResolve) {
+    if (document.querySelector(".ui-auth-dialog-backdrop")) return;
+
+    const backdrop = document.createElement("div");
+    backdrop.className = "ui-auth-dialog-backdrop";
+    backdrop.style.position = "fixed";
+    backdrop.style.top = "0";
+    backdrop.style.left = "0";
+    backdrop.style.width = "100vw";
+    backdrop.style.height = "100vh";
+    backdrop.style.background = "rgba(0,0,0,0.4)";
+    backdrop.style.zIndex = 10001;
+    backdrop.style.display = "flex";
+    backdrop.style.alignItems = "center";
+    backdrop.style.justifyContent = "center";
+
+    const dialog = document.createElement("div");
+    dialog.style.background = "var(--secondary-bg-color)";
+    dialog.style.color = "var(--text-color-primary)";
+    dialog.style.borderRadius = "12px";
+    dialog.style.padding = "24px";
+    dialog.style.minWidth = "300px";
+    dialog.style.boxShadow = "0 8px 24px rgba(0,0,0,0.2)";
+    dialog.style.display = "flex";
+    dialog.style.flexDirection = "column";
+    dialog.style.gap = "16px";
+
+    const title = document.createElement("h3");
+    title.textContent = "MusicClaw Requires Authorization";
+    title.style.margin = "0";
+    title.style.color = "var(--accent-color)";
+
+    const msg = document.createElement("div");
+    msg.innerHTML = `The AI wants to perform: <strong>${action}</strong><br><br><pre style="background:var(--primary-bg-color);padding:8px;border-radius:4px;overflow:auto">${JSON.stringify(details, null, 2)}</pre>`;
+    msg.style.fontSize = "14px";
+
+    const label = document.createElement("label");
+    label.style.display = "flex";
+    label.style.alignItems = "center";
+    label.style.gap = "8px";
+    label.style.cursor = "pointer";
+    label.style.fontSize = "13px";
+    
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    label.appendChild(checkbox);
+    label.appendChild(document.createTextNode("Always allow in this session"));
+
+    const btnRow = document.createElement("div");
+    btnRow.style.display = "flex";
+    btnRow.style.justifyContent = "flex-end";
+    btnRow.style.gap = "12px";
+    btnRow.style.marginTop = "8px";
+
+    const btnAllow = document.createElement("button");
+    btnAllow.textContent = "Allow";
+    btnAllow.style.background = "var(--success-color, #4CAF50)";
+    btnAllow.style.color = "white";
+    btnAllow.style.border = "none";
+    btnAllow.style.padding = "8px 16px";
+    btnAllow.style.borderRadius = "4px";
+    btnAllow.style.cursor = "pointer";
+
+    const btnDeny = document.createElement("button");
+    btnDeny.textContent = "Deny";
+    btnDeny.style.background = "var(--error-color, #F44336)";
+    btnDeny.style.color = "white";
+    btnDeny.style.border = "none";
+    btnDeny.style.padding = "8px 16px";
+    btnDeny.style.borderRadius = "4px";
+    btnDeny.style.cursor = "pointer";
+
+    const removeDialog = () => {
+      if (backdrop.parentNode) backdrop.parentNode.removeChild(backdrop);
+    };
+
+    btnAllow.onclick = () => {
+      removeDialog();
+      onResolve(true, checkbox.checked);
+    };
+
+    btnDeny.onclick = () => {
+      removeDialog();
+      onResolve(false, false);
+    };
+
+    btnRow.appendChild(btnDeny);
+    btnRow.appendChild(btnAllow);
+
+    dialog.appendChild(title);
+    dialog.appendChild(msg);
+    dialog.appendChild(label);
+    dialog.appendChild(btnRow);
+    backdrop.appendChild(dialog);
+    document.body.appendChild(backdrop);
   }
 
   static initGlobalMarqueeListener() {
