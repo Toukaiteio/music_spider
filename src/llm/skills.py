@@ -503,3 +503,16 @@ class MusicSkills:
              await global_crawler.start()
         global_crawler.add_task(task_type, source, target)
         return {"status": "success", "message": f"Crawler engine accepted task to autonomously pull {task_type} from {source}: {target}"}
+
+    async def get_user_preferences(self) -> Dict:
+        """
+        Get the user's aggregated playback preferences and listening statistics.
+        This includes their top artists, peak listening hours, language preferences,
+        total listening time, and recent playback history.
+        """
+        from utils.preference_manager import preference_manager
+        try:
+            prefs = preference_manager.get_aggregated_preferences()
+            return {"status": "success", "preferences": prefs}
+        except Exception as e:
+            return {"status": "error", "message": f"Failed to retrieve user preferences: {str(e)}"}

@@ -38,9 +38,17 @@ Fetch accurate metadata including high-quality covers, artist info, and album de
 Directly start playing a song in the music player.
 - `track_data` (object): The track information.
 
-### 8. `plan_tasks`
-Use this tool to break down a complex user request into a step-by-step execution plan.
 - `task_description` (string): The breakdown of steps.
+44: 
+45: ### 9. `get_user_preferences`
+Retrieves aggregated listening statistics, top artists, time preferences, and recent history.
+- (no parameters)
+
+### 10. `autonomous_crawl_target`
+Adds a source target for the background engine to autonomously pull.
+- `task_type` (string): One of 'artist', 'album', 'playlist'.
+- `source` (string): 'netease' or 'kugou'.
+- `target` (string): The target URL or ID.
 
 ## Workflow Example: "Find 'Blinding Lights' and add it to my 'Night' playlist"
 1. Output text: "I'll search for 'Blinding Lights' on Netease for you."
