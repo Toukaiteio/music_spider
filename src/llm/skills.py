@@ -452,13 +452,15 @@ class MusicSkills:
                             total = kwargs["total_size"]
                             payload["progress_percent"] = round((curr / total * 100) if total > 0 else 0, 2)
                         
-                        asyncio.run_coroutine_threadsafe(
-                            send_response(self.websocket, "ai_trigger", code=0, data=payload),
-                            asyncio.get_event_loop()
-                        )
+                        if hasattr(self, "_main_loop") and self._main_loop:
+                            asyncio.run_coroutine_threadsafe(
+                                send_response(self.websocket, "ai_trigger", code=0, data=payload),
+                                self._main_loop
+                            )
                     except Exception:
                         pass # Avoid crashing download thread on progress error
-
+                    
+                self._main_loop = asyncio.get_event_loop()
                 if asyncio.iscoroutinefunction(download_func):
                     result = await download_func(track_data, DOWNLOADS_DIR, progress_callback=progress_cb)
                 else:
