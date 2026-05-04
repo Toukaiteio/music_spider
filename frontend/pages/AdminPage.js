@@ -17,9 +17,9 @@ class AdminPage {
                     gap: 24px;
                 }
                 .admin-card {
-                    background: rgba(30,30,35,0.7);
+                    background: var(--glass-bg-color);
                     backdrop-filter: blur(16px);
-                    border: 1px solid rgba(255,255,255,0.08);
+                    border: 1px solid var(--glass-border-color);
                     border-radius: 16px;
                     padding: 24px;
                     display: flex;
@@ -56,28 +56,28 @@ class AdminPage {
                     }
                 }
             </style>
-            <div id="${this.containerInfo.id}" class="${this.containerInfo.className}" style="padding: 20px 30px; max-width: 1600px; margin: 0 auto; color: #fff; box-sizing: border-box; width: 100%;">
+            <div id="${this.containerInfo.id}" class="${this.containerInfo.className}" style="padding: 20px 30px; max-width: 1600px; margin: 0 auto; color: var(--text-color-primary); box-sizing: border-box; width: 100%;">
                 
                 <div class="admin-dashboard-grid">
                     
                     <!-- Global Unified Settings -->
                     <div class="admin-card">
-                        <h3 style="margin-top: 0; margin-bottom: 24px; font-weight: 600; font-size: 1.15rem; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 12px;">
+                        <h3 style="margin-top: 0; margin-bottom: 24px; font-weight: 600; font-size: 1.15rem; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--divider-color); padding-bottom: 12px;">
                             <span class="material-icons" style="color: var(--accent-color); font-size: 20px;">settings</span> Global Settings
                         </h3>
                         
                         <div style="display: flex; flex-direction: column; gap: 16px;">
                             <div style="display: flex; gap: 16px;">
                                 <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
-                                    <label style="font-size: 0.85rem; color: rgba(255,255,255,0.7); font-weight: 500;">User Registration</label>
-                                    <select id="admin-reg-toggle" style="width: 100%; box-sizing: border-box; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3); color: #fff; outline: none; font-size: 0.9rem;">
+                                    <label style="font-size: 0.85rem; color: var(--text-secondary-alpha); font-weight: 500;">User Registration</label>
+                                    <select id="admin-reg-toggle" style="width: 100%; box-sizing: border-box; padding: 10px; border-radius: 8px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-color-primary); outline: none; font-size: 0.9rem;">
                                         <option value="1">Enabled</option>
                                         <option value="0">Disabled</option>
                                     </select>
                                 </div>
                                 <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
-                                    <label style="font-size: 0.85rem; color: rgba(255,255,255,0.7); font-weight: 500;">Use Proxy Pool</label>
-                                    <select id="crawler-use-proxy-toggle" style="width: 100%; box-sizing: border-box; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3); color: #fff; outline: none; font-size: 0.9rem;">
+                                    <label style="font-size: 0.85rem; color: var(--text-secondary-alpha); font-weight: 500;">Use Proxy Pool</label>
+                                    <select id="crawler-use-proxy-toggle" style="width: 100%; box-sizing: border-box; padding: 10px; border-radius: 8px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-color-primary); outline: none; font-size: 0.9rem;">
                                         <option value="0">Disabled</option>
                                         <option value="1">Enabled</option>
                                     </select>
@@ -86,18 +86,18 @@ class AdminPage {
 
                             <div style="display: flex; gap: 16px;">
                                 <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
-                                    <label style="font-size: 0.85rem; color: rgba(255,255,255,0.7); font-weight: 500;">Max Concurrency</label>
-                                    <input type="number" id="crawler-concurrency-input" placeholder="8" style="width: 100%; box-sizing: border-box; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3); color: #fff; outline: none;" />
+                                    <label style="font-size: 0.85rem; color: var(--text-secondary-alpha); font-weight: 500;">Max Concurrency</label>
+                                    <input type="number" id="crawler-concurrency-input" placeholder="8" style="width: 100%; box-sizing: border-box; padding: 10px; border-radius: 8px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-color-primary); outline: none;" />
                                 </div>
                                 <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;">
-                                    <label style="font-size: 0.85rem; color: rgba(255,255,255,0.7); font-weight: 500;">Interval (Sec)</label>
-                                    <input type="number" id="crawler-interval-input" step="0.1" placeholder="1.5" style="width: 100%; box-sizing: border-box; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3); color: #fff; outline: none;" />
+                                    <label style="font-size: 0.85rem; color: var(--text-secondary-alpha); font-weight: 500;">Interval (Sec)</label>
+                                    <input type="number" id="crawler-interval-input" step="0.1" placeholder="1.5" style="width: 100%; box-sizing: border-box; padding: 10px; border-radius: 8px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-color-primary); outline: none;" />
                                 </div>
                             </div>
 
                             <div style="display: flex; flex-direction: column; gap: 6px;">
-                                <label style="font-size: 0.85rem; color: rgba(255,255,255,0.7); font-weight: 500;">Proxy List (One per line: http://user:pass@host:port)</label>
-                                <textarea id="crawler-proxy-pool-text" placeholder="http://user:pass@host:port" style="width: 100%; box-sizing: border-box; padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: #fff; outline: none; min-height: 120px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; resize: vertical;"></textarea>
+                                <label style="font-size: 0.85rem; color: var(--text-secondary-alpha); font-weight: 500;">Proxy List (One per line: http://user:pass@host:port)</label>
+                                <textarea id="crawler-proxy-pool-text" placeholder="http://user:pass@host:port" style="width: 100%; box-sizing: border-box; padding: 10px; border-radius: 8px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-color-primary); outline: none; min-height: 120px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; resize: vertical;"></textarea>
                             </div>
                             
                             <div style="display: flex; justify-content: flex-end; margin-top: 4px;">
@@ -114,29 +114,29 @@ class AdminPage {
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <span class="material-icons">bug_report</span> Crawler Engine
                             </div>
-                            <span id="crawler-stats-badge" style="font-size: 0.75rem; font-weight: 600; background: rgba(255,255,255,0.1); padding: 4px 12px; border-radius: 20px; letter-spacing: 0.5px;">IDLE</span>
+                            <span id="crawler-stats-badge" style="font-size: 0.75rem; font-weight: 600; background: var(--button-bg); padding: 4px 12px; border-radius: 20px; letter-spacing: 0.5px;">IDLE</span>
                         </h3>
                         
                         <div style="display: flex; flex-direction: column; gap: 16px; flex: 1;">
                             <div class="crawler-inputs-row" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
                                 <div style="display: flex; flex-direction: column; gap: 6px;">
-                                    <label style="font-size: 0.85rem; color: rgba(255,255,255,0.7);">Source Platform</label>
-                                    <select id="crawler-source-select" style="padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3); color: #fff; outline: none;">
+                                    <label style="font-size: 0.85rem; color: var(--text-secondary-alpha);">Source Platform</label>
+                                    <select id="crawler-source-select" style="padding: 10px 14px; border-radius: 8px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-color-primary); outline: none;">
                                         <option value="netease">NetEase Cloud Music</option>
                                         <option value="kugou">KuGou Music</option>
                                     </select>
                                 </div>
                                 <div style="display: flex; flex-direction: column; gap: 6px;">
-                                    <label style="font-size: 0.85rem; color: rgba(255,255,255,0.7);">Target Type</label>
-                                    <select id="crawler-type-select" style="padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3); color: #fff; outline: none;">
+                                    <label style="font-size: 0.85rem; color: var(--text-secondary-alpha);">Target Type</label>
+                                    <select id="crawler-type-select" style="padding: 10px 14px; border-radius: 8px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-color-primary); outline: none;">
                                         <option value="playlist">Playlist (URL / ID)</option>
                                         <option value="artist">Artist (URL / ID)</option>
                                         <option value="album">Album (URL / ID)</option>
                                     </select>
                                 </div>
                                 <div style="display: flex; flex-direction: column; gap: 6px;">
-                                    <label style="font-size: 0.85rem; color: rgba(255,255,255,0.7);">Quality</label>
-                                    <select id="crawler-quality-select" style="padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3); color: #fff; outline: none;">
+                                    <label style="font-size: 0.85rem; color: var(--text-secondary-alpha);">Quality</label>
+                                    <select id="crawler-quality-select" style="padding: 10px 14px; border-radius: 8px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-color-primary); outline: none;">
                                         <option value="lossless">Lossless (highest)</option>
                                         <option value="exhigh">ExHigh</option>
                                         <option value="higher">Higher</option>
@@ -146,25 +146,25 @@ class AdminPage {
                             </div>
 
                             <div style="display: flex; flex-direction: column; gap: 6px;">
-                                <label style="font-size: 0.85rem; color: rgba(255,255,255,0.7);">Target ID or Share URL</label>
+                                <label style="font-size: 0.85rem; color: var(--text-secondary-alpha);">Target ID or Share URL</label>
                                 <div class="crawler-action-row" style="display: flex; gap: 12px;">
-                                    <input type="text" id="crawler-target-input" placeholder="e.g. y.music.163.com/v/playlist?id=xxx" style="flex: 1; padding: 10px 16px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: #fff; outline: none;" />
+                                    <input type="text" id="crawler-target-input" placeholder="e.g. y.music.163.com/v/playlist?id=xxx" style="flex: 1; padding: 10px 16px; border-radius: 8px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-color-primary); outline: none;" />
                                     <button id="crawler-add-task-btn" class="dialog-button primary" style="margin: 0; padding: 10px 20px; border-radius: 8px; display: flex; align-items: center; justify-content: center; gap: 6px; flex-shrink: 0; font-weight: 500;">
                                         <span class="material-icons" style="font-size: 18px;">add_task</span> Dispatch
                                     </button>
                                 </div>
                             </div>
                             
-                            <hr style="border: none; border-top: 1px solid rgba(255,255,255,0.08); margin: 8px 0;" />
+                            <hr style="border: none; border-top: 1px solid var(--divider-color); margin: 8px 0;" />
                             
                             <div style="display: flex; flex-direction: column; gap: 6px;">
-                                <label style="font-size: 0.85rem; color: rgba(255,255,255,0.7); display: flex; justify-content: space-between;">
+                                <label style="font-size: 0.85rem; color: var(--text-secondary-alpha); display: flex; justify-content: space-between;">
                                     <span>Background Tasks</span>
                                 </label>
                                 <div style="overflow-x: auto; max-height: 250px; overflow-y: auto;">
                                     <table class="admin-table" style="width: 100%; border-collapse: collapse; text-align: left;">
                                         <thead>
-                                            <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); font-size: 0.75rem; text-transform: uppercase;">
+                                            <tr style="border-bottom: 1px solid var(--divider-color); color: var(--table-header-color); font-size: 0.75rem; text-transform: uppercase;">
                                                 <th style="padding: 8px 12px;">Pfm</th>
                                                 <th style="padding: 8px 12px;">Type</th>
                                                 <th style="padding: 8px 12px;">Target</th>
@@ -189,7 +189,7 @@ class AdminPage {
                         <div style="overflow-x: auto;">
                             <table class="admin-table" style="width: 100%; border-collapse: collapse; text-align: left;">
                                 <thead>
-                                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;">
+                                    <tr style="border-bottom: 1px solid var(--divider-color); color: var(--table-header-color); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;">
                                         <th style="padding: 12px 16px; white-space: nowrap;">ID</th>
                                         <th style="padding: 12px 16px; white-space: nowrap;">Username</th>
                                         <th style="padding: 12px 16px; white-space: nowrap;">Created At</th>
@@ -350,7 +350,7 @@ class AdminPage {
                          tbody.innerHTML = "";
                          res.data.tasks.forEach(task => {
                              const tr = document.createElement("tr");
-                             tr.style.borderBottom = "1px solid rgba(255,255,255,0.05)";
+                             tr.style.borderBottom = "1px solid var(--divider-color)";
                              
                              let statusColor = "#ccc";
                              if (task.status === "running") statusColor = "var(--primary-color)";
@@ -383,8 +383,8 @@ class AdminPage {
                                   const pct = Math.round((task.completed_tracks / task.total_tracks) * 100);
                                   progressInfo = `
                                      <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
-                                         <span style="font-size: 0.75rem; color: rgba(255,255,255,0.7);">${task.completed_tracks}/${task.total_tracks} (${pct}%)</span>
-                                         <div style="width: 80px; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden;">
+                                         <span style="font-size: 0.75rem; color: var(--text-secondary-alpha);">${task.completed_tracks}/${task.total_tracks} (${pct}%)</span>
+                                         <div style="width: 80px; height: 4px; background: var(--button-bg); border-radius: 2px; overflow: hidden;">
                                              <div style="width: ${pct}%; height: 100%; background: var(--accent-color); transition: width 0.3s ease;"></div>
                                          </div>
                                          ${task.failed_tracks > 0 ? `<span style="font-size: 0.65rem; color: #ff4d4d;">${task.failed_tracks} failed</span>` : ''}
@@ -395,18 +395,18 @@ class AdminPage {
                              }
 
                              tr.innerHTML = `
-                                 <td style="padding: 8px 12px; color: rgba(255,255,255,0.8);">${task.source}</td>
-                                 <td style="padding: 8px 12px; color: rgba(255,255,255,0.8); text-transform: capitalize;">${task.task_type}</td>
-                                 <td style="padding: 8px 12px; color: rgba(255,255,255,0.6);" title="${task.target}">${targetPreview}</td>
+                                 <td style="padding: 8px 12px; color: var(--table-row-color);">${task.source}</td>
+                                 <td style="padding: 8px 12px; color: var(--table-row-color); text-transform: capitalize;">${task.task_type}</td>
+                                 <td style="padding: 8px 12px; color: var(--text-muted);" title="${task.target}">${targetPreview}</td>
                                  <td style="padding: 8px 12px; color: ${statusColor}; font-weight: 600; text-transform: uppercase; font-size: 0.75rem;">${task.status}</td>
-                                 <td style="padding: 8px 12px; text-align: right; color: rgba(255,255,255,0.8); white-space: pre-line;" title="${previewTooltip}">${progressInfo}</td>
+                                 <td style="padding: 8px 12px; text-align: right; color: var(--table-row-color); white-space: pre-line;" title="${previewTooltip}">${progressInfo}</td>
                                  <td style="padding: 8px 12px; text-align: right;">${actionBtns}</td>
                              `;
                              tbody.appendChild(tr);
                          });
                          
                          if (res.data.tasks.length === 0) {
-                             tbody.innerHTML = '<tr><td colspan="6" style="padding: 16px; text-align: center; color: rgba(255,255,255,0.4);">No tasks running</td></tr>';
+                             tbody.innerHTML = '<tr><td colspan="6" style="padding: 16px; text-align: center; color: var(--text-faint);">No tasks running</td></tr>';
                          }
                          
                          setTimeout(() => {

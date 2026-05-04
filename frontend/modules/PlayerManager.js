@@ -560,16 +560,15 @@ class PlayerManager {
         this.extractCoverColor();
       }
     });
-    observer.observe(document.body, {
+    observer.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ["class"],
     });
   }
 
   getTheme() {
-    if (document.body.classList.contains("dark-theme")) return "dark";
-    if (document.body.classList.contains("light-theme")) return "light";
-    return "light";
+    if (document.documentElement.classList.contains("light-theme")) return "light";
+    return "dark";
   }
 
   loadTrack(index) {

@@ -534,49 +534,49 @@
 
   <!-- Auth Dialog -->
   <div id="auth-dialog" class="dialog-overlay" aria-hidden="true">
-    <div class="dialog-box auth-dialog-box" role="dialog" aria-labelledby="auth-dialog-title" style="max-width: 420px; padding: 32px; border-radius: 16px; background: rgba(30,30,35,0.95); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 20px 40px rgba(0,0,0,0.4); position: relative;">
+    <div class="dialog-box auth-dialog-box" role="dialog" aria-labelledby="auth-dialog-title" style="max-width: 420px; padding: 32px; border-radius: 16px; background: var(--modal-bg); backdrop-filter: blur(20px); border: 1px solid var(--modal-border); box-shadow: 0 20px 40px var(--shadow-color); position: relative;">
       <div style="text-align: center; margin-bottom: 24px;">
         <span class="material-icons" style="font-size: 48px; color: var(--accent-color); margin-bottom: 8px;">account_circle</span>
-        <h3 id="auth-dialog-title" style="margin: 0; font-size: 1.5rem; font-weight: 600; color: #fff;">Login</h3>
-        <p id="auth-dialog-subtitle" style="margin: 8px 0 0 0; color: rgba(255,255,255,0.5); font-size: 0.9rem;">Welcome back to Music Claw</p>
+        <h3 id="auth-dialog-title" style="margin: 0; font-size: 1.5rem; font-weight: 600; color: var(--text-color-primary);">Login</h3>
+        <p id="auth-dialog-subtitle" style="margin: 8px 0 0 0; color: var(--text-muted); font-size: 0.9rem;">Welcome back to Music Claw</p>
       </div>
-      
+
       <div id="auth-form-container" style="display: flex; flex-direction: column; gap: 16px;">
         <div class="form-group">
-            <label for="auth-username" style="display: block; margin-bottom: 8px; font-size: 0.85rem; color: rgba(255,255,255,0.7); font-weight: 500;">Username</label>
-            <input type="text" id="auth-username" style="width: 100%; padding: 12px 16px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: #fff; outline: none; transition: border-color 0.2s;" placeholder="Enter your username" required />
+            <label for="auth-username" style="display: block; margin-bottom: 8px; font-size: 0.85rem; color: var(--text-secondary-alpha); font-weight: 500;">Username</label>
+            <input type="text" id="auth-username" style="width: 100%; padding: 12px 16px; border-radius: 8px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-color-primary); outline: none; transition: border-color 0.2s;" placeholder="Enter your username" required />
         </div>
-        
+
         <div class="form-group">
-            <label for="auth-password" style="display: block; margin-bottom: 8px; font-size: 0.85rem; color: rgba(255,255,255,0.7); font-weight: 500;">Password</label>
-            <input type="password" id="auth-password" style="width: 100%; padding: 12px 16px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: #fff; outline: none; transition: border-color 0.2s;" placeholder="••••••••" required />
+            <label for="auth-password" style="display: block; margin-bottom: 8px; font-size: 0.85rem; color: var(--text-secondary-alpha); font-weight: 500;">Password</label>
+            <input type="password" id="auth-password" style="width: 100%; padding: 12px 16px; border-radius: 8px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-color-primary); outline: none; transition: border-color 0.2s;" placeholder="••••••••" required />
         </div>
-        
+
         <div class="form-group" id="auth-confirm-password-container" style="display: none;">
-            <label for="auth-confirm-password" style="display: block; margin-bottom: 8px; font-size: 0.85rem; color: rgba(255,255,255,0.7); font-weight: 500;">Confirm Password</label>
-            <input type="password" id="auth-confirm-password" style="width: 100%; padding: 12px 16px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: #fff; outline: none; transition: border-color 0.2s;" placeholder="••••••••" />
+            <label for="auth-confirm-password" style="display: block; margin-bottom: 8px; font-size: 0.85rem; color: var(--text-secondary-alpha); font-weight: 500;">Confirm Password</label>
+            <input type="password" id="auth-confirm-password" style="width: 100%; padding: 12px 16px; border-radius: 8px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-color-primary); outline: none; transition: border-color 0.2s;" placeholder="••••••••" />
         </div>
 
         <div class="form-group" id="auth-captcha-container" style="display: flex; flex-direction: column; gap: 8px;">
-            <label for="auth-captcha" style="display: block; font-size: 0.85rem; color: rgba(255,255,255,0.7); font-weight: 500;">Security Code</label>
+            <label for="auth-captcha" style="display: block; font-size: 0.85rem; color: var(--text-secondary-alpha); font-weight: 500;">Security Code</label>
             <div style="display: flex; gap: 12px; align-items: stretch;">
-                <input type="text" id="auth-captcha" placeholder="Enter code" style="flex: 1; min-width: 0; padding: 12px 16px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.2); color: #fff; outline: none; transition: border-color 0.2s;" />
-                <img id="auth-captcha-img" src="" alt="CAPTCHA Image" style="height: 44px; min-width: 110px; cursor: pointer; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: white; object-fit: contain;" title="Click to refresh" />
+                <input type="text" id="auth-captcha" placeholder="Enter code" style="flex: 1; min-width: 0; padding: 12px 16px; border-radius: 8px; border: 1px solid var(--input-border); background: var(--input-bg); color: var(--text-color-primary); outline: none; transition: border-color 0.2s;" />
+                <img id="auth-captcha-img" src="" alt="CAPTCHA Image" style="height: 44px; min-width: 110px; cursor: pointer; border-radius: 8px; border: 1px solid var(--input-border); background: white; object-fit: contain;" title="Click to refresh" />
             </div>
         </div>
 
         <div style="margin-top: 16px; display: flex; flex-direction: column; gap: 12px;">
-          <button id="auth-submit-button" style="width: 100%; padding: 14px; border-radius: 8px; background: var(--accent-color); color: #fff; font-weight: 600; border: none; cursor: pointer; transition: background 0.2s, transform 0.1s; display: flex; align-items: center; justify-content: center; gap: 8px;">
+          <button id="auth-submit-button" style="width: 100%; padding: 14px; border-radius: 8px; background: var(--accent-color); color: var(--primary-bg-color); font-weight: 600; border: none; cursor: pointer; transition: background 0.2s, transform 0.1s; display: flex; align-items: center; justify-content: center; gap: 8px;">
              <span class="btn-text">Login</span> <span class="material-icons" style="font-size: 18px;">arrow_forward</span>
           </button>
-          
+
           <div style="text-align: center; margin-top: 8px;">
-              <span id="auth-switch-mode-text" style="color: rgba(255,255,255,0.5); font-size: 0.9rem;">Don't have an account?</span>
+              <span id="auth-switch-mode-text" style="color: var(--text-muted); font-size: 0.9rem;">Don't have an account?</span>
               <button id="auth-switch-mode-button" style="background: none; border: none; color: var(--accent-color); font-weight: 600; cursor: pointer; padding: 4px 8px; font-size: 0.9rem;">Register here</button>
           </div>
         </div>
       </div>
-      <button id="close-auth-dialog-button" class="dialog-close-button" aria-label="Close Dialog" style="position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.1); border-radius: 50%; padding: 4px; display: flex; align-items: center; justify-content: center; border: none; color: #fff; cursor: pointer;">
+      <button id="close-auth-dialog-button" class="dialog-close-button" aria-label="Close Dialog" style="position: absolute; top: 16px; right: 16px; background: var(--button-bg); border-radius: 50%; padding: 4px; display: flex; align-items: center; justify-content: center; border: none; color: var(--text-color-primary); cursor: pointer;">
         <span class="material-icons" style="font-size: 20px;">close</span>
       </button>
     </div>

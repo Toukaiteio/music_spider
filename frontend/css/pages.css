@@ -83,9 +83,9 @@
 
 .home-page-header-search-container:hover,
 .home-page-header-search-container:focus-within {
-    background-color: rgba(255, 255, 255, 0.05);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
-    border-color: rgba(255, 255, 255, 0.2);
+    background-color: var(--hover-bg-color);
+    box-shadow: 0 8px 25px var(--shadow-color);
+    border-color: var(--hover-border-color);
     max-width: 380px;
 }
 
@@ -183,13 +183,13 @@
 .drag-handle {
     width: 36px;
     height: 4px;
-    background: rgba(255, 255, 255, 0.15);
+    background: var(--button-bg);
     border-radius: 2px;
     transition: background 0.3s ease, transform 0.2s ease;
 }
 
 .drag-handle-container:hover .drag-handle {
-    background: rgba(255, 255, 255, 0.3);
+    background: var(--button-hover-bg);
     transform: scaleX(1.1);
 }
 
@@ -462,7 +462,7 @@
 }
 
 .icon-button.floating:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--button-hover-bg);
     transform: translateY(-2px);
 }
 
@@ -514,10 +514,10 @@
 .message.user .message-body {
     padding: 12px 18px;
     border-radius: 20px 20px 4px 20px;
-    background: #25252b; /* Darker bubble color */
-    color: white;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: var(--chat-bubble-user-bg);
+    color: var(--text-color-primary);
+    box-shadow: 0 4px 15px var(--shadow-color);
+    border: 1px solid var(--surface-border);
 }
 
 /* Assistant message without bubble */
@@ -541,7 +541,7 @@
 
 .message.user .message-time {
     text-align: right;
-    color: rgba(255, 255, 255, 0.7);
+    color: var(--text-secondary-alpha);
 }
 
 /* Tool Result Component */
@@ -557,7 +557,7 @@
 }
 
 .tool-result-header {
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--surface-bg-alt);
     padding: 10px 16px;
     display: flex;
     align-items: center;
@@ -686,7 +686,7 @@
 }
 
 .history-item:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--hover-bg-color);
 }
 
 .history-info {
@@ -772,7 +772,7 @@
 
 .column-header {
     padding: 15px 20px;
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--surface-bg-alt);
     border-bottom: 1px solid var(--border-color);
     display: flex;
     align-items: center;
@@ -786,7 +786,7 @@
 }
 
 .column-header .count-badge {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--button-bg);
     color: var(--text-color-secondary);
     border: 1px solid var(--border-color);
     font-size: 0.75em;
@@ -812,8 +812,8 @@
 }
 
 .source-card:hover {
-    border-color: rgba(255, 255, 255, 0.2);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    border-color: var(--hover-border-color);
+    box-shadow: 0 4px 20px var(--card-shadow);
 }
 
 .source-main-row {
@@ -881,7 +881,7 @@
 }
 
 .text-button {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--button-bg);
     border: 1px solid var(--border-color);
     color: var(--text-color-primary);
     padding: 6px 14px;
@@ -893,7 +893,7 @@
 }
 
 .text-button:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--button-hover-bg);
     border-color: var(--accent-color);
 }
 
@@ -923,7 +923,7 @@
 
 .btn-move-circle:hover {
     background: var(--accent-color);
-    color: white;
+    color: var(--primary-bg-color);
     border-color: var(--accent-color);
 }
 
@@ -993,11 +993,11 @@
 
 .login-input {
     width: 100%;
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--input-bg);
     border: 1px solid var(--border-color);
     border-radius: 8px;
     padding: 10px;
-    color: white;
+    color: var(--text-color-primary);
     outline: none;
 }
 
@@ -1021,7 +1021,7 @@
 .claw-track-item {
     display: flex;
     align-items: center;
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--surface-bg-alt);
     border-radius: 8px;
     padding: 8px 12px;
     gap: 12px;
@@ -1030,7 +1030,7 @@
 }
 
 .claw-track-item:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--hover-bg-color);
 }
 
 .track-thumb {
@@ -1113,7 +1113,7 @@
 }
 
 .track-action-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--button-hover-bg);
     color: var(--text-color-primary);
 }
 
@@ -1126,7 +1126,7 @@
     align-items: center;
     gap: 8px;
     padding: 10px;
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--surface-bg);
     border-radius: 8px;
     font-size: 0.9em;
 }
@@ -1138,8 +1138,8 @@
 
 /* Tool Result Enhancements */
 .tool-result-base {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: var(--surface-bg);
+    border: 1px solid var(--surface-border);
     border-radius: 12px;
     padding: 12px;
     margin: 8px 0;
@@ -1189,7 +1189,7 @@
 .claw-spinner-tiny {
     width: 12px;
     height: 12px;
-    border: 2px solid rgba(255,255,255,0.2);
+    border: 2px solid var(--text-faint);
     border-top-color: var(--accent-color);
     border-radius: 50%;
     animation: claw-spin 0.8s linear infinite;
@@ -1201,8 +1201,8 @@
 
 /* Thinking Component */
 .claw-thinking-container {
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    background: var(--surface-bg-alt);
+    border: 1px solid var(--surface-border);
     border-radius: 12px;
     margin: 8px 0;
     overflow: hidden;
@@ -1221,7 +1221,7 @@
 }
 
 .claw-thinking-header:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--hover-bg-color);
 }
 
 .thinking-label {
@@ -1277,7 +1277,7 @@
 .claw-thinking-container.expanded .claw-thinking-content {
     max-height: 300px;
     padding: 10px 12px 15px 12px;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    border-top: 1px solid var(--divider-color);
 }
 
 .thinking-content-inner {
@@ -1288,7 +1288,7 @@
 
 .lyrics-preview-small {
     padding: 12px;
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--input-bg);
     border-radius: 8px;
     font-size: 0.85em;
     line-height: 1.5;
