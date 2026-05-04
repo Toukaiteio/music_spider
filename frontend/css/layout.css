@@ -141,7 +141,7 @@
 #drawer-toggle-button {
     background: transparent;
     border: none;
-    color: rgba(255, 255, 255, 0.28);
+    color: var(--drawer-toggle-color);
     cursor: pointer;
     padding: 6px;
     border-radius: 7px;
@@ -158,8 +158,8 @@
 }
 
 #drawer-toggle-button:hover {
-    background-color: rgba(255, 255, 255, 0.07);
-    color: rgba(255, 255, 255, 0.70);
+    background-color: var(--drawer-hover-bg-color);
+    color: var(--drawer-hover-text-color);
 }
 
 /* ---- Navigation ---- */
@@ -189,7 +189,7 @@
     margin: 0;
     font-size: 0.65em;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.22);
+    color: var(--drawer-header-color);
     text-transform: uppercase;
     letter-spacing: 0.85px;
     user-select: none;
@@ -200,7 +200,7 @@
     content: '';
     display: block;
     height: 1px;
-    background: rgba(255, 255, 255, 0.06);
+    background: var(--drawer-rule-color);
     margin-bottom: 12px;
 }
 
@@ -213,7 +213,7 @@
     margin-bottom: 1px;
     border-radius: 8px;
     /* Default: very muted — this creates maximum contrast with active */
-    color: rgba(255, 255, 255, 0.38);
+    color: var(--drawer-text-color);
     text-decoration: none;
     position: relative;
     transition: background-color 0.16s ease, color 0.16s ease;
@@ -231,7 +231,7 @@
     width: 3px;
     height: 55%;
     border-radius: 3px;
-    background: rgba(255, 255, 255, 0.8);
+    background: var(--text-color-primary);
     transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
                 opacity 0.2s ease;
     opacity: 0;
@@ -247,14 +247,14 @@
 }
 
 .drawer-navigation .drawer-link:hover {
-    background-color: rgba(255, 255, 255, 0.055);
-    color: rgba(255, 255, 255, 0.70);
+    background-color: var(--drawer-hover-bg-color);
+    color: var(--drawer-hover-text-color);
 }
 
 /* ---- ACTIVE state ---- */
 .drawer-navigation .drawer-link.active {
-    background-color: rgba(255, 255, 255, 0.085);
-    color: rgba(255, 255, 255, 0.95);
+    background-color: var(--drawer-active-bg-color);
+    color: var(--drawer-active-text-color);
     font-weight: 600;
 }
 
@@ -315,11 +315,11 @@
     text-align: center;
     line-height: 26px;
     font-weight: 700;
-    color: rgba(255, 255, 255, 0.88);
+    color: var(--drawer-active-text-color);
     margin-right: 11px;
     flex-shrink: 0;
     font-size: 12px;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4),
+    box-shadow: 0 2px 6px var(--shadow-color),
                 inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
@@ -338,7 +338,7 @@
 
 #local-collections-list .no-collections-message {
     padding: 8px 18px;
-    color: rgba(255, 255, 255, 0.20);
+    color: var(--drawer-text-color);
     font-size: 0.78em;
     font-style: italic;
 }

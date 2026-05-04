@@ -20,9 +20,9 @@
 
 .search-bar-container:hover,
 .search-bar-container:focus-within {
-    background-color: rgba(255, 255, 255, 0.05);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
-    border-color: rgba(255, 255, 255, 0.2);
+    background-color: var(--hover-bg-color);
+    box-shadow: var(--card-hover-shadow);
+    border-color: var(--hover-border-color);
     max-width: 520px;
 }
 
@@ -317,7 +317,7 @@
     border-radius: 16px;
     padding: 15px;
     border: 1px solid var(--glass-border-color);
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    box-shadow: var(--card-shadow);
     transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
         box-shadow 0.3s ease,
         background-color 0.3s ease;
@@ -328,9 +328,9 @@
 
 .song-card:hover {
     transform: translateY(-8px) scale(1.02);
-    background-color: rgba(255, 255, 255, 0.05);
-    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
-    border-color: rgba(255, 255, 255, 0.2);
+    background-color: var(--hover-bg-color);
+    box-shadow: var(--card-hover-shadow);
+    border-color: var(--hover-border-color);
 }
 
 .card-art-container {

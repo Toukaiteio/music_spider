@@ -39,6 +39,7 @@ document.addEventListener("DOMContentLoaded", () => {
   UIManager.initDrawerControls();
   UIManager.initGlobalMarqueeListener();
   UIManager.initAuthControls(webSocketManager);
+  UIManager.initThemeControls();
 
   // Add click listener for the task queue
   const expandedTaskQueue = document.getElementById("expanded-task-queue");
