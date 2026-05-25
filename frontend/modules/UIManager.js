@@ -542,6 +542,35 @@ class UIManager {
     }
   }
 
+  static initThemeControls() {
+    const themeToggleButton = document.getElementById("theme-toggle-button");
+    if (!themeToggleButton) return;
+
+    const themeIcon = themeToggleButton.querySelector(".material-icons");
+    const root = document.documentElement;
+
+    const setTheme = (theme) => {
+      if (theme === "light") {
+        root.classList.add("light-theme");
+        if (themeIcon) themeIcon.textContent = "light_mode";
+        localStorage.setItem("theme", "light");
+      } else {
+        root.classList.remove("light-theme");
+        if (themeIcon) themeIcon.textContent = "dark_mode";
+        localStorage.setItem("theme", "dark");
+      }
+    };
+
+    // Load saved theme
+    const savedTheme = localStorage.getItem("theme") || "dark";
+    setTheme(savedTheme);
+
+    themeToggleButton.addEventListener("click", () => {
+      const isLight = root.classList.contains("light-theme");
+      setTheme(isLight ? "dark" : "light");
+    });
+  }
+
   static updateFavoriteIcon(buttonElement, isFavorite) {
     if (buttonElement) {
       const iconElement = buttonElement.querySelector(".material-icons");

@@ -395,7 +395,7 @@ export function initLyricsEditorControls(lyricsEditorContainerElement) {
       applyBtn.style.borderRadius = "4px";
       applyBtn.style.border = "none";
       applyBtn.style.background = "var(--accent-color, #ff6f00)";
-      applyBtn.style.color = "#fff";
+      applyBtn.style.color = "var(--primary-bg-color)";
       applyBtn.style.cursor = "pointer";
       applyBtn.style.transition = "background 0.2s";
       applyBtn.onmouseover = () => { applyBtn.style.background = "var(--accent-color-darker, #e65100)"; };
@@ -650,7 +650,7 @@ export function initLyricsEditorControls(lyricsEditorContainerElement) {
       applyBtn.style.borderRadius = "4px";
       applyBtn.style.border = "none";
       applyBtn.style.background = "var(--accent-color, #ff6f00)";
-      applyBtn.style.color = "#fff";
+      applyBtn.style.color = "var(--primary-bg-color)";
       applyBtn.style.cursor = "pointer";
       applyBtn.style.transition = "background 0.2s";
       applyBtn.onmouseover = () => { applyBtn.style.background = "var(--accent-color-darker, #e65100)"; };

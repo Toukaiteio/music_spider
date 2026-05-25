@@ -26,6 +26,31 @@ class MusicSkills:
         self.websocket = websocket
         self.session_id = session_id
 
+    async def get_source_status(self) -> Dict:
+        """Query the current enabled/disabled status of all music sources."""
+        from core.source_manager import get_all_source_status
+        try:
+            statuses = get_all_source_status()
+            enabled = []
+            disabled = []
+            for s in statuses:
+                source_name = s.get("source", "unknown")
+                is_enabled = s.get("enabled", False)
+                is_logged_in = s.get("is_logged_in", False)
+                entry = {"source": source_name, "is_logged_in": is_logged_in}
+                if is_enabled:
+                    enabled.append(entry)
+                else:
+                    disabled.append(entry)
+            return {
+                "enabled_sources": enabled,
+                "disabled_sources": disabled,
+                "enabled_names": [e["source"] for e in enabled],
+                "disabled_names": [d["source"] for d in disabled],
+            }
+        except Exception as e:
+            return {"error": f"Failed to fetch source status: {e}"}
+
     async def _request_auth(self, action: str, details: dict) -> bool:
         if action in SESSION_AUTHS.get(self.session_id, set()):
             return True
@@ -70,7 +95,11 @@ class MusicSkills:
         """Search for music on a specific online source (bilibili, netease, kugou)."""
         from core.source_manager import get_source_enabled_status
         if not get_source_enabled_status(source):
-            return {"error": f"Source '{source}' is currently disabled in settings."}
+            return {
+                "error": f"Source '{source}' is currently disabled and cannot be used for searching.",
+                "hint": f"The source '{source}' is disabled. You must NOT use this source. Please inform the user that this source is unavailable and suggest using an enabled source instead.",
+                "disabled_source": source
+            }
 
         downloader = DOWNLOADER_MODULES.get(source)
         if not downloader:
@@ -119,20 +148,35 @@ class MusicSkills:
     async def search_at_sources(self, query: str, sources: List[str], limit_per_source: int = 5) -> Dict:
         """Search for music across multiple sources simultaneously."""
         from core.source_manager import get_source_enabled_status
-        # Filter out disabled sources
-        active_sources = [s for s in sources if get_source_enabled_status(s)]
+        # Filter out disabled sources and track which were skipped
+        active_sources = []
+        skipped_sources = []
+        for s in sources:
+            if get_source_enabled_status(s):
+                active_sources.append(s)
+            else:
+                skipped_sources.append(s)
+
         if not active_sources:
-             return {"error": "All requested sources are currently disabled or unsupported."}
-             
+             return {
+                 "error": "All requested sources are currently disabled.",
+                 "skipped_sources": skipped_sources,
+                 "hint": f"The following sources are disabled and cannot be used: {', '.join(skipped_sources)}. Please inform the user that these sources need to be enabled in settings before they can be used."
+             }
+
         tasks = [self.search_music(query, source, limit_per_source) for source in active_sources]
         results = await asyncio.gather(*tasks)
-        
+
         combined = []
         for res in results:
             if "results" in res:
                 combined.extend(res["results"])
-        
-        return {"results": combined, "count": len(combined)}
+
+        response = {"results": combined, "count": len(combined), "sources_used": active_sources}
+        if skipped_sources:
+            response["skipped_sources"] = skipped_sources
+            response["skipped_reason"] = f"The following sources were skipped because they are disabled: {', '.join(skipped_sources)}"
+        return response
 
     async def search_library(self, query: str) -> Dict:
         """Search for music in the local downloaded library."""
@@ -196,7 +240,15 @@ class MusicSkills:
         metadata_list.append(new_meta)
         persistence.set("playlists", "metadata_list", metadata_list)
         persistence.set("playlists", f"tracks_{name}", [])
-        return {"status": "success", "message": f"Playlist '{name}' created."}
+        return {
+            "status": "success",
+            "message": f"Playlist '{name}' created.",
+            "playlist": new_meta,
+            "playlist_name": name,
+            "track_count": 0,
+            "mutated": True,
+            "created_playlist": True
+        }
 
     async def update_playlist_info(self, old_name: str, new_name: str) -> Dict:
         """Rename an existing playlist."""
@@ -216,7 +268,14 @@ class MusicSkills:
         persistence.set("playlists", new_name, tracks)
         # Delete old key isn't strictly necessary but good practice
         persistence.set("playlists", "list_names", list_names)
-        return {"status": "success", "message": f"Playlist '{old_name}' renamed to '{new_name}'."}
+        return {
+            "status": "success",
+            "message": f"Playlist '{old_name}' renamed to '{new_name}'.",
+            "playlist_name": new_name,
+            "old_name": old_name,
+            "new_name": new_name,
+            "mutated": True
+        }
 
     async def remove_from_playlist(self, short_id: str, playlist_name: str = "Liked") -> Dict:
         """Remove a track from a playlist using its short_id."""
@@ -242,10 +301,27 @@ class MusicSkills:
         
         new_tracks = [t for t in current_tracks if str(t.get("music_id") or t.get("id") or t.get("bvid")) != music_id]
         if len(new_tracks) == len(current_tracks):
-            return {"status": "ignored", "message": f"Track not found in '{playlist_name}'."}
+            return {
+                "status": "warning",
+                "message": f"Track not found in '{playlist_name}'.",
+                "warning": "No tracks were removed because the target track was not present.",
+                "playlist_name": playlist_name,
+                "music_id": music_id,
+                "removed": False,
+                "mutated": False,
+                "track_count": len(current_tracks)
+            }
             
         persistence.set("playlists", f"tracks_{playlist_name}", new_tracks)
-        return {"status": "success", "message": f"Removed from '{playlist_name}'."}
+        return {
+            "status": "success",
+            "message": f"Removed from '{playlist_name}'.",
+            "playlist_name": playlist_name,
+            "music_id": music_id,
+            "removed": True,
+            "mutated": True,
+            "track_count": len(new_tracks)
+        }
 
     async def add_to_playlist(self, short_id: str, playlist_name: str = "Liked") -> Dict:
         """Add a track to a playlist using its short_id."""
@@ -263,18 +339,40 @@ class MusicSkills:
         metadata_list = persistence.get("playlists", "metadata_list", [
             {"name": "Liked", "category": "System", "description": "Songs you liked", "color": "#ef4444"}
         ])
+        created_playlist = False
         if not any(m["name"] == playlist_name for m in metadata_list):
             await self.create_playlist(playlist_name)
+            created_playlist = True
         
         current_tracks = persistence.get("playlists", f"tracks_{playlist_name}", [])
         music_id = str(track_data.get("music_id") or track_data.get("id"))
         
         if any(str(t.get("music_id") or t.get("id") or t.get("bvid")) == music_id for t in current_tracks):
-            return {"status": "ignored", "message": f"Track already in '{playlist_name}'."}
+            return {
+                "status": "warning",
+                "message": f"Track already in '{playlist_name}'.",
+                "warning": "No new songs were added because the track already exists in the playlist.",
+                "playlist_name": playlist_name,
+                "track": track_data,
+                "track_count": len(current_tracks),
+                "added": False,
+                "mutated": False,
+                "created_playlist": created_playlist
+            }
         
         current_tracks.append(track_data)
         persistence.set("playlists", f"tracks_{playlist_name}", current_tracks)
-        return {"status": "success", "message": f"Added to '{playlist_name}'."}
+        return {
+            "status": "success",
+            "message": f"Added to '{playlist_name}'.",
+            "playlist_name": playlist_name,
+            "track": track_data,
+            "track_count": len(current_tracks),
+            "added": True,
+            "added_count": 1,
+            "mutated": True,
+            "created_playlist": created_playlist
+        }
 
     async def download_song(self, short_id: str) -> Dict:
         """Download a track for offline listening. Requires short_id from search."""
@@ -313,28 +411,39 @@ class MusicSkills:
             logger.error(f"Download failed: {e}")
 
     async def get_lyrics(self, song_name: str, artist: str = "") -> Dict:
-        """Search for lyrics for a song (tries Netease/Kugou)."""
+        """Search for lyrics for a song (tries enabled sources: Netease, then Kugou)."""
+        from core.source_manager import get_source_enabled_status
         query = f"{song_name} {artist}".strip()
-        # Try Netease first
-        search_res = await self.search_music(query, "netease", 1)
-        if search_res.get("results"):
-            track = search_res["results"][0]
-            from downloaders.netease_downloader import _get_lyrics_netease
-            lyrics = await asyncio.get_event_loop().run_in_executor(None, _get_lyrics_netease, track["music_id"])
-            if lyrics:
-                return {"lyrics": lyrics, "source": "netease", "track": track}
-        
-        # Try Kugou
-        search_res = await self.search_music(query, "kugou", 1)
-        if search_res.get("results"):
-            track = search_res["results"][0]
-            # Assuming kugou downloader has access to lyrics via search raw data or separate call
-            # For now, if no explicit function, we check if raw has it
-            raw = track.get("_raw", {})
-            if raw.get("lyrics"):
-                return {"lyrics": raw["lyrics"], "source": "kugou", "track": track}
+        skipped = []
 
-        return {"status": "error", "message": "No lyrics found for this song."}
+        # Try Netease first
+        if get_source_enabled_status("netease"):
+            search_res = await self.search_music(query, "netease", 1)
+            if search_res.get("results"):
+                track = search_res["results"][0]
+                from downloaders.netease_downloader import _get_lyrics_netease
+                lyrics = await asyncio.get_event_loop().run_in_executor(None, _get_lyrics_netease, track["music_id"])
+                if lyrics:
+                    return {"lyrics": lyrics, "source": "netease", "track": track}
+        else:
+            skipped.append("netease")
+
+        # Try Kugou
+        if get_source_enabled_status("kugou"):
+            search_res = await self.search_music(query, "kugou", 1)
+            if search_res.get("results"):
+                track = search_res["results"][0]
+                raw = track.get("_raw", {})
+                if raw.get("lyrics"):
+                    return {"lyrics": raw["lyrics"], "source": "kugou", "track": track}
+        else:
+            skipped.append("kugou")
+
+        result = {"status": "error", "message": "No lyrics found for this song."}
+        if skipped:
+            result["skipped_sources"] = skipped
+            result["skipped_reason"] = f"The following lyrics sources were skipped because they are disabled: {', '.join(skipped)}"
+        return result
 
     async def get_metadata(self, query: str) -> Dict:
         """Fetch accurate metadata (artist info, album, cover) from Genius."""
@@ -452,13 +561,15 @@ class MusicSkills:
                             total = kwargs["total_size"]
                             payload["progress_percent"] = round((curr / total * 100) if total > 0 else 0, 2)
                         
-                        asyncio.run_coroutine_threadsafe(
-                            send_response(self.websocket, "ai_trigger", code=0, data=payload),
-                            asyncio.get_event_loop()
-                        )
+                        if hasattr(self, "_main_loop") and self._main_loop:
+                            asyncio.run_coroutine_threadsafe(
+                                send_response(self.websocket, "ai_trigger", code=0, data=payload),
+                                self._main_loop
+                            )
                     except Exception:
                         pass # Avoid crashing download thread on progress error
-
+                    
+                self._main_loop = asyncio.get_event_loop()
                 if asyncio.iscoroutinefunction(download_func):
                     result = await download_func(track_data, DOWNLOADS_DIR, progress_callback=progress_cb)
                 else:
@@ -498,6 +609,14 @@ class MusicSkills:
         task_type must be one of: 'artist', 'album', 'playlist'
         source must be one of: 'netease', 'kugou'
         """
+        from core.source_manager import get_source_enabled_status
+        if not get_source_enabled_status(source):
+            return {
+                "error": f"Source '{source}' is currently disabled and cannot be used for crawling.",
+                "hint": f"The source '{source}' is disabled. Please inform the user that this source is unavailable for crawling and suggest enabling it in settings first.",
+                "disabled_source": source
+            }
+
         from core.crawler import global_crawler
         if not global_crawler.is_running:
              await global_crawler.start()

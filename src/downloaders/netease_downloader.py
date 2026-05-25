@@ -61,7 +61,19 @@ def post_eapi_request(url, data):
     headers = get_headers()
     headers["Content-Length"] = str(len(post_data))
     
-    res = requests.post(url, data=post_data, headers=headers)
+    try:
+        res = requests.post(url, data=post_data, headers=headers)
+    except requests.exceptions.ProxyError:
+        print(f"NetEase API: Proxy Error, falling back to direct connection... [{url}]")
+        try:
+            res = requests.post(url, data=post_data, headers=headers, proxies={"http": None, "https": None})
+        except Exception as e:
+             print(f"NetEase API Error: Direct connection also failed - {str(e)}")
+             return None, None
+    except Exception as e:
+        print(f"NetEase API Error: Connection failed - {str(e)}")
+        return None, None
+        
     if res.status_code == 200:
         return res.json(), res
     else:
@@ -167,7 +179,11 @@ async def search_tracks_async(query: str, limit: int = 20) -> list[dict]:
 def _save_file_with_progress(url, filename, track_id, progress_callback, file_type):
     try:
         os.makedirs(os.path.dirname(filename), exist_ok=True)
-        resp = requests.get(url, stream=True, headers=get_headers(), timeout=30)
+        try:
+            resp = requests.get(url, stream=True, headers=get_headers(), timeout=30)
+        except requests.exceptions.ProxyError:
+            print(f"Download: Proxy Error, falling back to direct connection... [{url}]")
+            resp = requests.get(url, stream=True, headers=get_headers(), timeout=30, proxies={"http": None, "https": None})
         resp.raise_for_status()
         total_size = int(resp.headers.get("content-length", 0))
         current_size = 0
@@ -225,7 +241,16 @@ def _get_lyrics_netease(track_id: str):
         'cp': 'false', 'tv': '0', 'lv': '0', 'rv': '0', 'kv': '0', 'yv': '0', 'ytv': '0', 'yrv': '0'
     }
     headers = get_headers()
-    res = requests.post(url, data=params, headers=headers)
+    try:
+        res = requests.post(url, data=params, headers=headers)
+    except requests.exceptions.ProxyError:
+        print(f"NetEase API: Proxy Error for lyrics, falling back to direct connection... [{url}]")
+        try:
+            res = requests.post(url, data=params, headers=headers, proxies={"http": None, "https": None})
+        except Exception:
+            return ""
+    except Exception:
+        return ""
     if res.status_code == 200:
         data = res.json()
         return data.get("lrc", {}).get("lyric", "")

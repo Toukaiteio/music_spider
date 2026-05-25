@@ -88,17 +88,30 @@ async def handle_save_llm_config(websocket, cmd_id: str, payload: dict):
 # ── System prompts ─────────────────────────────────────────────────────────────
 
 def _get_sources_info():
-    """Get summarized source status for AI prompt."""
+    """Get summarized source status for AI prompt, clearly separating enabled vs disabled."""
     try:
         statuses = get_all_source_status()
-        info = []
+        enabled = []
+        disabled = []
         for s in statuses:
-            st = "Enabled" if s.get("enabled") else "Disabled"
+            source_name = s.get("source", "unknown")
+            is_enabled = s.get("enabled", False)
             auth = "Authorized" if s.get("is_logged_in") else "Unauthorized"
             req = " (Requires Login to Enable)" if s.get("require_auth_to_enable") else ""
-            source_name = s.get("source", "unknown")
-            info.append(f"- {source_name.capitalize()}: Status={st}, Auth={auth}{req}")
-        return "\n".join(info)
+            line = f"- {source_name}: Auth={auth}{req}"
+            if is_enabled:
+                enabled.append(line)
+            else:
+                disabled.append(line)
+
+        parts = []
+        if enabled:
+            parts.append("✅ 可用 (Enabled):\n" + "\n".join(enabled))
+        else:
+            parts.append("✅ 可用 (Enabled): 无")
+        if disabled:
+            parts.append("❌ 不可用 (Disabled):\n" + "\n".join(disabled))
+        return "\n".join(parts)
     except Exception as e:
         return "Failed to fetch source status."
 
@@ -133,15 +146,43 @@ _BASE_SYSTEM_PROMPT = """你是 Music Claw，一个强大的 AI 音乐助手。
 正在播放《苔》- Yorushika   ← 你根本没调用工具！
 ```
 
+# ⚠️ 来源约束 (极其重要!)
+
+你 **必须** 遵守以下来源规则：
+
+1. **只使用"✅ 可用"列表中的来源**。"❌ 不可用"列表中的来源 **绝对不能使用**。
+2. 调用 `search_at_sources` 时，`sources` 参数 **只能包含已启用的来源**。
+3. 调用 `search_music` 时，`source` 参数 **必须是已启用的来源**。
+4. 调用 `autonomous_crawl_target` 时，`source` 参数 **必须是已启用的来源**。
+5. 如果用户请求的来源不在可用列表中，**明确告知用户该来源当前不可用**，并建议使用可用的替代来源。
+6. 如果 **没有任何可用来源**，告知用户需要先在设置中启用至少一个来源。
+7. 如果你不确定当前哪些来源可用，先调用 `get_source_status` 工具查询。
+
+**违反示例** (❌ 禁止):
+- 用户说"用酷狗搜索"但 kugou 在不可用列表 → 你仍然调用 search_music(source="kugou")
+- 所有来源都不可用 → 你仍然尝试搜索
+
+**正确做法** (✅):
+- 用户说"用酷狗搜索"但 kugou 不可用 → 回复"酷狗音乐当前已禁用，是否要用其他可用来源搜索？"
+- 只有 netease 可用 → search_at_sources 的 sources 只传 ["netease"]
+
+# 当前来源状态
+{sources_status}
+
 # 可用工具列表
 
+- **get_source_status**: 查询当前所有音乐来源的启用/禁用状态（当你不确定时使用）
+  - 参数: `{{}}`
+
 - **search_at_sources**: 同时在多个平台搜索音乐
-  - 参数: `{{"query": "搜索词", "sources": ["netease", "kugou", "bilibili"]}}`
+  - 参数: `{{"query": "搜索词", "sources": ["netease", "kugou"]}}`
+  - ⚠️ sources 参数 **只能包含上面"✅ 可用"列表中的来源**
 
 - **search_music**: 在单个平台搜索音乐
   - 参数: `{{"query": "搜索词", "source": "netease"}}`
+  - ⚠️ source 参数 **必须是上面"✅ 可用"列表中的来源**
 
-- **play_song**: 播放指定歌曲 
+- **play_song**: 播放指定歌曲
   - 参数: `{{"short_id": 1}}` (short_id 必须来自搜索结果中的 short_id)
 
 - **search_library**: 在本地已下载的音乐库中搜索
@@ -158,12 +199,14 @@ _BASE_SYSTEM_PROMPT = """你是 Music Claw，一个强大的 AI 音乐助手。
 
 - **add_to_playlist**: 将歌曲添加到播放列表
   - 参数: `{{"short_id": 1, "playlist_name": "Liked"}}`
+  - 说明: 如果返回 `status=warning`、`ignored`，或 `added=false` / `mutated=false`，请明确告诉用户这次没有真正新增歌曲。
 
 - **remove_from_playlist**: 将歌曲从播放列表中移除
   - 参数: `{{"short_id": 1, "playlist_name": "Liked"}}`
 
 - **create_playlist**: 创建新播放列表
   - 参数: `{{"name": "列表名"}}`
+  - 说明: 返回结果里会包含新建歌单信息；如果歌单已经存在或没有发生修改，要明确说明。
 
 - **update_playlist_info**: 重命名或修改播放列表名称
   - 参数: `{{"old_name": "原列表名", "new_name": "新列表名"}}`
@@ -173,9 +216,7 @@ _BASE_SYSTEM_PROMPT = """你是 Music Claw，一个强大的 AI 音乐助手。
 
 - **autonomous_crawl_target**: 自动且全量地爬取某个目标（如歌手的所有专辑、某个歌单的所有歌曲）到本地库。
   - 参数: `{{"task_type": "artist/album/playlist", "source": "netease/kugou", "target": "URL或ID"}}`
-
-# 当前来源状态
-{sources_status}
+  - ⚠️ source 参数 **必须是上面"✅ 可用"列表中的来源**
 
 # 工作流示例: "播放一首夜鹿的歌"
 
@@ -197,7 +238,7 @@ Step 5 (AI): ✅ 正在为你播放《言って。》- ヨルシカ，希望你�
 """
 
 _TOOLS_PLAIN_LIST = [
-    "search_at_sources", "search_music", "play_song", 
+    "get_source_status", "search_at_sources", "search_music", "play_song",
     "search_library", "get_lyrics", "add_to_playlist", "create_playlist",
     "get_playlists", "remove_from_playlist", "update_playlist_info", "download_song",
     "get_user_preferences", "autonomous_crawl_target"

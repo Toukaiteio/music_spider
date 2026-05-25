@@ -114,6 +114,7 @@ class PlayerManager {
     this.playerVolumeSlider = document.getElementById("player-volume-slider");
     this.playerHideButton = document.getElementById("player-hide-button");
     this.playerShowButton = document.getElementById("player-show-button");
+    this.latestThemeColors = null;
 
     // 播放/暂停按钮
     if (this.playerPlayPauseButton) {
@@ -224,6 +225,9 @@ class PlayerManager {
         }
       });
     }
+
+    // 先把 MiniPlayer 设成当前主题的默认状态，封面取色后再细化
+    this.applyMiniPlayerTheme();
 
     // 音频时间更新
     this.audio.addEventListener("timeupdate", () => {
@@ -557,19 +561,22 @@ class PlayerManager {
       const newTheme = this.getTheme();
       if (newTheme !== this.theme) {
         this.theme = newTheme;
+        this.applyMiniPlayerTheme(
+          this.latestThemeColors?.primary,
+          this.latestThemeColors?.secondary
+        );
         this.extractCoverColor();
       }
     });
-    observer.observe(document.body, {
+    observer.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ["class"],
     });
   }
 
   getTheme() {
-    if (document.body.classList.contains("dark-theme")) return "dark";
-    if (document.body.classList.contains("light-theme")) return "light";
-    return "light";
+    if (document.documentElement.classList.contains("light-theme")) return "light";
+    return "dark";
   }
 
   loadTrack(index) {
@@ -762,13 +769,165 @@ class PlayerManager {
   getCurrentTrack() {
     return this.currentLoadedTrack || null;
   }
+
+  getColorBrightness(color) {
+    if (!Array.isArray(color) || color.length < 3) return 0;
+    const [r, g, b] = color;
+    return (r * 299 + g * 587 + b * 114) / 1000;
+  }
+
+  getColorSaturation(color) {
+    if (!Array.isArray(color) || color.length < 3) return 0;
+    const [r, g, b] = color;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    return (max - min) / (max || 1);
+  }
+
+  clampColor(color) {
+    return color.map((value) => Math.max(0, Math.min(255, Math.round(value))));
+  }
+
+  blendColors(color, targetColor, ratio) {
+    const safeRatio = Math.max(0, Math.min(1, ratio));
+    return color.map((value, index) =>
+      Math.round(value * (1 - safeRatio) + targetColor[index] * safeRatio)
+    );
+  }
+
+  getThemeAwarePalette(palette, theme) {
+    if (!Array.isArray(palette)) return [];
+
+    const targetBrightness = theme === "light" ? 168 : 104;
+
+    return palette
+      .filter((color) => {
+        const brightness = this.getColorBrightness(color);
+        const saturation = this.getColorSaturation(color);
+
+        if (theme === "light") {
+          return !(brightness > 238 && saturation < 0.18) && brightness > 42;
+        }
+
+        return !(brightness < 18 && saturation < 0.18) && brightness < 242;
+      })
+      .sort((a, b) => {
+        const brightnessA = this.getColorBrightness(a);
+        const brightnessB = this.getColorBrightness(b);
+        const saturationA = this.getColorSaturation(a);
+        const saturationB = this.getColorSaturation(b);
+        const scoreA =
+          Math.abs(brightnessA - targetBrightness) - saturationA * 28;
+        const scoreB =
+          Math.abs(brightnessB - targetBrightness) - saturationB * 28;
+        return scoreA - scoreB;
+      });
+  }
+
+  applyMiniPlayerTheme(primaryColor = null, secondaryColor = null) {
+    if (!this.playerShowButton) return;
+
+    const isDarkTheme = this.theme === "dark";
+    const surfaceColor = isDarkTheme ? [28, 28, 30] : [255, 255, 255];
+    const iconColor = isDarkTheme ? [245, 245, 247] : [28, 28, 30];
+
+    const resolvedPrimary = Array.isArray(primaryColor)
+      ? this.blendColors(
+          this.clampColor(primaryColor),
+          surfaceColor,
+          isDarkTheme ? 0.28 : 0.16
+        )
+      : surfaceColor;
+    const resolvedSecondary = Array.isArray(secondaryColor)
+      ? this.blendColors(
+          this.clampColor(secondaryColor),
+          surfaceColor,
+          isDarkTheme ? 0.34 : 0.22
+        )
+      : resolvedPrimary;
+
+    const bgPrimary = this.blendColors(
+      resolvedPrimary,
+      surfaceColor,
+      isDarkTheme ? 0.22 : 0.12
+    );
+    const bgSecondary = this.blendColors(
+      resolvedSecondary,
+      surfaceColor,
+      isDarkTheme ? 0.32 : 0.16
+    );
+    const borderColor = this.blendColors(
+      resolvedPrimary,
+      surfaceColor,
+      isDarkTheme ? 0.48 : 0.72
+    );
+    const progressColor = this.blendColors(
+      iconColor,
+      surfaceColor,
+      isDarkTheme ? 0.06 : 0.1
+    );
+    const progressTrack = this.blendColors(
+      surfaceColor,
+      iconColor,
+      isDarkTheme ? 0.14 : 0.12
+    );
+
+    const bgAlpha = isDarkTheme ? 0.86 : 0.92;
+    const bgGradient = `linear-gradient(145deg, rgba(${bgPrimary[0]}, ${bgPrimary[1]}, ${bgPrimary[2]}, ${bgAlpha}), rgba(${bgSecondary[0]}, ${bgSecondary[1]}, ${bgSecondary[2]}, ${Math.max(
+      bgAlpha - 0.08,
+      0.72
+    )}))`;
+
+    const shadow = isDarkTheme
+      ? "0 10px 34px rgba(0, 0, 0, 0.42), 0 0 0 1px rgba(255, 255, 255, 0.04) inset"
+      : "0 10px 28px rgba(0, 0, 0, 0.16), 0 0 0 1px rgba(0, 0, 0, 0.04) inset";
+    const hoverShadow = isDarkTheme
+      ? "0 14px 42px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.06) inset"
+      : "0 14px 36px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(0, 0, 0, 0.05) inset";
+
+    this.playerShowButton.style.setProperty("--player-show-button-bg", bgGradient);
+    this.playerShowButton.style.setProperty(
+      "--player-show-button-border",
+      `rgba(${borderColor[0]}, ${borderColor[1]}, ${borderColor[2]}, ${
+        isDarkTheme ? 0.34 : 0.22
+      })`
+    );
+    this.playerShowButton.style.setProperty("--player-show-button-shadow", shadow);
+    this.playerShowButton.style.setProperty(
+      "--player-show-button-hover-shadow",
+      hoverShadow
+    );
+    this.playerShowButton.style.setProperty(
+      "--player-show-button-progress-color",
+      `rgba(${progressColor[0]}, ${progressColor[1]}, ${progressColor[2]}, ${
+        isDarkTheme ? 0.96 : 0.9
+      })`
+    );
+    this.playerShowButton.style.setProperty(
+      "--player-show-button-progress-track",
+      `rgba(${progressTrack[0]}, ${progressTrack[1]}, ${progressTrack[2]}, ${
+        isDarkTheme ? 0.09 : 0.14
+      })`
+    );
+    this.playerShowButton.style.setProperty(
+      "--player-show-button-icon-color",
+      `rgba(${iconColor[0]}, ${iconColor[1]}, ${iconColor[2]}, ${
+        isDarkTheme ? 0.96 : 0.94
+      })`
+    );
+  }
+
   extractCoverColor() {
-    if (!this.coverImgElement || !this.coverImgElement.complete) return;
+    if (!this.coverImgElement || !this.coverImgElement.complete || !this.coverImgElement.naturalWidth) {
+      this.applyMiniPlayerTheme();
+      return;
+    }
     const colorThief = new ColorThief();
     try {
       // 1. 扩大采样至 10 个关键色
       const palette = colorThief.getPalette(this.coverImgElement, 10);
       if (!palette || palette.length < 1) return;
+      const themedPalette = this.getThemeAwarePalette(palette, this.theme);
 
       // 2. 环境色彩过滤器：过滤掉过于接近白色或灰色的颜色
       const filteredPalette = palette.filter(color => {
@@ -788,7 +947,12 @@ class PlayerManager {
         return brightA - brightB;
       });
 
-      const finalPalette = filteredPalette.length >= 2 ? filteredPalette : palette;
+      const finalPalette =
+        themedPalette.length >= 2
+          ? themedPalette
+          : filteredPalette.length >= 2
+            ? filteredPalette
+            : palette;
       
       const color1 = this.adjustColorForTheme(finalPalette[0], this.theme);
       const color2 = this.adjustColorForTheme(finalPalette[1] || finalPalette[0], this.theme);
@@ -799,6 +963,11 @@ class PlayerManager {
         this.playerFooter.style.setProperty('--player-bg-gradient', gradient);
       }
 
+      this.latestThemeColors = {
+        primary: color1,
+        secondary: color2,
+      };
+      this.applyMiniPlayerTheme(color1, color2);
       if (this.onColorChange) this.onColorChange(color1);
       this.setBackgroundBandsColor(color1);
     } catch (e) {

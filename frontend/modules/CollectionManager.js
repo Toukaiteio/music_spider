@@ -76,6 +76,7 @@ class CollectionManager {
         this.handleAddToCollectionButtonClick = this.handleAddToCollectionButtonClick.bind(this);
         this.removeSongFromCollection = this.removeSongFromCollection.bind(this);
         this._handleDialogCollectionToggle = this._handleDialogCollectionToggle.bind(this);
+        this._handleCollectionChanged = this._handleCollectionChanged.bind(this);
         this._generateRandomHexColor = this._generateRandomHexColor.bind(this);
         this._populateCategorySelector = this._populateCategorySelector.bind(this);
         this._getCategoryValue = this._getCategoryValue.bind(this);
@@ -212,6 +213,7 @@ class CollectionManager {
                 this.contextMenuElement.style.display = 'none';
             }
         });
+        document.addEventListener('collectionChanged', this._handleCollectionChanged);
         await this.renderDrawerCollections();
         console.log("CollectionManager initialized.");
     }
@@ -480,23 +482,31 @@ class CollectionManager {
 
         try {
             for (const collectionName of this.dialogSelectionChanges.additions) {
-                await this.webSocketManager.sendWebSocketCommand('add_to_playlist', {
+                const resp = await this.webSocketManager.sendWebSocketCommand('add_to_playlist', {
                     playlist_name: collectionName,
                     track_data: trackData
                 });
-                document.dispatchEvent(new CustomEvent('collectionChanged', {
-                    detail: { collectionName, songId: songIdStr, action: 'added' }
-                }));
+                if (resp?.data?.mutated !== false) {
+                    document.dispatchEvent(new CustomEvent('collectionChanged', {
+                        detail: { collectionName, songId: songIdStr, action: 'added' }
+                    }));
+                } else if (resp?.data?.warning) {
+                    console.warn("CollectionManager: add_to_playlist returned a warning:", resp.data.warning);
+                }
             }
 
             for (const collectionName of this.dialogSelectionChanges.removals) {
-                await this.webSocketManager.sendWebSocketCommand('remove_from_playlist', {
+                const resp = await this.webSocketManager.sendWebSocketCommand('remove_from_playlist', {
                     playlist_name: collectionName,
                     music_id: songIdStr
                 });
-                document.dispatchEvent(new CustomEvent('collectionChanged', {
-                    detail: { collectionName, songId: songIdStr, action: 'removed' }
-                }));
+                if (resp?.data?.mutated !== false) {
+                    document.dispatchEvent(new CustomEvent('collectionChanged', {
+                        detail: { collectionName, songId: songIdStr, action: 'removed' }
+                    }));
+                } else if (resp?.data?.warning) {
+                    console.warn("CollectionManager: remove_from_playlist returned a warning:", resp.data.warning);
+                }
             }
             this.closeDialog();
         } catch (e) {
@@ -592,6 +602,25 @@ class CollectionManager {
         if (this.navigationManager) {
             this.navigationManager.init();
         }
+    }
+
+    _handleCollectionChanged(event) {
+        const detail = event?.detail || {};
+        const action = detail.action || "";
+        const shouldRefresh =
+            !action ||
+            ["added", "removed", "created", "updated", "deleted", "renamed"].includes(action);
+
+        if (!shouldRefresh) return;
+
+        if (this._drawerRefreshTimer) {
+            clearTimeout(this._drawerRefreshTimer);
+        }
+
+        this._drawerRefreshTimer = setTimeout(async () => {
+            this._drawerRefreshTimer = null;
+            await this.renderDrawerCollections();
+        }, 75);
     }
 
     _renderCollectionItems(container, collections) {

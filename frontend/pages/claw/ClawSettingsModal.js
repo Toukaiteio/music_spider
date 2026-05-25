@@ -11,7 +11,7 @@ export class ClawSettingsModal {
             <!-- Settings Modal -->
             <div id="claw-settings-modal" class="modal-overlay" style="display:none; z-index: 1000; position: fixed; top:0; left:0; width:100%; height:100%; align-items:center; justify-content:center;">
                 <div class="modal-content claw-settings-content" style="display: flex; flex-direction: column; border-radius: 16px; overflow: hidden;">
-                    <div class="modal-header" style="padding: 16px 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.1);">
+                    <div class="modal-header" style="padding: 16px 20px; border-bottom: 1px solid var(--divider-color); display: flex; justify-content: space-between; align-items: center; background: var(--surface-bg-alt);">
                         <div style="display:flex; align-items:center; gap:8px;">
                             <span class="material-icons" style="color: var(--icon-color)">settings</span>
                             <h2 style="margin: 0; font-size: 1rem; font-weight: 500;">Music Claw Settings</h2>
@@ -23,7 +23,7 @@ export class ClawSettingsModal {
                         <!-- Models List Sidebar -->
                         <div class="claw-settings-sidebar">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding: 0 4px;">
-                                <h3 style="margin: 0; font-size: 0.85rem; font-weight: 600; color: rgba(255,255,255,0.6);">MODELS</h3>
+                                <h3 style="margin: 0; font-size: 0.85rem; font-weight: 600; color: var(--text-muted);">MODELS</h3>
                                 <button id="claw-settings-add-model" class="icon-button small primary" style="width:24px; height:24px;"><span class="material-icons" style="font-size:16px;">add</span></button>
                             </div>
                             <div id="claw-models-list" style="display: flex; flex-direction: column; gap: 4px;">
@@ -36,7 +36,7 @@ export class ClawSettingsModal {
                             <div id="claw-model-editor-panel" style="display: none; flex-direction: column; height: 100%;">
                                 <div style="margin-bottom: 24px;">
                                     <h3 id="claw-model-editor-title" style="margin: 0; font-size: 1.4rem; font-weight: 600;">Edit Model</h3>
-                                    <p style="margin: 4px 0 0; color: rgba(255,255,255,0.4); font-size: 0.9rem;">Configure your OpenAI SDK compatible model.</p>
+                                    <p style="margin: 4px 0 0; color: var(--text-muted); font-size: 0.9rem;">Configure your OpenAI SDK compatible model.</p>
                                 </div>
 
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
@@ -73,7 +73,7 @@ export class ClawSettingsModal {
                                     <button id="claw-settings-save-model" class="btn primary" style="padding: 8px 24px; border-radius: 8px; font-weight: 500;">Save Changes</button>
                                 </div>
                             </div>
-                            <div id="claw-model-editor-empty" style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: rgba(255,255,255,0.3); text-align: center;">
+                            <div id="claw-model-editor-empty" style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-faint); text-align: center;">
                                 <span class="material-icons" style="font-size: 48px; margin-bottom: 12px;">auto_awesome</span>
                                 <p>Select a model from the sidebar to edit<br>or click the plus icon to add a new provider.</p>
                             </div>
@@ -188,7 +188,7 @@ export class ClawSettingsModal {
         const activeId = this.page.llmConfig.active_model_id;
 
         if (models.length === 0) {
-            listEl.innerHTML = '<div style="color: rgba(255,255,255,0.3); font-size: 0.85rem; padding: 20px; text-align:center;">No models configured.</div>';
+            listEl.innerHTML = '<div style="color: var(--text-faint); font-size: 0.85rem; padding: 20px; text-align:center;">No models configured.</div>';
             editor.style.display = 'none';
             empty.style.display = 'flex';
             this._editingModelId = null;
@@ -202,12 +202,12 @@ export class ClawSettingsModal {
             return `
                 <div data-id="${this._esc(m.id)}" class="claw-settings-model-item ${isActive ? 'active' : ''} ${isEditing ? 'editing' : ''}" style="padding: 12px; border-radius: 10px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
                     <div style="display:flex; flex-direction:column; gap:2px; flex:1; min-width:0;">
-                        <span style="font-weight: 500; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: ${isActive ? '#fff' : 'rgba(255,255,255,0.9)'}">${this._esc(m.providerName)}</span>
-                        <span style="font-size: 11px; color: ${isActive ? 'rgba(255,255,255,0.7)' : 'rgba(255,255,255,0.4)'}">${this._esc(m.model)}</span>
+                        <span style="font-weight: 500; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: ${isActive ? 'var(--text-color-primary)' : 'var(--text-secondary-alpha)'}">${this._esc(m.providerName)}</span>
+                        <span style="font-size: 11px; color: ${isActive ? 'var(--text-secondary-alpha)' : 'var(--text-muted)'}">${this._esc(m.model)}</span>
                     </div>
-                    ${isActive ? 
-                        '<span class="material-icons" style="font-size:18px; margin-left:8px;">check_circle</span>' : 
-                        '<button class="icon-button small set-active-btn" style="color: rgba(255,255,255,0.3);"><span class="material-icons" style="font-size:18px;">radio_button_unchecked</span></button>'
+                    ${isActive ?
+                        '<span class="material-icons" style="font-size:18px; margin-left:8px;">check_circle</span>' :
+                        '<button class="icon-button small set-active-btn" style="color: var(--text-faint);"><span class="material-icons" style="font-size:18px;">radio_button_unchecked</span></button>'
                     }
                 </div>
             `;

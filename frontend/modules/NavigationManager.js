@@ -50,6 +50,8 @@ class NavigationManager {
     this.currentPath = null;
     this.currentTitle = null;
     this.activePageModule = null;
+    this._globalListenersBound = false;
+    this._initialLoadHandled = false;
 
     this.pageModuleInstances = {};
     this.pageModulesRegistry = {
@@ -72,6 +74,7 @@ class NavigationManager {
     this.handleInitialLoad = this.handleInitialLoad.bind(this);
     this.handleMainContentClick = this.handleMainContentClick.bind(this); // If kept
     this.handleFavoriteChange = this.handleFavoriteChange.bind(this);
+    this.handleCollectionChange = this.handleCollectionChange.bind(this);
     this._animateColorBands = this._animateColorBands.bind(this);
   }
 
@@ -102,13 +105,17 @@ class NavigationManager {
       });
     });
 
-    window.addEventListener("popstate", this.handlePopState);
-    this.handleInitialLoad();
-    document.addEventListener("favoritesChanged", this.handleFavoriteChange);
-    document.addEventListener(
-      "collectionChanged",
-      this.handleCollectionChange.bind(this)
-    );
+    if (!this._globalListenersBound) {
+      window.addEventListener("popstate", this.handlePopState);
+      document.addEventListener("favoritesChanged", this.handleFavoriteChange);
+      document.addEventListener("collectionChanged", this.handleCollectionChange);
+      this._globalListenersBound = true;
+    }
+
+    if (!this._initialLoadHandled) {
+      this.handleInitialLoad();
+      this._initialLoadHandled = true;
+    }
   }
 
   getCollections() {

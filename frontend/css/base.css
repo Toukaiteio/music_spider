@@ -24,6 +24,106 @@
     --scrollbar-thumb-color: #3a3a3c;
     --scrollbar-track-color: #1c1c1e;
     --icon-color: #8e8e93;
+
+    /* Extra state variables */
+    --hover-bg-color: rgba(255, 255, 255, 0.05);
+    --hover-border-color: rgba(255, 255, 255, 0.2);
+    --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+    --card-hover-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+    --button-bg: rgba(255, 255, 255, 0.12);
+    --button-hover-bg: rgba(255, 255, 255, 0.18);
+    --text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+
+    /* Semantic surface / input / text variables */
+    --modal-bg: rgba(30, 30, 35, 0.95);
+    --modal-border: rgba(255, 255, 255, 0.1);
+    --modal-overlay-bg: rgba(0, 0, 0, 0.4);
+    --surface-bg: rgba(255, 255, 255, 0.045);
+    --surface-bg-alt: rgba(255, 255, 255, 0.02);
+    --surface-border: rgba(255, 255, 255, 0.08);
+    --input-bg: rgba(0, 0, 0, 0.2);
+    --input-bg-focus: rgba(0, 0, 0, 0.25);
+    --input-border: rgba(255, 255, 255, 0.1);
+    --input-border-focus: rgba(255, 255, 255, 0.3);
+    --text-muted: rgba(255, 255, 255, 0.5);
+    --text-faint: rgba(255, 255, 255, 0.3);
+    --text-secondary-alpha: rgba(255, 255, 255, 0.7);
+    --divider-color: rgba(255, 255, 255, 0.08);
+    --chat-bubble-user-bg: #25252b;
+    --table-header-color: rgba(255, 255, 255, 0.6);
+    --table-row-color: rgba(255, 255, 255, 0.8);
+    --dropdown-bg: rgba(30, 30, 32, 0.85);
+
+    /* Drawer variables */
+    --drawer-text-color: rgba(255, 255, 255, 0.38);
+    --drawer-hover-bg-color: rgba(255, 255, 255, 0.055);
+    --drawer-hover-text-color: rgba(255, 255, 255, 0.70);
+    --drawer-active-bg-color: rgba(255, 255, 255, 0.085);
+    --drawer-active-text-color: rgba(255, 255, 255, 0.95);
+    --drawer-header-color: rgba(255, 255, 255, 0.22);
+    --drawer-rule-color: rgba(255, 255, 255, 0.06);
+    --drawer-toggle-color: rgba(255, 255, 255, 0.28);
+    --effects-opacity: 0.28;
+}
+
+:root.light-theme {
+    /* Light Theme — macOS inspired clean palette */
+    --primary-bg-color: #f5f5f7;
+    --secondary-bg-color: #ffffff;
+    --accent-color-rgb: 50, 50, 50;
+    --text-color-primary: #1d1d1f;
+    --text-color-secondary: #86868b;
+    --accent-color: #333333;
+    --accent-color-darker: #000000;
+    --active-bg-color: rgba(0, 0, 0, 0.05);
+    --active-border-color: rgba(0, 0, 0, 0.1);
+    --border-color: #d2d2d7;
+    --shadow-color: rgba(0, 0, 0, 0.1);
+    --glass-bg-color: rgba(255, 255, 255, 0.7);
+    --glass-border-color: rgba(0, 0, 0, 0.1);
+    --scrollbar-thumb-color: #c1c1c1;
+    --scrollbar-track-color: #f5f5f7;
+    --icon-color: #86868b;
+
+    /* Extra state variables */
+    --hover-bg-color: rgba(0, 0, 0, 0.03);
+    --hover-border-color: rgba(0, 0, 0, 0.08);
+    --card-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    --card-hover-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+    --button-bg: rgba(0, 0, 0, 0.05);
+    --button-hover-bg: rgba(0, 0, 0, 0.08);
+    --text-shadow: none;
+
+    /* Semantic surface / input / text variables */
+    --modal-bg: rgba(255, 255, 255, 0.95);
+    --modal-border: rgba(0, 0, 0, 0.12);
+    --modal-overlay-bg: rgba(0, 0, 0, 0.25);
+    --surface-bg: rgba(0, 0, 0, 0.03);
+    --surface-bg-alt: rgba(0, 0, 0, 0.02);
+    --surface-border: rgba(0, 0, 0, 0.08);
+    --input-bg: rgba(0, 0, 0, 0.04);
+    --input-bg-focus: rgba(0, 0, 0, 0.06);
+    --input-border: rgba(0, 0, 0, 0.15);
+    --input-border-focus: rgba(0, 0, 0, 0.3);
+    --text-muted: rgba(0, 0, 0, 0.45);
+    --text-faint: rgba(0, 0, 0, 0.3);
+    --text-secondary-alpha: rgba(0, 0, 0, 0.6);
+    --divider-color: rgba(0, 0, 0, 0.08);
+    --chat-bubble-user-bg: #e8e8ed;
+    --table-header-color: rgba(0, 0, 0, 0.5);
+    --table-row-color: rgba(0, 0, 0, 0.75);
+    --dropdown-bg: rgba(255, 255, 255, 0.9);
+
+    /* Drawer variables */
+    --drawer-text-color: rgba(0, 0, 0, 0.45);
+    --drawer-hover-bg-color: rgba(0, 0, 0, 0.04);
+    --drawer-hover-text-color: rgba(0, 0, 0, 0.75);
+    --drawer-active-bg-color: rgba(0, 0, 0, 0.06);
+    --drawer-active-text-color: rgba(0, 0, 0, 0.95);
+    --drawer-header-color: rgba(0, 0, 0, 0.3);
+    --drawer-rule-color: rgba(0, 0, 0, 0.08);
+    --drawer-toggle-color: rgba(0, 0, 0, 0.35);
+    --effects-opacity: 0.12;
 }
 
 body {
@@ -84,7 +184,7 @@ a:hover {
 
 button {
     font-family: var(--font-family-primary);
-    background-color: rgba(255, 255, 255, 0.12);
+    background-color: var(--button-bg);
     color: var(--text-color-primary);
     border: none;
     padding: 10px 15px;
@@ -94,7 +194,7 @@ button {
 }
 
 button:hover {
-    background-color: rgba(255, 255, 255, 0.18);
+    background-color: var(--button-hover-bg);
 }
 
 /* Utility for icons */

@@ -12,7 +12,7 @@
 .color-band {
     position: absolute;
     /* Visible enough to give backdrop-filter something to blur */
-    opacity: 0.28;
+    opacity: var(--effects-opacity);
     filter: blur(90px);
     border-radius: 50%;
     /* top/left 由 JS 直接设置（无过渡），浮动动画会掩盖瞬间跳变；

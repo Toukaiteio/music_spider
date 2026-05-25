@@ -10,15 +10,15 @@ export class ClawPreferencesModal {
             <!-- Preferences Stats Modal -->
             <div id="claw-preferences-modal" class="modal-overlay" style="display:none; z-index: 1000; position: fixed; top:0; left:0; width:100%; height:100%; align-items:center; justify-content:center;">
                 <div class="modal-content claw-settings-content" style="display: flex; flex-direction: column; border-radius: 16px; overflow: hidden; max-width: 85vw;">
-                    <div class="modal-header" style="padding: 16px 20px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.1);">
+                    <div class="modal-header" style="padding: 16px 20px; border-bottom: 1px solid var(--divider-color); display: flex; justify-content: space-between; align-items: center; background: var(--surface-bg-alt);">
                         <div style="display:flex; align-items:center; gap:8px;">
                             <span class="material-icons" style="color: #4ade80">insights</span>
                             <h2 style="margin: 0; font-size: 1rem; font-weight: 500;">Listening Insights</h2>
                         </div>
                         <button id="claw-preferences-close" class="icon-button" style="padding: 4px;"><span class="material-icons" style="font-size: 20px;">close</span></button>
                     </div>
-                    <div id="claw-preferences-content" class="modal-body" style="flex: 1; padding: 24px; overflow-y: auto; background: rgba(20,20,25, 0.5);">
-                        <div style="display:flex; align-items:center; justify-content:center; height:100%; color:rgba(255,255,255,0.3);">
+                    <div id="claw-preferences-content" class="modal-body" style="flex: 1; padding: 24px; overflow-y: auto; background: var(--surface-bg);">
+                        <div style="display:flex; align-items:center; justify-content:center; height:100%; color:var(--text-faint);">
                             <div class="claw-spinner"></div>
                         </div>
                     </div>
@@ -50,7 +50,7 @@ export class ClawPreferencesModal {
         if (!contentEl) return;
 
         contentEl.innerHTML = `
-            <div style="display:flex; align-items:center; justify-content:center; height:100%; color:rgba(255,255,255,0.3);">
+            <div style="display:flex; align-items:center; justify-content:center; height:100%; color:var(--text-faint);">
                 <div class="claw-spinner"></div>
             </div>
         `;
@@ -69,58 +69,63 @@ export class ClawPreferencesModal {
             
             let html = `
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px;">
-                    <div style="background: rgba(255,255,255,0.05); padding: 20px; border-radius: 12px; text-align: center; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                        <div style="font-size: 0.8rem; color: rgba(255,255,255,0.5); text-transform: uppercase; margin-bottom: 8px; font-weight: 600; letter-spacing: 0.5px;">Total Listening</div>
-                        <div style="font-size: 2.5rem; font-weight: 700; color: #4ade80;">${totalHours} <span style="font-size: 1rem; font-weight: 500; color: rgba(255,255,255,0.4);">hrs</span></div>
+                    <div style="background: var(--surface-bg); padding: 20px; border-radius: 12px; text-align: center; border: 1px solid var(--surface-border); box-shadow: 0 4px 6px var(--shadow-color);">
+                        <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px; font-weight: 600; letter-spacing: 0.5px;">Total Listening</div>
+                        <div style="font-size: 2.5rem; font-weight: 700; color: #4ade80;">${totalHours} <span style="font-size: 1rem; font-weight: 500; color: var(--text-muted);">hrs</span></div>
                     </div>
-                    <div style="background: rgba(255,255,255,0.05); padding: 20px; border-radius: 12px; text-align: center; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-                        <div style="font-size: 0.8rem; color: rgba(255,255,255,0.5); text-transform: uppercase; margin-bottom: 8px; font-weight: 600; letter-spacing: 0.5px;">Peak Hours</div>
-                        <div style="font-size: 1.5rem; font-weight: 600; color: #fff; margin-top: 10px;">${(data.peak_listening_hours || []).map(h => String(h).padStart(2, '0')+':00').join(', ') || 'N/A'}</div>
+                    <div style="background: var(--surface-bg); padding: 20px; border-radius: 12px; text-align: center; border: 1px solid var(--surface-border); box-shadow: 0 4px 6px var(--shadow-color);">
+                        <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px; font-weight: 600; letter-spacing: 0.5px;">Peak Hours</div>
+                        <div style="font-size: 1.5rem; font-weight: 600; color: var(--text-color-primary); margin-top: 10px;">${(data.peak_listening_hours || []).map(h => String(h).padStart(2, '0')+':00').join(', ') || 'N/A'}</div>
                     </div>
                 </div>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
-                    <section style="background: rgba(255,255,255,0.02); padding: 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column;">
-                        <h3 style="font-size: 1rem; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; color: #fff;">
+                    <section style="background: var(--surface-bg-alt); padding: 16px; border-radius: 12px; border: 1px solid var(--surface-border); display: flex; flex-direction: column;">
+                        <h3 style="font-size: 1rem; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; color: var(--text-color-primary);">
                             <span class="material-icons" style="font-size: 20px; color: var(--icon-color, #007aff)">person</span>
                             Top Artists
                         </h3>
                         <div style="flex: 1; min-height: 250px; position: relative;">
-                            ${topArtists.length ? '<canvas id="claw-artists-chart"></canvas>' : '<div style="color: rgba(255,255,255,0.2); font-size: 0.9rem; padding: 10px; text-align: center; margin-top: 50px;">No data yet</div>'}
+                            ${topArtists.length ? '<canvas id="claw-artists-chart"></canvas>' : '<div style="color: var(--text-faint); font-size: 0.9rem; padding: 10px; text-align: center; margin-top: 50px;">No data yet</div>'}
                         </div>
                     </section>
 
-                    <section style="background: rgba(255,255,255,0.02); padding: 16px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column;">
-                        <h3 style="font-size: 1rem; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; color: #fff;">
+                    <section style="background: var(--surface-bg-alt); padding: 16px; border-radius: 12px; border: 1px solid var(--surface-border); display: flex; flex-direction: column;">
+                        <h3 style="font-size: 1rem; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; color: var(--text-color-primary);">
                             <span class="material-icons" style="font-size: 20px; color: #ffcc00">language</span>
                             Languages
                         </h3>
                         <div style="flex: 1; min-height: 250px; position: relative;">
-                            ${topLangs.length ? '<canvas id="claw-languages-chart"></canvas>' : '<div style="color: rgba(255,255,255,0.2); font-size: 0.9rem; padding: 10px; text-align: center; margin-top: 50px;">No data yet</div>'}
+                            ${topLangs.length ? '<canvas id="claw-languages-chart"></canvas>' : '<div style="color: var(--text-faint); font-size: 0.9rem; padding: 10px; text-align: center; margin-top: 50px;">No data yet</div>'}
                         </div>
                     </section>
                 </div>
 
                 <section style="margin-top: 30px;">
-                    <h3 style="font-size: 1rem; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; color: #fff;">
+                    <h3 style="font-size: 1rem; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; color: var(--text-color-primary);">
                         <span class="material-icons" style="font-size: 20px; color: #94a3b8">history</span>
                         Recent Activity
                     </h3>
-                    <div style="display: flex; flex-direction: column; gap: 6px; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
+                    <div style="display: flex; flex-direction: column; gap: 6px; background: var(--input-bg); padding: 8px; border-radius: 12px; border: 1px solid var(--surface-border);">
                         ${(data.recent_history || []).reverse().slice(0, 10).map((h, i) => `
-                            <div style="display: flex; align-items: center; gap: 16px; font-size: 0.85rem; padding: 10px 12px; border-radius: 8px; background: ${i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent'}; transition: background 0.2s;">
-                                <span style="color: #64748b; width: 65px; font-weight: 500;">${new Date(h.timestamp*1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                                <span style="flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #f1f5f9; font-weight: 500;">${this._esc(h.title)} <span style="color: #94a3b8; font-weight: 400;">— ${this._esc(h.artist)}</span></span>
-                                <span style="padding: 4px 8px; border-radius: 6px; background: ${h.action === 'start' ? 'rgba(74, 222, 128, 0.15)' : 'rgba(255,255,255,0.08)'}; color: ${h.action === 'start' ? '#4ade80' : '#cbd5e1'}; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.5px;">${(h.action || '').toUpperCase()}</span>
+                            <div style="display: flex; align-items: center; gap: 16px; font-size: 0.85rem; padding: 10px 12px; border-radius: 8px; background: ${i % 2 === 0 ? 'var(--surface-bg-alt)' : 'transparent'}; transition: background 0.2s;">
+                                <span style="color: var(--text-muted); width: 65px; font-weight: 500;">${new Date(h.timestamp*1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                <span style="flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-color-primary); font-weight: 500;">${this._esc(h.title)} <span style="color: var(--text-muted); font-weight: 400;">— ${this._esc(h.artist)}</span></span>
+                                <span style="padding: 4px 8px; border-radius: 6px; background: ${h.action === 'start' ? 'rgba(74, 222, 128, 0.15)' : 'var(--hover-bg-color)'}; color: ${h.action === 'start' ? '#4ade80' : 'var(--text-secondary-alpha)'}; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.5px;">${(h.action || '').toUpperCase()}</span>
                             </div>
                         `).join('')}
-                        ${(data.recent_history || []).length === 0 ? '<div style="color: rgba(255,255,255,0.3); padding: 16px; text-align: center;">No recent activity</div>' : ''}
+                        ${(data.recent_history || []).length === 0 ? '<div style="color: var(--text-faint); padding: 16px; text-align: center;">No recent activity</div>' : ''}
                     </div>
                 </section>
             `;
             contentEl.innerHTML = html;
 
             if (topArtists.length && window.Chart) {
+                const cs = getComputedStyle(document.documentElement);
+                const gridColor = cs.getPropertyValue('--divider-color').trim() || 'rgba(255,255,255,0.05)';
+                const tickColor = cs.getPropertyValue('--text-muted').trim() || 'rgba(255,255,255,0.5)';
+                const legendColor = cs.getPropertyValue('--text-secondary-alpha').trim() || 'rgba(255,255,255,0.7)';
+                const borderColor = cs.getPropertyValue('--secondary-bg-color').trim() || '#1c1c1e';
                 const ctx = document.getElementById('claw-artists-chart').getContext('2d');
                 new window.Chart(ctx, {
                     type: 'bar',
@@ -144,8 +149,8 @@ export class ClawPreferencesModal {
                             tooltip: { theme: 'dark' }
                         },
                         scales: {
-                            x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: 'rgba(255,255,255,0.5)' } },
-                            y: { grid: { display: false }, ticks: { color: 'rgba(255,255,255,0.8)' } }
+                            x: { grid: { color: gridColor }, ticks: { color: tickColor } },
+                            y: { grid: { display: false }, ticks: { color: legendColor } }
                         }
                     }
                 });
@@ -166,7 +171,7 @@ export class ClawPreferencesModal {
                                 'rgba(167, 139, 250, 0.8)',
                                 'rgba(52, 211, 153, 0.8)'
                             ],
-                            borderColor: 'rgba(30, 30, 34, 1)', // match modal bg
+                            borderColor: borderColor,
                             borderWidth: 2
                         }]
                     },
@@ -174,7 +179,7 @@ export class ClawPreferencesModal {
                         responsive: true,
                         maintainAspectRatio: false,
                         plugins: {
-                            legend: { position: 'right', labels: { color: 'rgba(255,255,255,0.7)', padding: 15 } }
+                            legend: { position: 'right', labels: { color: legendColor, padding: 15 } }
                         },
                         cutout: '70%'
                     }
