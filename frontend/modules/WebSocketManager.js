@@ -81,6 +81,9 @@ class WebSocketManager {
           const sl = this.streamListeners[original_cmd_id];
           if (sl) {
             sl.onUpdate(response.data);
+            if (response.data.update_type === "tool_result") {
+              this._dispatchCollectionMutationFromToolResult(response.data.tool_result);
+            }
             if (response.data.update_type === "complete") {
               clearTimeout(sl.timeout);
               delete this.streamListeners[original_cmd_id];
@@ -444,6 +447,54 @@ class WebSocketManager {
       console.error("Error getting library data:", error.message);
       return error;
     }
+  }
+
+  _dispatchCollectionMutationFromToolResult(toolResult) {
+    if (!toolResult || !toolResult.name || !toolResult.result) return;
+
+    const result = toolResult.result;
+    if (result.mutated === false) return;
+
+    const playlistName =
+      result.playlist_name ||
+      result.playlist?.name ||
+      result.new_name ||
+      result.name ||
+      result.collection_name;
+
+    let action = null;
+    switch (toolResult.name) {
+      case "create_playlist":
+        action = "created";
+        break;
+      case "add_to_playlist":
+        action = "added";
+        break;
+      case "remove_from_playlist":
+        action = "removed";
+        break;
+      case "update_playlist_info":
+        action = "updated";
+        break;
+      case "delete_playlist":
+        action = "deleted";
+        break;
+      default:
+        return;
+    }
+
+    document.dispatchEvent(
+      new CustomEvent("collectionChanged", {
+        detail: {
+          collectionName: playlistName,
+          action,
+          source: "ai",
+          toolName: toolResult.name,
+          mutated: true,
+          result,
+        },
+      })
+    );
   }
 
   registerPushHandler(type, callback) {

@@ -1136,6 +1136,12 @@
     color: #ff3b30;
 }
 
+.status-msg-inline.warning {
+    background: rgba(245, 158, 11, 0.08);
+    color: var(--text-color-primary);
+    border: 1px solid rgba(245, 158, 11, 0.18);
+}
+
 /* Tool Result Enhancements */
 .tool-result-base {
     background: var(--surface-bg);

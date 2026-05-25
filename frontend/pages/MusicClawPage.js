@@ -207,6 +207,7 @@ class MusicClawPage {
                 }
                 .tool-status-tag.success { color: #4ade80; background: rgba(74, 222, 128, 0.1); }
                 .tool-status-tag.error { color: #f87171; background: rgba(248, 113, 113, 0.1); }
+                .tool-status-tag.warning { color: #f59e0b; background: rgba(245, 158, 11, 0.12); }
                 
                 .tool-expand-icon {
                     font-size: 18px;
@@ -223,6 +224,69 @@ class MusicClawPage {
                 }
                 .tool-result-base.expanded .tool-result-body {
                     display: block;
+                }
+                .playlist-action-summary {
+                    display: flex;
+                    align-items: flex-start;
+                    gap: 12px;
+                    padding: 12px;
+                    border-radius: 12px;
+                    background: var(--secondary-bg-color);
+                    border: 1px solid var(--surface-border);
+                }
+                .playlist-action-summary.warning {
+                    border-color: rgba(245, 158, 11, 0.35);
+                    background: rgba(245, 158, 11, 0.06);
+                }
+                .playlist-action-icon {
+                    width: 34px;
+                    height: 34px;
+                    border-radius: 10px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: var(--surface-bg-alt);
+                    flex-shrink: 0;
+                }
+                .playlist-action-meta {
+                    flex: 1;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 6px;
+                    min-width: 0;
+                }
+                .playlist-action-title {
+                    font-weight: 700;
+                    font-size: 14px;
+                    color: var(--text-color-primary);
+                }
+                .playlist-action-subtitle {
+                    font-size: 12px;
+                    color: var(--text-muted);
+                    word-break: break-word;
+                }
+                .playlist-action-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+                    gap: 8px;
+                }
+                .playlist-action-chip {
+                    padding: 8px 10px;
+                    border-radius: 10px;
+                    background: var(--surface-bg-alt);
+                    border: 1px solid var(--surface-border);
+                    font-size: 12px;
+                    color: var(--text-color-primary);
+                }
+                .playlist-action-warning {
+                    display: flex;
+                    align-items: flex-start;
+                    gap: 8px;
+                    padding: 10px 12px;
+                    border-radius: 10px;
+                    background: rgba(245, 158, 11, 0.08);
+                    border: 1px solid rgba(245, 158, 11, 0.2);
+                    color: var(--text-color-primary);
                 }
 
                 /* Search item adjustments */
@@ -428,6 +492,80 @@ class MusicClawPage {
             </div>`;
     }
 
+    _isPlaylistTool(toolName) {
+        return ["create_playlist", "add_to_playlist", "remove_from_playlist", "update_playlist_info", "delete_playlist"].includes(toolName);
+    }
+
+    _getToolSeverity(result = {}) {
+        if (result.error) return "error";
+        if (result.status === "warning" || result.status === "ignored" || result.mutated === false) return "warning";
+        return "success";
+    }
+
+    _getPlaylistActionLabel(toolName, result = {}) {
+        if (result.status === "warning" && result.warning) return "Playlist update warning";
+        switch (toolName) {
+            case "create_playlist":
+                return "Playlist created";
+            case "add_to_playlist":
+                return result.created_playlist ? "Playlist created and track added" : "Track added to playlist";
+            case "remove_from_playlist":
+                return "Track removed from playlist";
+            case "update_playlist_info":
+                return "Playlist updated";
+            case "delete_playlist":
+                return "Playlist deleted";
+            default:
+                return result.message || "Playlist action completed";
+        }
+    }
+
+    _renderPlaylistActionResult(toolName, result = {}) {
+        const severity = this._getToolSeverity(result);
+        const playlistName = result.playlist_name || result.playlist?.name || result.new_name || result.old_name || "";
+        const statusText =
+            severity === "warning" ? "Warning" :
+            severity === "error" ? "Failed" :
+            "Finished";
+
+        const chips = [];
+        if (typeof result.track_count === "number") {
+            chips.push(`<div class="playlist-action-chip">Track count: ${result.track_count}</div>`);
+        }
+        if (result.added === true) {
+            chips.push(`<div class="playlist-action-chip">Added: ${result.added_count || 1}</div>`);
+        } else if (result.added === false) {
+            chips.push(`<div class="playlist-action-chip">Added: 0</div>`);
+        }
+        if (result.removed === true) {
+            chips.push(`<div class="playlist-action-chip">Removed: 1</div>`);
+        }
+        if (result.created_playlist) {
+            chips.push(`<div class="playlist-action-chip">Playlist created automatically</div>`);
+        }
+        if (result.mutated !== undefined) {
+            chips.push(`<div class="playlist-action-chip">Mutated: ${result.mutated ? "Yes" : "No"}</div>`);
+        }
+
+        const warningText = result.warning || (result.mutated === false ? "No playlist changes were applied." : "");
+
+        return `
+            <div class="playlist-action-summary ${severity}">
+                <div class="playlist-action-icon">
+                    <span class="material-icons">${severity === "warning" ? "warning_amber" : "playlist_add_check"}</span>
+                </div>
+                <div class="playlist-action-meta">
+                    <div class="playlist-action-title">${this._esc(this._getPlaylistActionLabel(toolName, result))}</div>
+                    ${playlistName ? `<div class="playlist-action-subtitle">Playlist: ${this._esc(playlistName)}</div>` : ""}
+                    <div class="playlist-action-grid">
+                        ${chips.join("")}
+                    </div>
+                    ${warningText ? `<div class="playlist-action-warning"><span class="material-icons">warning</span><span>${this._esc(warningText)}</span></div>` : ""}
+                </div>
+            </div>
+        `;
+    }
+
     _renderToolMessage(msg, index) {
         const result = msg.content ? JSON.parse(msg.content) : {};
         let tracks = result.results;
@@ -449,8 +587,12 @@ class MusicClawPage {
         let bodyContent = '';
         if (isTrackList) {
             bodyContent = `<div class="claw-tool-results-list">${tracks.map(t => this._renderTrackItem(t)).join('')}</div>`;
+        } else if (this._isPlaylistTool(msg.name)) {
+            bodyContent = this._renderPlaylistActionResult(msg.name, result);
         } else if (result.error) {
             bodyContent = `<div class="status-msg-inline error"><span class="material-icons">warning</span> ${this._esc(result.error)}</div>`;
+        } else if (result.status === 'warning' || result.status === 'ignored') {
+            bodyContent = `<div class="status-msg-inline warning"><span class="material-icons">warning_amber</span> ${this._esc(result.warning || result.message || 'No changes were applied.')}</div>`;
         } else if (result.lyrics) {
              bodyContent = `<div class="lyrics-preview-small">${this._esc(result.lyrics.slice(0, 200))}...</div>`;
         } else {
@@ -470,8 +612,8 @@ class MusicClawPage {
                                     <span class="tool-name">${this._esc(msg.name)}</span>
                                 </div>
                                 <div class="tool-header-right">
-                                    <div class="tool-status-tag success">
-                                        <span class="material-icons" style="font-size:12px;">done</span> Finished
+                                    <div class="tool-status-tag ${this._getToolSeverity(result)}">
+                                        <span class="material-icons" style="font-size:12px;">${this._getToolSeverity(result) === "warning" ? "warning_amber" : this._getToolSeverity(result) === "error" ? "error" : "done"}</span> ${this._getToolSeverity(result) === "warning" ? "Warning" : this._getToolSeverity(result) === "error" ? "Failed" : "Finished"}
                                     </div>
                                     <span class="material-icons tool-expand-icon">expand_more</span>
                                 </div>
@@ -531,14 +673,17 @@ class MusicClawPage {
 
         const statusEl = card.querySelector(`#ts-${toolResult.id}`);
         const bodyEl = card.querySelector(`#tb-${toolResult.id}`);
+        const result = toolResult.result || {};
+        const severity = this._getToolSeverity(result);
 
         if (statusEl) {
-            statusEl.className = 'tool-status-tag success';
-            statusEl.innerHTML = `<span class="material-icons" style="font-size:12px;">done</span> Finished`;
+            statusEl.className = `tool-status-tag ${severity}`;
+            const icon = severity === "warning" ? "warning_amber" : severity === "error" ? "error" : "done";
+            const label = severity === "warning" ? "Warning" : severity === "error" ? "Failed" : "Finished";
+            statusEl.innerHTML = `<span class="material-icons" style="font-size:12px;">${icon}</span> ${label}`;
         }
         if (bodyEl) {
             card.querySelector('.tool-result-base').classList.add('expanded');
-            const result = toolResult.result || {};
             // Flatten nested results if needed
             let tracks = result.results;
             if (!tracks && Array.isArray(result)) tracks = result;
@@ -550,6 +695,8 @@ class MusicClawPage {
                     </div>
                 `;
                 this._bindTrackEvents(bodyEl);
+            } else if (this._isPlaylistTool(toolResult.name)) {
+                bodyEl.innerHTML = this._renderPlaylistActionResult(toolResult.name, result);
             } else if (result.status === 'success' || result.lyrics) {
                 // For direct success messages or lyrics, render a cleaner display
                 if (result.lyrics) {
@@ -557,6 +704,8 @@ class MusicClawPage {
                 } else {
                     bodyEl.innerHTML = `<div class="status-msg-inline"><span class="material-icons">info</span> ${this._esc(result.message || 'Operation successful')}</div>`;
                 }
+            } else if (result.status === 'warning' || result.status === 'ignored') {
+                bodyEl.innerHTML = `<div class="status-msg-inline warning"><span class="material-icons">warning_amber</span> ${this._esc(result.warning || result.message || 'No changes were applied.')}</div>`;
             } else if (result.error) {
                 statusEl.className = 'tool-status-tag error';
                 statusEl.innerHTML = `<span class="material-icons">error</span> Failed`;

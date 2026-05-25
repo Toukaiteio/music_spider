@@ -59,7 +59,15 @@ async def handle_create_playlist(websocket, cmd_id: str, payload: dict):
     persistence.set("playlists", "metadata_list", metadata_list)
     persistence.set("playlists", f"tracks_{name}", [])
     
-    await send_response(websocket, cmd_id, code=0, data={"message": f"Playlist '{name}' created", "playlist": new_meta})
+    await send_response(websocket, cmd_id, code=0, data={
+        "status": "success",
+        "message": f"Playlist '{name}' created",
+        "playlist": new_meta,
+        "playlist_name": name,
+        "track_count": 0,
+        "mutated": True,
+        "created_playlist": True
+    })
 
 async def handle_update_playlist(websocket, cmd_id: str, payload: dict):
     """Update playlist metadata (name, category, description, color)."""
@@ -102,7 +110,14 @@ async def handle_update_playlist(websocket, cmd_id: str, payload: dict):
         persistence.delete("playlists", f"tracks_{old_name}")
 
     persistence.set("playlists", "metadata_list", metadata_list)
-    await send_response(websocket, cmd_id, code=0, data={"message": "Playlist updated successfully"})
+    await send_response(websocket, cmd_id, code=0, data={
+        "status": "success",
+        "message": "Playlist updated successfully",
+        "playlist": metadata_list[found_idx],
+        "old_name": old_name,
+        "new_name": new_name,
+        "mutated": True
+    })
 
 async def handle_add_to_playlist(websocket, cmd_id: str, payload: dict):
     """Add a track to a playlist."""
@@ -114,23 +129,45 @@ async def handle_add_to_playlist(websocket, cmd_id: str, payload: dict):
         return
     
     metadata_list = _get_playlist_metadata_list()
+    created_playlist = False
     if not any(m["name"] == playlist_name for m in metadata_list):
         # Auto-create if not exists? For Liked it's usually there.
         new_meta = {"name": playlist_name, "category": "General", "description": "", "color": "#6B7280"}
         metadata_list.append(new_meta)
         persistence.set("playlists", "metadata_list", metadata_list)
+        created_playlist = True
     
     current_tracks = persistence.get("playlists", f"tracks_{playlist_name}", [])
     music_id = str(track_data.get("music_id") or track_data.get("id") or track_data.get("bvid"))
     
     if any(str(t.get("music_id") or t.get("id") or t.get("bvid")) == music_id for t in current_tracks):
-        await send_response(websocket, cmd_id, code=0, data={"message": "Track already in playlist"})
+        await send_response(websocket, cmd_id, code=0, data={
+            "status": "warning",
+            "message": "Track already in playlist",
+            "warning": "No new songs were added because the track already exists in the playlist.",
+            "playlist_name": playlist_name,
+            "track": track_data,
+            "track_count": len(current_tracks),
+            "added": False,
+            "mutated": False,
+            "created_playlist": created_playlist
+        })
         return
     
     current_tracks.append(track_data)
     persistence.set("playlists", f"tracks_{playlist_name}", current_tracks)
     
-    await send_response(websocket, cmd_id, code=0, data={"message": f"Added to '{playlist_name}'"})
+    await send_response(websocket, cmd_id, code=0, data={
+        "status": "success",
+        "message": f"Added to '{playlist_name}'",
+        "playlist_name": playlist_name,
+        "track": track_data,
+        "track_count": len(current_tracks),
+        "added": True,
+        "added_count": 1,
+        "mutated": True,
+        "created_playlist": created_playlist
+    })
 
 async def handle_remove_from_playlist(websocket, cmd_id: str, payload: dict):
     """Remove a track from a playlist."""
@@ -145,11 +182,28 @@ async def handle_remove_from_playlist(websocket, cmd_id: str, payload: dict):
     new_tracks = [t for t in current_tracks if str(t.get("music_id") or t.get("id") or t.get("bvid")) != music_id]
     
     if len(new_tracks) == len(current_tracks):
-        await send_response(websocket, cmd_id, code=1, error="Track not found in playlist")
+        await send_response(websocket, cmd_id, code=0, data={
+            "status": "warning",
+            "message": "Track not found in playlist",
+            "warning": "No tracks were removed because the target track was not present.",
+            "playlist_name": playlist_name,
+            "music_id": music_id,
+            "removed": False,
+            "mutated": False,
+            "track_count": len(current_tracks)
+        })
         return
     
     persistence.set("playlists", f"tracks_{playlist_name}", new_tracks)
-    await send_response(websocket, cmd_id, code=0, data={"message": f"Removed from '{playlist_name}'"})
+    await send_response(websocket, cmd_id, code=0, data={
+        "status": "success",
+        "message": f"Removed from '{playlist_name}'",
+        "playlist_name": playlist_name,
+        "music_id": music_id,
+        "removed": True,
+        "mutated": True,
+        "track_count": len(new_tracks)
+    })
 
 async def handle_delete_playlist(websocket, cmd_id: str, payload: dict):
     """Delete a playlist."""
@@ -168,4 +222,10 @@ async def handle_delete_playlist(websocket, cmd_id: str, payload: dict):
     persistence.set("playlists", "metadata_list", new_metadata_list)
     persistence.delete("playlists", f"tracks_{name}")
     
-    await send_response(websocket, cmd_id, code=0, data={"message": f"Playlist '{name}' deleted"})
+    await send_response(websocket, cmd_id, code=0, data={
+        "status": "success",
+        "message": f"Playlist '{name}' deleted",
+        "playlist_name": name,
+        "deleted": True,
+        "mutated": True
+    })

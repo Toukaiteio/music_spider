@@ -293,11 +293,11 @@
     z-index: 1001;
 
     /* 玻璃拟态背景 */
-    background: var(--glass-bg-color);
+    background: var(--player-show-button-bg, var(--glass-bg-color));
     backdrop-filter: blur(40px);
     -webkit-backdrop-filter: blur(40px);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+    border: 1px solid var(--player-show-button-border, rgba(255, 255, 255, 0.12));
+    box-shadow: var(--player-show-button-shadow, 0 8px 32px rgba(0, 0, 0, 0.35));
 
     display: flex;
     align-items: center;
@@ -313,7 +313,10 @@
     transform-origin: center center;
     transition:
         transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
-        opacity 0.25s ease;
+        opacity 0.25s ease,
+        background 0.35s ease,
+        border-color 0.35s ease,
+        box-shadow 0.35s ease;
 }
 
 /* 收起态：缩放到消失，不改变任何 layout 属性 */
@@ -324,7 +327,7 @@
 }
 
 #player-show-button:hover {
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+    box-shadow: var(--player-show-button-hover-shadow, 0 12px 40px rgba(0, 0, 0, 0.45));
 }
 
 #player-show-button .circular-progress {
@@ -337,18 +340,18 @@
 }
 
 #player-show-button .progress-background {
-    stroke: rgba(255, 255, 255, 0.05);
+    stroke: var(--player-show-button-progress-track, rgba(255, 255, 255, 0.05));
 }
 
 #player-show-button .progress-bar {
-    stroke: var(--text-color-primary);
+    stroke: var(--player-show-button-progress-color, var(--text-color-primary));
     stroke-linecap: round;
     transition: stroke-dasharray 0.3s ease;
 }
 
 #player-show-button .material-icons {
     font-size: 32px;
-    color: var(--text-color-primary);
+    color: var(--player-show-button-icon-color, var(--text-color-primary));
     z-index: 2;
     transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
